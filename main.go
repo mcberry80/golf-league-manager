@@ -1,7 +1,14 @@
 package golfleaguemanager
 
-import "math"
+import (
+	"math"
+	"time"
+)
 
+type Differential struct {
+	Value   float64
+	Timestamp      time.Time
+}
 
 func CourseHandicap(handicapIndex float64, slopeRating int, courseRating float64, par int) float64 {
 	return (handicapIndex * float64(slopeRating) / 113) + (courseRating - float64(par))
@@ -52,4 +59,26 @@ func AdjustedGrossScoreNetDoubleBogey(grossHoleScore[] int, holeData[] Hole, pla
 
 func ScoreDifferential(adjustedGrossScore int, courseRating float64, slopeRating int) float64 {
 	return (float64(adjustedGrossScore) - courseRating) * 113 / float64(slopeRating)
+}
+
+func Handicap(differentials []Differential, removeHighScore bool, removeLowScore bool, numUsedScores int) float64 {
+	var total float64
+	var count int
+
+	//take 'numUsedScores' most recent differentials
+	//remove high and low scores if specified
+	//average remaining
+
+	//if number of differentials is less than numUsedScores, take straight average without removing high or low
+	if len(differentials) < numUsedScores {
+		for _, d := range differentials {
+			total += d.Value
+			count++
+		}
+		return total / float64(count)
+	}
+
+	return 0.0
+	
+
 }
