@@ -2,6 +2,7 @@ package golfleaguemanager
 
 import (
 	"math"
+	"slices"
 	"time"
 )
 
@@ -61,24 +62,49 @@ func ScoreDifferential(adjustedGrossScore int, courseRating float64, slopeRating
 	return (float64(adjustedGrossScore) - courseRating) * 113 / float64(slopeRating)
 }
 
-func Handicap(differentials []Differential, removeHighScore bool, removeLowScore bool, numUsedScores int) float64 {
+func Handicap(differentials []Differential, numScoresUsed int, numScoresConsidered int) float64 {
 	var total float64
-	var count int
 
-	//take 'numUsedScores' most recent differentials
-	//remove high and low scores if specified
-	//average remaining
 
-	//if number of differentials is less than numUsedScores, take straight average without removing high or low
-	if len(differentials) < numUsedScores {
-		for _, d := range differentials {
-			total += d.Value
-			count++
+	totalScores := len(differentials)
+
+	//if number of differentials is less than numScoresUsed, take straight average without removing high or low
+	if totalScores < numScoresUsed {
+		for i:= range totalScores {
+			total += differentials[i].Value
 		}
-		return total / float64(count)
+		return total / float64(totalScores)
 	}
 
-	return 0.0
-	
+	//sort differentials by descending date
+	slices.SortFunc(differentials, func(a, b Differential) int {
+		if a.Timestamp.After(b.Timestamp) {
+			return -1
+		} else if a.Timestamp.Before(b.Timestamp) {
+			return 1
+		} else {
+			return 0
+		}
+	})
 
+	var consideredScores []Differential
+	if totalScores < numScoresConsidered {
+		consideredScores = differentials
+	} else {
+		consideredScores = differentials[:numScoresConsidered]
+	}
+
+	slices.SortFunc(consideredScores, func(a, b Differential) int {
+		if a.Value < b.Value {
+			return -1
+		} else if a.Value > b.Value {
+			return 1
+		} else {
+			return 0
+		}
+	})
+	for i := range numScoresUsed {
+		total += consideredScores[i].Value
+	}
+	return total / float64(numScoresUsed)
 }

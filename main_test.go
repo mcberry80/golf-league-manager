@@ -2,6 +2,7 @@ package golfleaguemanager
 
 import (
 	"testing"
+	"time"
 )
 
 func TestAdjustedGrossScoreNetDoubleBogey_Basic(t *testing.T) {
@@ -83,5 +84,61 @@ func TestAdjustedGrossScoreNetDoubleBogey_EmptyInput(t *testing.T) {
 
 	if got != want {
 		t.Errorf("AdjustedGrossScoreNetDoubleBogey() = %d, want %d", got, want)
+	}
+}
+
+func TestHandicapWithFewerScoresThanUsed(t *testing.T) {
+	baseTime := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	differentials := []Differential{
+		{Value: 10.0, Timestamp: baseTime},
+		{Value: 12.0, Timestamp: baseTime.Add(24 * time.Hour)},
+	}
+
+	numScoresUsed := 3
+	numScoresConsidered := 5
+
+	got := Handicap(differentials, numScoresUsed, numScoresConsidered)
+	want := (10.0 + 12.0) / 2.0
+	if got != want {
+		t.Errorf("Handicap() = %f, want %f", got, want)
+	}
+}
+
+func TestHandicapWithMoreScoresThanUsedAndLessThanConsidered(t *testing.T) {
+	baseTime := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	differentials := []Differential{
+		{Value: 10.0, Timestamp: baseTime},
+		{Value: 12.0, Timestamp: baseTime.Add(24 * time.Hour)},
+		{Value: 14.0, Timestamp: baseTime.Add(48 * time.Hour)},
+		{Value: 5.0, Timestamp: baseTime.Add(72 * time.Hour)},
+	}
+	numScoresUsed := 3
+	numScoresConsidered := 5
+
+	got := Handicap(differentials, numScoresUsed, numScoresConsidered)
+	want := (10.0 + 12.0  + 5.0) / 3.0
+	if got != want {
+		t.Errorf("Handicap() = %f, want %f", got, want)
+	}
+}
+
+func TestHandicapWithMoreScoresThanConsidered(t *testing.T) {
+	baseTime := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	differentials := []Differential{
+		{Value: 1.0, Timestamp: baseTime},
+		{Value: 2.0, Timestamp: baseTime.Add(24 * time.Hour)},
+		{Value: 14.0, Timestamp: baseTime.Add(48 * time.Hour)},
+		{Value: 3.0, Timestamp: baseTime.Add(72 * time.Hour)},
+		{Value: 4.0, Timestamp: baseTime.Add(96 * time.Hour)},
+		{Value: 5.0, Timestamp: baseTime.Add(120 * time.Hour)},
+		{Value: 22.0, Timestamp: baseTime.Add(144 * time.Hour)},
+	}
+	numScoresUsed := 3
+	numScoresConsidered := 5
+
+	got := Handicap(differentials, numScoresUsed, numScoresConsidered)
+	want := (3.0 + 4.0 + 5.0) / 3.0
+	if got != want {
+		t.Errorf("Handicap() = %f, want %f", got, want)
 	}
 }
