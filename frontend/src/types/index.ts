@@ -37,8 +37,19 @@ export interface HandicapRecord {
   updated_at: string;
 }
 
+export interface Season {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  active: boolean;
+  description: string;
+  created_at: string;
+}
+
 export interface Match {
   id: string;
+  season_id: string;
   week_number: number;
   player_a_id: string;
   player_b_id: string;

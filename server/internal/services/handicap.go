@@ -4,7 +4,7 @@ import (
 	"math"
 	"slices"
 	"time"
-	
+
 	"golf-league-manager/server/internal/models"
 )
 

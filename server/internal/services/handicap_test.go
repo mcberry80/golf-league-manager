@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 	"time"
-	
+
 	"golf-league-manager/server/internal/models"
 )
 
@@ -51,7 +51,7 @@ func TestCalculateDifferential(t *testing.T) {
 
 func TestCalculateLeagueHandicap(t *testing.T) {
 	baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	
+
 	tests := []struct {
 		name    string
 		rounds  []models.Round
@@ -115,11 +115,11 @@ func TestCalculateAdjustedGrossScores_EstablishedPlayer(t *testing.T) {
 	playingHandicap := 9
 
 	got := CalculateAdjustedGrossScores(round, player, course, playingHandicap)
-	
+
 	// With handicap of 9, each hole gets 1 stroke
 	// Expected: min(gross, par+2+1) for each hole
 	// Hole 1 (HC 1): 1 stroke, min(7, 4+2+1) = 7
-	// Hole 2 (HC 7): 1 stroke, min(5, 3+2+1) = 5  
+	// Hole 2 (HC 7): 1 stroke, min(5, 3+2+1) = 5
 	// Hole 3 (HC 3): 1 stroke, min(8, 5+2+1) = 8
 	// Hole 4 (HC 5): 1 stroke, min(6, 4+2+1) = 6
 	// Hole 5 (HC 2): 1 stroke, min(6, 4+2+1) = 6
@@ -128,7 +128,7 @@ func TestCalculateAdjustedGrossScores_EstablishedPlayer(t *testing.T) {
 	// Hole 8 (HC 6): 1 stroke, min(6, 4+2+1) = 6
 	// Hole 9 (HC 8): 1 stroke, min(6, 4+2+1) = 6
 	want := []int{7, 5, 8, 6, 6, 5, 8, 6, 6}
-	
+
 	for i := range got {
 		if got[i] != want[i] {
 			t.Errorf("hole %d: got %d, want %d", i+1, got[i], want[i])
@@ -147,14 +147,14 @@ func TestCalculateAdjustedGrossScores_NewPlayer(t *testing.T) {
 	playingHandicap := 0
 
 	got := CalculateAdjustedGrossScores(round, player, course, playingHandicap)
-	
+
 	// New player: cap at par + 5
 	// Expected: min(gross, par+5) for each hole
 	// Hole 1: min(10, 4+5) = 9
 	// Hole 2: min(9, 3+5) = 8
 	// Hole 3: min(12, 5+5) = 10
 	want := []int{9, 8, 10, 8, 8, 8, 10, 8, 8}
-	
+
 	for i := range got {
 		if got[i] != want[i] {
 			t.Errorf("hole %d: got %d, want %d", i+1, got[i], want[i])
@@ -164,11 +164,11 @@ func TestCalculateAdjustedGrossScores_NewPlayer(t *testing.T) {
 
 func TestCalculateCourseAndPlayingHandicap(t *testing.T) {
 	tests := []struct {
-		name            string
-		leagueHandicap  float64
-		course          models.Course
-		wantCourse      float64
-		wantPlaying     int
+		name           string
+		leagueHandicap float64
+		course         models.Course
+		wantCourse     float64
+		wantPlaying    int
 	}{
 		{
 			name:           "standard calculation",

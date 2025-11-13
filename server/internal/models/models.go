@@ -26,13 +26,13 @@ type Round struct {
 
 // Course represents a golf course
 type Course struct {
-	ID             string  `firestore:"id"`
-	Name           string  `firestore:"name"`
-	Par            int     `firestore:"par"`
-	CourseRating   float64 `firestore:"course_rating"`
-	SlopeRating    int     `firestore:"slope_rating"`
-	HoleHandicaps  []int   `firestore:"hole_handicaps"`  // 1-9 difficulty rankings
-	HolePars       []int   `firestore:"hole_pars"`       // Par for each hole
+	ID            string  `firestore:"id"`
+	Name          string  `firestore:"name"`
+	Par           int     `firestore:"par"`
+	CourseRating  float64 `firestore:"course_rating"`
+	SlopeRating   int     `firestore:"slope_rating"`
+	HoleHandicaps []int   `firestore:"hole_handicaps"` // 1-9 difficulty rankings
+	HolePars      []int   `firestore:"hole_pars"`      // Par for each hole
 }
 
 // HandicapRecord represents a player's handicap at a point in time
@@ -45,9 +45,21 @@ type HandicapRecord struct {
 	UpdatedAt       time.Time `firestore:"updated_at"`
 }
 
+// Season represents a league season with a schedule of matches
+type Season struct {
+	ID          string    `firestore:"id"`
+	Name        string    `firestore:"name"`
+	StartDate   time.Time `firestore:"start_date"`
+	EndDate     time.Time `firestore:"end_date"`
+	Active      bool      `firestore:"active"`
+	Description string    `firestore:"description"`
+	CreatedAt   time.Time `firestore:"created_at"`
+}
+
 // Match represents a head-to-head match between two players
 type Match struct {
 	ID         string    `firestore:"id"`
+	SeasonID   string    `firestore:"season_id"` // Reference to the season this match belongs to
 	WeekNumber int       `firestore:"week_number"`
 	PlayerAID  string    `firestore:"player_a_id"`
 	PlayerBID  string    `firestore:"player_b_id"`

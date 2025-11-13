@@ -3,7 +3,7 @@ package services
 import (
 	"math"
 	"sort"
-	
+
 	"golf-league-manager/server/internal/models"
 )
 
@@ -12,14 +12,14 @@ import (
 // Strokes are allocated in order of hole handicaps (1 → 9)
 func AssignStrokes(playerAHandicap, playerBHandicap models.HandicapRecord, course models.Course) map[string][]int {
 	result := make(map[string][]int)
-	
+
 	// Calculate handicap difference
 	diff := playerAHandicap.PlayingHandicap - playerBHandicap.PlayingHandicap
-	
+
 	// Determine who receives strokes
 	var receivingPlayerID string
 	var strokesToAllocate int
-	
+
 	if diff > 0 {
 		// models.Player A has higher handicap, receives strokes
 		receivingPlayerID = playerAHandicap.PlayerID
@@ -34,11 +34,11 @@ func AssignStrokes(playerAHandicap, playerBHandicap models.HandicapRecord, cours
 		result[playerBHandicap.PlayerID] = make([]int, 9)
 		return result
 	}
-	
+
 	// Initialize stroke arrays
 	strokesA := make([]int, 9)
 	strokesB := make([]int, 9)
-	
+
 	// Create slice of hole indices sorted by handicap
 	type holeInfo struct {
 		index    int
@@ -51,12 +51,12 @@ func AssignStrokes(playerAHandicap, playerBHandicap models.HandicapRecord, cours
 			handicap: course.HoleHandicaps[i],
 		}
 	}
-	
+
 	// Sort by handicap (1 is hardest)
 	sort.Slice(holes, func(i, j int) bool {
 		return holes[i].handicap < holes[j].handicap
 	})
-	
+
 	// Allocate strokes in order of hole handicaps
 	for strokeNum := 0; strokeNum < strokesToAllocate && strokeNum < 18; strokeNum++ {
 		holeIdx := holes[strokeNum%9].index
@@ -66,10 +66,10 @@ func AssignStrokes(playerAHandicap, playerBHandicap models.HandicapRecord, cours
 			strokesB[holeIdx]++
 		}
 	}
-	
+
 	result[playerAHandicap.PlayerID] = strokesA
 	result[playerBHandicap.PlayerID] = strokesB
-	
+
 	return result
 }
 
@@ -81,7 +81,7 @@ func CalculateMatchPoints(scoresA, scoresB []models.Score, course models.Course)
 	if len(scoresA) != 9 || len(scoresB) != 9 {
 		return 0, 0
 	}
-	
+
 	// Sort scores by hole number
 	sort.Slice(scoresA, func(i, j int) bool {
 		return scoresA[i].HoleNumber < scoresA[j].HoleNumber
@@ -89,17 +89,17 @@ func CalculateMatchPoints(scoresA, scoresB []models.Score, course models.Course)
 	sort.Slice(scoresB, func(i, j int) bool {
 		return scoresB[i].HoleNumber < scoresB[j].HoleNumber
 	})
-	
+
 	var totalNetA, totalNetB int
-	
+
 	// Calculate points for each hole
 	for i := 0; i < 9; i++ {
 		netA := scoresA[i].NetScore
 		netB := scoresB[i].NetScore
-		
+
 		totalNetA += netA
 		totalNetB += netB
-		
+
 		if netA < netB {
 			pointsA += 2
 		} else if netB < netA {
@@ -110,7 +110,7 @@ func CalculateMatchPoints(scoresA, scoresB []models.Score, course models.Course)
 			pointsB++
 		}
 	}
-	
+
 	// Award 4 points for lower total net score
 	if totalNetA < totalNetB {
 		pointsA += 4
@@ -121,7 +121,7 @@ func CalculateMatchPoints(scoresA, scoresB []models.Score, course models.Course)
 		pointsA += 2
 		pointsB += 2
 	}
-	
+
 	return pointsA, pointsB
 }
 
@@ -130,10 +130,10 @@ func CalculateMatchPoints(scoresA, scoresB []models.Score, course models.Course)
 // cap increase at posted_handicap + 4
 func HandleAbsence(absentPlayer models.HandicapRecord, lastFiveRounds []models.Round, courses map[string]models.Course) float64 {
 	postedHandicap := absentPlayer.LeagueHandicap
-	
+
 	// Calculate base adjustment
 	baseAdjustment := postedHandicap + 2
-	
+
 	// If we have at least 3 rounds, calculate average of worst 3
 	if len(lastFiveRounds) >= 3 {
 		differentials := make([]float64, 0, len(lastFiveRounds))
@@ -145,7 +145,7 @@ func HandleAbsence(absentPlayer models.HandicapRecord, lastFiveRounds []models.R
 			diff := CalculateDifferential(round, course)
 			differentials = append(differentials, diff)
 		}
-		
+
 		if len(differentials) >= 3 {
 			// Sort differentials in descending order (worst first)
 			sort.Float64s(differentials)
@@ -153,20 +153,20 @@ func HandleAbsence(absentPlayer models.HandicapRecord, lastFiveRounds []models.R
 			for i, j := 0, len(differentials)-1; i < j; i, j = i+1, j-1 {
 				differentials[i], differentials[j] = differentials[j], differentials[i]
 			}
-			
+
 			// Average worst 3
 			worstThreeAvg := (differentials[0] + differentials[1] + differentials[2]) / 3.0
-			
+
 			// Use the maximum of the two
 			baseAdjustment = math.Max(baseAdjustment, worstThreeAvg)
 		}
 	}
-	
+
 	// Cap the increase at posted_handicap + 4
 	maxAllowed := postedHandicap + 4
 	if baseAdjustment > maxAllowed {
 		baseAdjustment = maxAllowed
 	}
-	
+
 	return math.Round(baseAdjustment*10) / 10
 }

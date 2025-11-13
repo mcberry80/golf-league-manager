@@ -6,7 +6,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
-	
+
 	"golf-league-manager/server/internal/models"
 )
 
@@ -46,12 +46,12 @@ func (fc *FirestoreClient) GetPlayer(ctx context.Context, playerID string) (*mod
 	if err != nil {
 		return nil, fmt.Errorf("failed to get player: %w", err)
 	}
-	
+
 	var player models.Player
 	if err := doc.DataTo(&player); err != nil {
 		return nil, fmt.Errorf("failed to parse player data: %w", err)
 	}
-	
+
 	return &player, nil
 }
 
@@ -73,7 +73,7 @@ func (fc *FirestoreClient) ListPlayers(ctx context.Context, activeOnly bool) ([]
 		iter = fc.client.Collection("players").Documents(ctx)
 	}
 	defer iter.Stop()
-	
+
 	var players []models.Player
 	for {
 		doc, err := iter.Next()
@@ -83,14 +83,14 @@ func (fc *FirestoreClient) ListPlayers(ctx context.Context, activeOnly bool) ([]
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate players: %w", err)
 		}
-		
+
 		var player models.Player
 		if err := doc.DataTo(&player); err != nil {
 			return nil, fmt.Errorf("failed to parse player data: %w", err)
 		}
 		players = append(players, player)
 	}
-	
+
 	return players, nil
 }
 
@@ -111,12 +111,12 @@ func (fc *FirestoreClient) GetRound(ctx context.Context, roundID string) (*model
 	if err != nil {
 		return nil, fmt.Errorf("failed to get round: %w", err)
 	}
-	
+
 	var round models.Round
 	if err := doc.DataTo(&round); err != nil {
 		return nil, fmt.Errorf("failed to parse round data: %w", err)
 	}
-	
+
 	return &round, nil
 }
 
@@ -128,7 +128,7 @@ func (fc *FirestoreClient) GetPlayerRounds(ctx context.Context, playerID string,
 		Limit(limit).
 		Documents(ctx)
 	defer iter.Stop()
-	
+
 	var rounds []models.Round
 	for {
 		doc, err := iter.Next()
@@ -138,14 +138,14 @@ func (fc *FirestoreClient) GetPlayerRounds(ctx context.Context, playerID string,
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate rounds: %w", err)
 		}
-		
+
 		var round models.Round
 		if err := doc.DataTo(&round); err != nil {
 			return nil, fmt.Errorf("failed to parse round data: %w", err)
 		}
 		rounds = append(rounds, round)
 	}
-	
+
 	return rounds, nil
 }
 
@@ -166,12 +166,12 @@ func (fc *FirestoreClient) GetCourse(ctx context.Context, courseID string) (*mod
 	if err != nil {
 		return nil, fmt.Errorf("failed to get course: %w", err)
 	}
-	
+
 	var course models.Course
 	if err := doc.DataTo(&course); err != nil {
 		return nil, fmt.Errorf("failed to parse course data: %w", err)
 	}
-	
+
 	return &course, nil
 }
 
@@ -179,7 +179,7 @@ func (fc *FirestoreClient) GetCourse(ctx context.Context, courseID string) (*mod
 func (fc *FirestoreClient) ListCourses(ctx context.Context) ([]models.Course, error) {
 	iter := fc.client.Collection("courses").Documents(ctx)
 	defer iter.Stop()
-	
+
 	var courses []models.Course
 	for {
 		doc, err := iter.Next()
@@ -189,14 +189,14 @@ func (fc *FirestoreClient) ListCourses(ctx context.Context) ([]models.Course, er
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate courses: %w", err)
 		}
-		
+
 		var course models.Course
 		if err := doc.DataTo(&course); err != nil {
 			return nil, fmt.Errorf("failed to parse course data: %w", err)
 		}
 		courses = append(courses, course)
 	}
-	
+
 	return courses, nil
 }
 
@@ -219,7 +219,7 @@ func (fc *FirestoreClient) GetPlayerHandicap(ctx context.Context, playerID strin
 		Limit(1).
 		Documents(ctx)
 	defer iter.Stop()
-	
+
 	doc, err := iter.Next()
 	if err == iterator.Done {
 		return nil, fmt.Errorf("no handicap found for player %s", playerID)
@@ -227,12 +227,12 @@ func (fc *FirestoreClient) GetPlayerHandicap(ctx context.Context, playerID strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to get handicap: %w", err)
 	}
-	
+
 	var handicap models.HandicapRecord
 	if err := doc.DataTo(&handicap); err != nil {
 		return nil, fmt.Errorf("failed to parse handicap data: %w", err)
 	}
-	
+
 	return &handicap, nil
 }
 
@@ -253,12 +253,12 @@ func (fc *FirestoreClient) GetMatch(ctx context.Context, matchID string) (*model
 	if err != nil {
 		return nil, fmt.Errorf("failed to get match: %w", err)
 	}
-	
+
 	var match models.Match
 	if err := doc.DataTo(&match); err != nil {
 		return nil, fmt.Errorf("failed to parse match data: %w", err)
 	}
-	
+
 	return &match, nil
 }
 
@@ -280,7 +280,7 @@ func (fc *FirestoreClient) ListMatches(ctx context.Context, status string) ([]mo
 		iter = fc.client.Collection("matches").Documents(ctx)
 	}
 	defer iter.Stop()
-	
+
 	var matches []models.Match
 	for {
 		doc, err := iter.Next()
@@ -290,14 +290,14 @@ func (fc *FirestoreClient) ListMatches(ctx context.Context, status string) ([]mo
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate matches: %w", err)
 		}
-		
+
 		var match models.Match
 		if err := doc.DataTo(&match); err != nil {
 			return nil, fmt.Errorf("failed to parse match data: %w", err)
 		}
 		matches = append(matches, match)
 	}
-	
+
 	return matches, nil
 }
 
@@ -319,7 +319,7 @@ func (fc *FirestoreClient) GetMatchScores(ctx context.Context, matchID string) (
 		OrderBy("hole_number", firestore.Asc).
 		Documents(ctx)
 	defer iter.Stop()
-	
+
 	var scores []models.Score
 	for {
 		doc, err := iter.Next()
@@ -329,14 +329,14 @@ func (fc *FirestoreClient) GetMatchScores(ctx context.Context, matchID string) (
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate scores: %w", err)
 		}
-		
+
 		var score models.Score
 		if err := doc.DataTo(&score); err != nil {
 			return nil, fmt.Errorf("failed to parse score data: %w", err)
 		}
 		scores = append(scores, score)
 	}
-	
+
 	return scores, nil
 }
 
@@ -348,7 +348,7 @@ func (fc *FirestoreClient) GetPlayerMatchScores(ctx context.Context, matchID, pl
 		OrderBy("hole_number", firestore.Asc).
 		Documents(ctx)
 	defer iter.Stop()
-	
+
 	var scores []models.Score
 	for {
 		doc, err := iter.Next()
@@ -358,13 +358,125 @@ func (fc *FirestoreClient) GetPlayerMatchScores(ctx context.Context, matchID, pl
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate scores: %w", err)
 		}
-		
+
 		var score models.Score
 		if err := doc.DataTo(&score); err != nil {
 			return nil, fmt.Errorf("failed to parse score data: %w", err)
 		}
 		scores = append(scores, score)
 	}
-	
+
 	return scores, nil
+}
+
+// Season operations
+
+// CreateSeason creates a new season in Firestore
+func (fc *FirestoreClient) CreateSeason(ctx context.Context, season models.Season) error {
+	_, err := fc.client.Collection("seasons").Doc(season.ID).Set(ctx, season)
+	if err != nil {
+		return fmt.Errorf("failed to create season: %w", err)
+	}
+	return nil
+}
+
+// GetSeason retrieves a season by ID
+func (fc *FirestoreClient) GetSeason(ctx context.Context, seasonID string) (*models.Season, error) {
+	doc, err := fc.client.Collection("seasons").Doc(seasonID).Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get season: %w", err)
+	}
+
+	var season models.Season
+	if err := doc.DataTo(&season); err != nil {
+		return nil, fmt.Errorf("failed to parse season data: %w", err)
+	}
+
+	return &season, nil
+}
+
+// UpdateSeason updates an existing season
+func (fc *FirestoreClient) UpdateSeason(ctx context.Context, season models.Season) error {
+	_, err := fc.client.Collection("seasons").Doc(season.ID).Set(ctx, season)
+	if err != nil {
+		return fmt.Errorf("failed to update season: %w", err)
+	}
+	return nil
+}
+
+// ListSeasons retrieves all seasons
+func (fc *FirestoreClient) ListSeasons(ctx context.Context) ([]models.Season, error) {
+	iter := fc.client.Collection("seasons").OrderBy("start_date", firestore.Desc).Documents(ctx)
+	defer iter.Stop()
+
+	var seasons []models.Season
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate seasons: %w", err)
+		}
+
+		var season models.Season
+		if err := doc.DataTo(&season); err != nil {
+			return nil, fmt.Errorf("failed to parse season data: %w", err)
+		}
+		seasons = append(seasons, season)
+	}
+
+	return seasons, nil
+}
+
+// GetActiveSeason retrieves the currently active season
+func (fc *FirestoreClient) GetActiveSeason(ctx context.Context) (*models.Season, error) {
+	iter := fc.client.Collection("seasons").
+		Where("active", "==", true).
+		Limit(1).
+		Documents(ctx)
+	defer iter.Stop()
+
+	doc, err := iter.Next()
+	if err == iterator.Done {
+		return nil, fmt.Errorf("no active season found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active season: %w", err)
+	}
+
+	var season models.Season
+	if err := doc.DataTo(&season); err != nil {
+		return nil, fmt.Errorf("failed to parse season data: %w", err)
+	}
+
+	return &season, nil
+}
+
+// GetSeasonMatches retrieves all matches for a season
+func (fc *FirestoreClient) GetSeasonMatches(ctx context.Context, seasonID string) ([]models.Match, error) {
+	iter := fc.client.Collection("matches").
+		Where("season_id", "==", seasonID).
+		OrderBy("week_number", firestore.Asc).
+		Documents(ctx)
+	defer iter.Stop()
+
+	var matches []models.Match
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate matches: %w", err)
+		}
+
+		var match models.Match
+		if err := doc.DataTo(&match); err != nil {
+			return nil, fmt.Errorf("failed to parse match data: %w", err)
+		}
+		matches = append(matches, match)
+	}
+
+	return matches, nil
 }
