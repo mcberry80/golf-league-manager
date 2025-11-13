@@ -1,4 +1,4 @@
-import type { Player, Course, Match, Round, Score, HandicapRecord, StandingsEntry } from '@/types';
+import type { Player, Course, Match, Round, Score, HandicapRecord, StandingsEntry, Season } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -71,6 +71,37 @@ class APIClient {
       method: 'PUT',
       body: JSON.stringify(player),
     });
+  }
+
+  // Season methods
+  async listSeasons(): Promise<Season[]> {
+    return this.request<Season[]>('/api/admin/seasons');
+  }
+
+  async getSeason(id: string): Promise<Season> {
+    return this.request<Season>(`/api/admin/seasons/${id}`);
+  }
+
+  async createSeason(season: Omit<Season, 'id' | 'created_at'>): Promise<Season> {
+    return this.request<Season>('/api/admin/seasons', {
+      method: 'POST',
+      body: JSON.stringify(season),
+    });
+  }
+
+  async updateSeason(id: string, season: Partial<Season>): Promise<Season> {
+    return this.request<Season>(`/api/admin/seasons/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(season),
+    });
+  }
+
+  async getActiveSeason(): Promise<Season> {
+    return this.request<Season>('/api/admin/seasons/active');
+  }
+
+  async getSeasonMatches(seasonId: string): Promise<Match[]> {
+    return this.request<Match[]>(`/api/admin/seasons/${seasonId}/matches`);
   }
 
   // Match methods
