@@ -1,4 +1,4 @@
-package golfleaguemanager
+package api
 
 import (
 	"context"
@@ -9,16 +9,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	
+	"golf-league-manager/server/internal/models"
+	"golf-league-manager/server/internal/persistence"
+	"golf-league-manager/server/internal/services"
 )
 
 // APIServer handles HTTP requests for the golf league management system
 type APIServer struct {
-	firestoreClient *FirestoreClient
+	firestoreClient *persistence.FirestoreClient
 	mux             *http.ServeMux
 }
 
 // NewAPIServer creates a new API server instance
-func NewAPIServer(fc *FirestoreClient) *APIServer {
+func NewAPIServer(fc *persistence.FirestoreClient) *APIServer {
 	server := &APIServer{
 		firestoreClient: fc,
 		mux:             http.NewServeMux(),
@@ -53,7 +57,7 @@ func (s *APIServer) registerRoutes() {
 	s.mux.HandleFunc("POST /api/admin/scores", s.handleEnterScore)
 	s.mux.HandleFunc("POST /api/admin/rounds", s.handleCreateRound)
 
-	// Player endpoints
+	// models.Player endpoints
 	s.mux.HandleFunc("GET /api/players/{id}/handicap", s.handleGetPlayerHandicap)
 	s.mux.HandleFunc("GET /api/players/{id}/rounds", s.handleGetPlayerRounds)
 	s.mux.HandleFunc("GET /api/matches/{id}/scores", s.handleGetMatchScores)
@@ -67,10 +71,10 @@ func (s *APIServer) registerRoutes() {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 }
 
-// Course handlers
+// models.Course handlers
 
 func (s *APIServer) handleCreateCourse(w http.ResponseWriter, r *http.Request) {
-	var course Course
+	var course models.Course
 	if err := json.NewDecoder(r.Body).Decode(&course); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
@@ -104,7 +108,7 @@ func (s *APIServer) handleListCourses(w http.ResponseWriter, r *http.Request) {
 func (s *APIServer) handleGetCourse(w http.ResponseWriter, r *http.Request) {
 	courseID := r.PathValue("id")
 	if courseID == "" {
-		http.Error(w, "Course ID is required", http.StatusBadRequest)
+		http.Error(w, "models.Course ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -122,11 +126,11 @@ func (s *APIServer) handleGetCourse(w http.ResponseWriter, r *http.Request) {
 func (s *APIServer) handleUpdateCourse(w http.ResponseWriter, r *http.Request) {
 	courseID := r.PathValue("id")
 	if courseID == "" {
-		http.Error(w, "Course ID is required", http.StatusBadRequest)
+		http.Error(w, "models.Course ID is required", http.StatusBadRequest)
 		return
 	}
 
-	var course Course
+	var course models.Course
 	if err := json.NewDecoder(r.Body).Decode(&course); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
@@ -144,10 +148,10 @@ func (s *APIServer) handleUpdateCourse(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(course)
 }
 
-// Player handlers
+// models.Player handlers
 
 func (s *APIServer) handleCreatePlayer(w http.ResponseWriter, r *http.Request) {
-	var player Player
+	var player models.Player
 	if err := json.NewDecoder(r.Body).Decode(&player); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
@@ -186,7 +190,7 @@ func (s *APIServer) handleListPlayers(w http.ResponseWriter, r *http.Request) {
 func (s *APIServer) handleGetPlayer(w http.ResponseWriter, r *http.Request) {
 	playerID := r.PathValue("id")
 	if playerID == "" {
-		http.Error(w, "Player ID is required", http.StatusBadRequest)
+		http.Error(w, "models.Player ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -204,11 +208,11 @@ func (s *APIServer) handleGetPlayer(w http.ResponseWriter, r *http.Request) {
 func (s *APIServer) handleUpdatePlayer(w http.ResponseWriter, r *http.Request) {
 	playerID := r.PathValue("id")
 	if playerID == "" {
-		http.Error(w, "Player ID is required", http.StatusBadRequest)
+		http.Error(w, "models.Player ID is required", http.StatusBadRequest)
 		return
 	}
 
-	var player Player
+	var player models.Player
 	if err := json.NewDecoder(r.Body).Decode(&player); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
@@ -226,10 +230,10 @@ func (s *APIServer) handleUpdatePlayer(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(player)
 }
 
-// Match handlers
+// models.Match handlers
 
 func (s *APIServer) handleCreateMatch(w http.ResponseWriter, r *http.Request) {
-	var match Match
+	var match models.Match
 	if err := json.NewDecoder(r.Body).Decode(&match); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
@@ -266,7 +270,7 @@ func (s *APIServer) handleListMatches(w http.ResponseWriter, r *http.Request) {
 func (s *APIServer) handleGetMatch(w http.ResponseWriter, r *http.Request) {
 	matchID := r.PathValue("id")
 	if matchID == "" {
-		http.Error(w, "Match ID is required", http.StatusBadRequest)
+		http.Error(w, "models.Match ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -284,11 +288,11 @@ func (s *APIServer) handleGetMatch(w http.ResponseWriter, r *http.Request) {
 func (s *APIServer) handleUpdateMatch(w http.ResponseWriter, r *http.Request) {
 	matchID := r.PathValue("id")
 	if matchID == "" {
-		http.Error(w, "Match ID is required", http.StatusBadRequest)
+		http.Error(w, "models.Match ID is required", http.StatusBadRequest)
 		return
 	}
 
-	var match Match
+	var match models.Match
 	if err := json.NewDecoder(r.Body).Decode(&match); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
@@ -306,10 +310,10 @@ func (s *APIServer) handleUpdateMatch(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(match)
 }
 
-// Score handlers
+// models.Score handlers
 
 func (s *APIServer) handleEnterScore(w http.ResponseWriter, r *http.Request) {
-	var score Score
+	var score models.Score
 	if err := json.NewDecoder(r.Body).Decode(&score); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
@@ -329,7 +333,7 @@ func (s *APIServer) handleEnterScore(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
-	var round Round
+	var round models.Round
 	if err := json.NewDecoder(r.Body).Decode(&round); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
@@ -340,7 +344,7 @@ func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	
 	// Process the round to calculate adjusted scores
-	processor := NewMatchCompletionProcessor(s.firestoreClient)
+	processor := services.NewMatchCompletionProcessor(s.firestoreClient)
 	if err := s.firestoreClient.CreateRound(ctx, round); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create round: %v", err), http.StatusInternalServerError)
 		return
@@ -355,12 +359,12 @@ func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(round)
 }
 
-// Player query handlers
+// models.Player query handlers
 
 func (s *APIServer) handleGetPlayerHandicap(w http.ResponseWriter, r *http.Request) {
 	playerID := r.PathValue("id")
 	if playerID == "" {
-		http.Error(w, "Player ID is required", http.StatusBadRequest)
+		http.Error(w, "models.Player ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -378,7 +382,7 @@ func (s *APIServer) handleGetPlayerHandicap(w http.ResponseWriter, r *http.Reque
 func (s *APIServer) handleGetPlayerRounds(w http.ResponseWriter, r *http.Request) {
 	playerID := r.PathValue("id")
 	if playerID == "" {
-		http.Error(w, "Player ID is required", http.StatusBadRequest)
+		http.Error(w, "models.Player ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -396,7 +400,7 @@ func (s *APIServer) handleGetPlayerRounds(w http.ResponseWriter, r *http.Request
 func (s *APIServer) handleGetMatchScores(w http.ResponseWriter, r *http.Request) {
 	matchID := r.PathValue("id")
 	if matchID == "" {
-		http.Error(w, "Match ID is required", http.StatusBadRequest)
+		http.Error(w, "models.Match ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -456,7 +460,7 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 func (s *APIServer) handleRecalculateHandicaps(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	
-	job := NewHandicapRecalculationJob(s.firestoreClient)
+	job := services.NewHandicapRecalculationJob(s.firestoreClient)
 	if err := job.Run(ctx); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to recalculate handicaps: %v", err), http.StatusInternalServerError)
 		return
@@ -469,13 +473,13 @@ func (s *APIServer) handleRecalculateHandicaps(w http.ResponseWriter, r *http.Re
 func (s *APIServer) handleProcessMatch(w http.ResponseWriter, r *http.Request) {
 	matchID := r.PathValue("id")
 	if matchID == "" {
-		http.Error(w, "Match ID is required", http.StatusBadRequest)
+		http.Error(w, "models.Match ID is required", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 	
-	processor := NewMatchCompletionProcessor(s.firestoreClient)
+	processor := services.NewMatchCompletionProcessor(s.firestoreClient)
 	if err := processor.ProcessMatch(ctx, matchID); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to process match: %v", err), http.StatusInternalServerError)
 		return
@@ -494,7 +498,7 @@ func (s *APIServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 // StartServer starts the HTTP server
 func StartServer(ctx context.Context, port string, projectID string) error {
-	fc, err := NewFirestoreClient(ctx, projectID)
+	fc, err := persistence.NewFirestoreClient(ctx, projectID)
 	if err != nil {
 		return fmt.Errorf("failed to create firestore client: %w", err)
 	}

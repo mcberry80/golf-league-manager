@@ -1,4 +1,4 @@
-package golfleaguemanager
+package models
 
 import "time"
 
