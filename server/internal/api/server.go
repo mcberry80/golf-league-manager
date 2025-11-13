@@ -73,6 +73,10 @@ func (s *APIServer) registerRoutes() {
 	s.mux.Handle("POST /api/admin/scores", chainMiddleware(http.HandlerFunc(s.handleEnterScore), authMiddleware, adminOnly))
 	s.mux.Handle("POST /api/admin/rounds", chainMiddleware(http.HandlerFunc(s.handleCreateRound), authMiddleware, adminOnly))
 
+	// User account linking endpoints - require authentication only
+	s.mux.Handle("POST /api/user/link-player", chainMiddleware(http.HandlerFunc(s.handleLinkPlayerAccount), authMiddleware))
+	s.mux.Handle("GET /api/user/me", chainMiddleware(http.HandlerFunc(s.handleGetCurrentUser), authMiddleware))
+
 	// League member endpoints - require authentication and league membership
 	s.mux.Handle("GET /api/players/{id}/handicap", chainMiddleware(http.HandlerFunc(s.handleGetPlayerHandicap), authMiddleware, leagueMember))
 	s.mux.Handle("GET /api/players/{id}/rounds", chainMiddleware(http.HandlerFunc(s.handleGetPlayerRounds), authMiddleware, leagueMember))
@@ -244,6 +248,93 @@ func (s *APIServer) handleUpdatePlayer(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(player)
+}
+
+// handleLinkPlayerAccount links a Clerk user to a player account by email
+func (s *APIServer) handleLinkPlayerAccount(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Get the authenticated user ID from context
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get the user's email from Clerk (this would come from the request body)
+	var requestBody struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Find player by email
+	players, err := s.firestoreClient.ListPlayers(ctx, false)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to list players: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	var foundPlayer *models.Player
+	for i, p := range players {
+		if p.Email == requestBody.Email {
+			foundPlayer = &players[i]
+			break
+		}
+	}
+
+	if foundPlayer == nil {
+		http.Error(w, "No player found with this email", http.StatusNotFound)
+		return
+	}
+
+	// Check if player is already linked to another account
+	if foundPlayer.ClerkUserID != "" && foundPlayer.ClerkUserID != userID {
+		http.Error(w, "This player is already linked to another account", http.StatusConflict)
+		return
+	}
+
+	// Link the Clerk user to the player
+	foundPlayer.ClerkUserID = userID
+	if err := s.firestoreClient.UpdatePlayer(ctx, *foundPlayer); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to link player: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(foundPlayer)
+}
+
+// handleGetCurrentUser returns the player info for the authenticated user
+func (s *APIServer) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Get the authenticated user ID from context
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Try to get the player associated with this Clerk user ID
+	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
+	if err != nil {
+		// User is authenticated but not linked to a player account yet
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"linked": false,
+			"clerk_user_id": userID,
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"linked": true,
+		"player": player,
+	})
 }
 
 // Season handlers

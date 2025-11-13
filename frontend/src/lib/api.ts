@@ -14,10 +14,14 @@ class APIClient {
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options?.headers,
     };
+
+    // Add any existing headers from options
+    if (options?.headers) {
+      Object.assign(headers, options.headers);
+    }
 
     // Add Authorization header if token getter is available
     if (this.getToken) {
@@ -194,6 +198,18 @@ class APIClient {
   async processMatch(matchId: string): Promise<{ status: string }> {
     return this.request<{ status: string }>(`/api/jobs/process-match/${matchId}`, {
       method: 'POST',
+    });
+  }
+
+  // User account methods
+  async getCurrentUser(): Promise<{ linked: boolean; player?: Player; clerk_user_id?: string }> {
+    return this.request<{ linked: boolean; player?: Player; clerk_user_id?: string }>('/api/user/me');
+  }
+
+  async linkPlayerAccount(email: string): Promise<Player> {
+    return this.request<Player>('/api/user/link-player', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     });
   }
 }
