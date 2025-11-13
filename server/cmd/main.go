@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	glm "golf-league-manager"
+	"golf-league-manager/server/internal/api"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func main() {
 	}
 	
 	log.Printf("Starting Golf League Manager API Server...")
-	if err := glm.StartServer(ctx, port, projectID); err != nil {
+	if err := api.StartServer(ctx, port, projectID); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }

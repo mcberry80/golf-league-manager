@@ -1,14 +1,16 @@
-package golfleaguemanager
+package services
 
 import (
 	"math"
 	"sort"
+	
+	"golf-league-manager/server/internal/models"
 )
 
 // AssignStrokes assigns strokes to holes based on handicap difference
 // Only the higher-handicap player receives strokes
 // Strokes are allocated in order of hole handicaps (1 → 9)
-func AssignStrokes(playerAHandicap, playerBHandicap HandicapRecord, course Course) map[string][]int {
+func AssignStrokes(playerAHandicap, playerBHandicap models.HandicapRecord, course models.Course) map[string][]int {
 	result := make(map[string][]int)
 	
 	// Calculate handicap difference
@@ -19,11 +21,11 @@ func AssignStrokes(playerAHandicap, playerBHandicap HandicapRecord, course Cours
 	var strokesToAllocate int
 	
 	if diff > 0 {
-		// Player A has higher handicap, receives strokes
+		// models.Player A has higher handicap, receives strokes
 		receivingPlayerID = playerAHandicap.PlayerID
 		strokesToAllocate = diff
 	} else if diff < 0 {
-		// Player B has higher handicap, receives strokes
+		// models.Player B has higher handicap, receives strokes
 		receivingPlayerID = playerBHandicap.PlayerID
 		strokesToAllocate = -diff
 	} else {
@@ -75,7 +77,7 @@ func AssignStrokes(playerAHandicap, playerBHandicap HandicapRecord, course Cours
 // Each 9-hole match = 22 points:
 // - 2 points per hole (best net wins; ties split 1-1)
 // - 4 points for overall lower net total
-func CalculateMatchPoints(scoresA, scoresB []Score, course Course) (pointsA, pointsB int) {
+func CalculateMatchPoints(scoresA, scoresB []models.Score, course models.Course) (pointsA, pointsB int) {
 	if len(scoresA) != 9 || len(scoresB) != 9 {
 		return 0, 0
 	}
@@ -126,7 +128,7 @@ func CalculateMatchPoints(scoresA, scoresB []Score, course Course) (pointsA, poi
 // HandleAbsence calculates handicap adjustment for absent player
 // absent_handicap = max(posted_handicap + 2, average_of_worst_3_from_last_5)
 // cap increase at posted_handicap + 4
-func HandleAbsence(absentPlayer HandicapRecord, lastFiveRounds []Round, courses map[string]Course) float64 {
+func HandleAbsence(absentPlayer models.HandicapRecord, lastFiveRounds []models.Round, courses map[string]models.Course) float64 {
 	postedHandicap := absentPlayer.LeagueHandicap
 	
 	// Calculate base adjustment

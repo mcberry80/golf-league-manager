@@ -1,31 +1,34 @@
-package golfleaguemanager
+package services
 
 import (
 	"math"
+	
+	glm "golf-league-manager"
+	"golf-league-manager/server/internal/models"
 )
 
 // CalculateDifferential calculates the score differential for a round
 // Formula: ((adjusted_gross - course_rating) * 113) / slope_rating
-func CalculateDifferential(round Round, course Course) float64 {
-	return ScoreDifferential(round.TotalAdjusted, course.CourseRating, course.SlopeRating)
+func CalculateDifferential(round models.Round, course models.Course) float64 {
+	return glm.ScoreDifferential(round.TotalAdjusted, course.CourseRating, course.SlopeRating)
 }
 
 // CalculateLeagueHandicap calculates the league handicap from the last 5 rounds
 // Uses the best 3 of the last 5 differentials, rounded to 0.1
-func CalculateLeagueHandicap(rounds []Round, courses map[string]Course) float64 {
+func CalculateLeagueHandicap(rounds []models.Round, courses map[string]models.Course) float64 {
 	if len(rounds) == 0 {
 		return 0.0
 	}
 
 	// Calculate differentials for each round
-	differentials := make([]Differential, 0, len(rounds))
+	differentials := make([]glm.Differential, 0, len(rounds))
 	for _, round := range rounds {
 		course, ok := courses[round.CourseID]
 		if !ok {
 			continue
 		}
 		diff := CalculateDifferential(round, course)
-		differentials = append(differentials, Differential{
+		differentials = append(differentials, glm.Differential{
 			Value:     diff,
 			Timestamp: round.Date,
 		})
@@ -33,12 +36,12 @@ func CalculateLeagueHandicap(rounds []Round, courses map[string]Course) float64 
 
 	// Use the Handicap function with 3 scores used and 5 considered
 	// This automatically handles the case where we have fewer than 5 rounds
-	return math.Round(Handicap(differentials, 3, 5)*10) / 10
+	return math.Round(glm.Handicap(differentials, 3, 5)*10) / 10
 }
 
 // CalculateAdjustedGrossScores applies the Net Double Bogey rule for established players
 // or par + 5 cap for new players
-func CalculateAdjustedGrossScores(round Round, player Player, course Course, playingHandicap int) []int {
+func CalculateAdjustedGrossScores(round models.Round, player models.Player, course models.Course, playingHandicap int) []int {
 	if len(round.GrossScores) != len(course.HolePars) {
 		return round.GrossScores
 	}
@@ -47,9 +50,9 @@ func CalculateAdjustedGrossScores(round Round, player Player, course Course, pla
 
 	if player.Established {
 		// Apply Net Double Bogey rule for established players
-		holeData := make([]Hole, len(course.HolePars))
+		holeData := make([]glm.Hole, len(course.HolePars))
 		for i := range course.HolePars {
-			holeData[i] = Hole{
+			holeData[i] = glm.Hole{
 				Par:         course.HolePars[i],
 				StrokeIndex: course.HoleHandicaps[i],
 			}
@@ -103,9 +106,9 @@ func CalculateAdjustedGrossScores(round Round, player Player, course Course, pla
 // CalculateCourseAndPlayingHandicap calculates course and playing handicap
 // course_handicap = (league_handicap * slope_rating / 113) + (course_rating - par)
 // playing_handicap = round(course_handicap * 0.95)
-func CalculateCourseAndPlayingHandicap(leagueHC float64, course Course) (float64, int) {
-	courseHC := CourseHandicap(leagueHC, course.SlopeRating, course.CourseRating, course.Par)
-	playingHC := PlayingHandicap(courseHC, 0.95)
+func CalculateCourseAndPlayingHandicap(leagueHC float64, course models.Course) (float64, int) {
+	courseHC := glm.CourseHandicap(leagueHC, course.SlopeRating, course.CourseRating, course.Par)
+	playingHC := glm.PlayingHandicap(courseHC, 0.95)
 	return courseHC, playingHC
 }
 

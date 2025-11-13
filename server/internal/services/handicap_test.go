@@ -1,24 +1,26 @@
-package golfleaguemanager
+package services
 
 import (
 	"math"
 	"testing"
 	"time"
+	
+	"golf-league-manager/server/internal/models"
 )
 
 func TestCalculateDifferential(t *testing.T) {
 	tests := []struct {
 		name   string
-		round  Round
-		course Course
+		round  models.Round
+		course models.Course
 		want   float64
 	}{
 		{
 			name: "basic differential calculation",
-			round: Round{
+			round: models.Round{
 				TotalAdjusted: 45,
 			},
-			course: Course{
+			course: models.Course{
 				CourseRating: 35.0,
 				SlopeRating:  113,
 			},
@@ -26,10 +28,10 @@ func TestCalculateDifferential(t *testing.T) {
 		},
 		{
 			name: "differential with slope",
-			round: Round{
+			round: models.Round{
 				TotalAdjusted: 50,
 			},
-			course: Course{
+			course: models.Course{
 				CourseRating: 36.0,
 				SlopeRating:  120,
 			},
@@ -52,20 +54,20 @@ func TestCalculateLeagueHandicap(t *testing.T) {
 	
 	tests := []struct {
 		name    string
-		rounds  []Round
-		courses map[string]Course
+		rounds  []models.Round
+		courses map[string]models.Course
 		want    float64
 	}{
 		{
 			name: "handicap with 5 rounds - drop 2 highest",
-			rounds: []Round{
+			rounds: []models.Round{
 				{CourseID: "c1", Date: baseTime, TotalAdjusted: 45},
 				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), TotalAdjusted: 47},
 				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), TotalAdjusted: 50},
 				{CourseID: "c1", Date: baseTime.Add(72 * time.Hour), TotalAdjusted: 43},
 				{CourseID: "c1", Date: baseTime.Add(96 * time.Hour), TotalAdjusted: 46},
 			},
-			courses: map[string]Course{
+			courses: map[string]models.Course{
 				"c1": {CourseRating: 36.0, SlopeRating: 113},
 			},
 			want: 8.7, // (45-36)*113/113=9, (47-36)=11, (50-36)=14, (43-36)=7, (46-36)=10
@@ -73,20 +75,20 @@ func TestCalculateLeagueHandicap(t *testing.T) {
 		},
 		{
 			name: "handicap with fewer than 5 rounds",
-			rounds: []Round{
+			rounds: []models.Round{
 				{CourseID: "c1", Date: baseTime, TotalAdjusted: 45},
 				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), TotalAdjusted: 48},
 				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), TotalAdjusted: 42},
 			},
-			courses: map[string]Course{
+			courses: map[string]models.Course{
 				"c1": {CourseRating: 36.0, SlopeRating: 113},
 			},
 			want: 9.0, // (9+12+6)/3 = 9, sorted: 6,9,12. Best 3: all = 27/3 = 9.0
 		},
 		{
 			name:    "no rounds returns 0",
-			rounds:  []Round{},
-			courses: map[string]Course{},
+			rounds:  []models.Round{},
+			courses: map[string]models.Course{},
 			want:    0.0,
 		},
 	}
@@ -102,12 +104,12 @@ func TestCalculateLeagueHandicap(t *testing.T) {
 }
 
 func TestCalculateAdjustedGrossScores_EstablishedPlayer(t *testing.T) {
-	player := Player{Established: true}
-	course := Course{
+	player := models.Player{Established: true}
+	course := models.Course{
 		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
 		HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
 	}
-	round := Round{
+	round := models.Round{
 		GrossScores: []int{7, 5, 8, 6, 6, 5, 9, 6, 6},
 	}
 	playingHandicap := 9
@@ -135,11 +137,11 @@ func TestCalculateAdjustedGrossScores_EstablishedPlayer(t *testing.T) {
 }
 
 func TestCalculateAdjustedGrossScores_NewPlayer(t *testing.T) {
-	player := Player{Established: false}
-	course := Course{
+	player := models.Player{Established: false}
+	course := models.Course{
 		HolePars: []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
 	}
-	round := Round{
+	round := models.Round{
 		GrossScores: []int{10, 9, 12, 8, 8, 9, 11, 8, 8},
 	}
 	playingHandicap := 0
@@ -164,14 +166,14 @@ func TestCalculateCourseAndPlayingHandicap(t *testing.T) {
 	tests := []struct {
 		name            string
 		leagueHandicap  float64
-		course          Course
+		course          models.Course
 		wantCourse      float64
 		wantPlaying     int
 	}{
 		{
 			name:           "standard calculation",
 			leagueHandicap: 10.0,
-			course: Course{
+			course: models.Course{
 				Par:          36,
 				SlopeRating:  113,
 				CourseRating: 36.0,
@@ -182,7 +184,7 @@ func TestCalculateCourseAndPlayingHandicap(t *testing.T) {
 		{
 			name:           "with course rating adjustment",
 			leagueHandicap: 15.0,
-			course: Course{
+			course: models.Course{
 				Par:          36,
 				SlopeRating:  120,
 				CourseRating: 37.5,

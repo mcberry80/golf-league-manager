@@ -49,6 +49,44 @@ A comprehensive golf league scoring and handicap system with Go backend API, Rea
 - Match and player references
 - Hole number, gross/net scores, strokes received
 
+## Project Structure
+
+The project follows a clean, modular architecture with separation between core business logic and server implementation:
+
+```
+golf-league-manager/
+├── main.go                    # Core handicap calculation logic (preserved)
+├── main_test.go               # Tests for core handicap functions
+├── server/                    # Server application
+│   ├── cmd/                   # Server entry point
+│   │   └── main.go           # Server startup
+│   └── internal/             # Internal server packages
+│       ├── api/              # HTTP server and routing
+│       │   └── server.go     # API server implementation
+│       ├── handlers/         # HTTP request handlers (future)
+│       ├── models/           # Data models and types
+│       │   └── models.go     # Player, Round, Course, etc.
+│       ├── persistence/      # Database layer
+│       │   └── firestore.go  # Firestore operations
+│       └── services/         # Business logic services
+│           ├── handicap.go   # Handicap calculations
+│           ├── match.go      # Match processing
+│           ├── jobs.go       # Background jobs
+│           └── *_test.go     # Service tests
+└── frontend/                  # React/TypeScript frontend
+    └── src/
+        ├── app/              # Next.js app pages
+        ├── lib/              # Frontend utilities
+        └── types/            # TypeScript types
+```
+
+**Architecture Principles:**
+- **Core Logic Preservation**: Core handicap calculation functions in `main.go` remain unchanged
+- **Modular Organization**: Server code organized into clear, focused packages
+- **Consistent Structure**: Server follows similar organizational pattern as frontend
+- **Separation of Concerns**: Models, persistence, services, and API layers are separated
+- **Testability**: Each layer has corresponding test files
+
 ## Handicap Rules
 
 ### League Handicap Calculation
@@ -136,7 +174,7 @@ go mod download
 go test ./...
 
 # Start the API server
-cd cmd/server
+cd server/cmd
 go run main.go
 ```
 
@@ -190,7 +228,7 @@ export GCP_PROJECT_ID="your-project-id"
 export PORT="8080"
 
 # Run the server
-cd cmd/server
+cd server/cmd
 go run main.go
 ```
 

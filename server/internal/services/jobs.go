@@ -1,4 +1,4 @@
-package golfleaguemanager
+package services
 
 import (
 	"context"
@@ -7,15 +7,18 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	
+	"golf-league-manager/server/internal/models"
+	"golf-league-manager/server/internal/persistence"
 )
 
 // HandicapRecalculationJob handles the weekly recalculation of all player handicaps
 type HandicapRecalculationJob struct {
-	firestoreClient *FirestoreClient
+	firestoreClient *persistence.FirestoreClient
 }
 
 // NewHandicapRecalculationJob creates a new handicap recalculation job
-func NewHandicapRecalculationJob(fc *FirestoreClient) *HandicapRecalculationJob {
+func NewHandicapRecalculationJob(fc *persistence.FirestoreClient) *HandicapRecalculationJob {
 	return &HandicapRecalculationJob{
 		firestoreClient: fc,
 	}
@@ -39,7 +42,7 @@ func (job *HandicapRecalculationJob) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to list courses: %w", err)
 	}
 	
-	coursesMap := make(map[string]Course)
+	coursesMap := make(map[string]models.Course)
 	for _, course := range courses {
 		coursesMap[course.ID] = course
 	}
@@ -62,7 +65,7 @@ func (job *HandicapRecalculationJob) Run(ctx context.Context) error {
 }
 
 // recalculatePlayerHandicap recalculates and updates a single player's handicap
-func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Context, player Player, coursesMap map[string]Course) error {
+func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Context, player models.Player, coursesMap map[string]models.Course) error {
 	// Get the last 5 rounds for the player
 	rounds, err := job.firestoreClient.GetPlayerRounds(ctx, player.ID, 5)
 	if err != nil {
@@ -70,7 +73,7 @@ func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Conte
 	}
 	
 	if len(rounds) == 0 {
-		log.Printf("Player %s (%s) has no rounds, skipping", player.Name, player.ID)
+		log.Printf("models.Player %s (%s) has no rounds, skipping", player.Name, player.ID)
 		return nil
 	}
 	
@@ -88,7 +91,7 @@ func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Conte
 	leagueHandicap := CalculateLeagueHandicap(rounds, coursesMap)
 	
 	// Get a default course for course handicap calculation (use first available)
-	var defaultCourse Course
+	var defaultCourse models.Course
 	for _, course := range coursesMap {
 		defaultCourse = course
 		break
@@ -102,7 +105,7 @@ func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Conte
 	courseHandicap, playingHandicap := CalculateCourseAndPlayingHandicap(leagueHandicap, defaultCourse)
 	
 	// Create new handicap record
-	handicapRecord := HandicapRecord{
+	handicapRecord := models.HandicapRecord{
 		ID:              uuid.New().String(),
 		PlayerID:        player.ID,
 		LeagueHandicap:  leagueHandicap,
@@ -124,11 +127,11 @@ func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Conte
 
 // MatchCompletionProcessor handles post-match processing
 type MatchCompletionProcessor struct {
-	firestoreClient *FirestoreClient
+	firestoreClient *persistence.FirestoreClient
 }
 
 // NewMatchCompletionProcessor creates a new match completion processor
-func NewMatchCompletionProcessor(fc *FirestoreClient) *MatchCompletionProcessor {
+func NewMatchCompletionProcessor(fc *persistence.FirestoreClient) *MatchCompletionProcessor {
 	return &MatchCompletionProcessor{
 		firestoreClient: fc,
 	}
@@ -166,7 +169,7 @@ func (proc *MatchCompletionProcessor) ProcessMatch(ctx context.Context, matchID 
 	// Calculate match points
 	pointsA, pointsB := CalculateMatchPoints(scoresA, scoresB, *course)
 	
-	log.Printf("Match %s completed: Player A (%s) = %d points, Player B (%s) = %d points",
+	log.Printf("models.Match %s completed: models.Player A (%s) = %d points, models.Player B (%s) = %d points",
 		matchID, match.PlayerAID, pointsA, match.PlayerBID, pointsB)
 	
 	// Update match status
