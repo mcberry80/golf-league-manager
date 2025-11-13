@@ -15,8 +15,18 @@ A comprehensive golf league scoring and handicap system with Go backend API, Rea
 - **Adjusted Gross Scoring**: Net Double Bogey rule for established players, par + 5 cap for new players
 - **Absence Policy**: Automatic handicap adjustment for absent players
 - **REST API**: Complete web services for admin operations and player queries using Go 1.22+ routing
-- **Firestore Integration**: Complete CRUD operations for all entities
+- **Firestore Integration**: Complete CRUD operations for all entities with retry logic and timeouts
 - **Automated Jobs**: Weekly handicap recalculation and match completion processing
+
+**Production-Ready Features**
+- **Structured Logging**: JSON-based structured logging with request ID tracking using Go's `log/slog`
+- **Middleware Stack**: Recovery, logging, CORS, rate limiting, and request timeout middleware
+- **Configuration Management**: Centralized environment-based configuration with validation
+- **Security**: Configurable CORS, rate limiting (10 req/s, burst 20), request timeouts (30s)
+- **Error Handling**: Retry logic with exponential backoff for transient database errors
+- **Health Checks**: `/health` and `/health/ready` endpoints with Firestore connectivity checks
+- **Graceful Shutdown**: Proper signal handling and resource cleanup on SIGTERM/SIGINT
+- **Input Validation**: Email, UUID, and date validation utilities
 
 ### Frontend (React/TypeScript)
 - **Clerk Authentication**: Secure user authentication with email/password and social login
@@ -215,14 +225,29 @@ npm run dev
 
 **Backend (.env or export)**
 ```bash
-# GCP Project ID for Firestore
+# Required: GCP Project ID for Firestore
 export GCP_PROJECT_ID="your-project-id"
 
-# Clerk Secret Key (required for JWT verification)
+# Required: Clerk Secret Key for JWT verification
 export CLERK_SECRET_KEY="sk_test_..."
 
-# Server port (default: 8080)
+# Optional: Server port (default: 8080)
 export PORT="8080"
+
+# Optional: Deployment environment (default: production)
+# Options: dev, staging, production
+export ENVIRONMENT="production"
+
+# Optional: Log level (default: INFO)
+# Options: DEBUG, INFO, WARN, ERROR
+export LOG_LEVEL="INFO"
+
+# Optional: CORS allowed origins (default: *)
+# Comma-separated list of origins
+export CORS_ORIGINS="http://localhost:3000,https://yourdomain.com"
+
+# Optional: Application version for health checks
+export APP_VERSION="1.0.0"
 
 # For local development with Firestore emulator
 export FIRESTORE_EMULATOR_HOST="localhost:8080"
@@ -289,6 +314,78 @@ gcloud scheduler jobs create http handicap-recalc \
   --http-method=POST \
   --time-zone="America/New_York"
 ```
+
+## API Endpoints
+
+### Health Check Endpoints (Public)
+
+**Basic Health Check**
+```
+GET /health
+```
+Returns basic health status and version information. Always returns 200 if the server is running.
+
+**Readiness Check**
+```
+GET /health/ready
+```
+Returns detailed health status including Firestore connectivity and environment validation. Returns 200 if ready, 503 if not ready.
+
+### Admin Endpoints (Requires Admin Role)
+
+All admin endpoints require authentication and the `is_admin` flag set on the player profile.
+
+**Courses**
+- `POST /api/admin/courses` - Create a new course
+- `GET /api/admin/courses` - List all courses
+- `GET /api/admin/courses/{id}` - Get a specific course
+- `PUT /api/admin/courses/{id}` - Update a course
+
+**Players**
+- `POST /api/admin/players` - Create a new player
+- `GET /api/admin/players?active=true` - List players (optional active filter)
+- `GET /api/admin/players/{id}` - Get a specific player
+- `PUT /api/admin/players/{id}` - Update a player
+
+**Seasons**
+- `POST /api/admin/seasons` - Create a new season
+- `GET /api/admin/seasons` - List all seasons
+- `GET /api/admin/seasons/{id}` - Get a specific season
+- `PUT /api/admin/seasons/{id}` - Update a season
+- `GET /api/admin/seasons/active` - Get the active season
+- `GET /api/admin/seasons/{id}/matches` - Get all matches in a season
+
+**Matches**
+- `POST /api/admin/matches` - Create a new match
+- `GET /api/admin/matches?status=scheduled` - List matches (optional status filter)
+- `GET /api/admin/matches/{id}` - Get a specific match
+- `PUT /api/admin/matches/{id}` - Update a match (cannot update completed matches)
+
+**Scores & Rounds**
+- `POST /api/admin/scores` - Enter a score for a hole
+- `POST /api/admin/rounds` - Create a round (automatically recalculates handicap)
+
+**Jobs**
+- `POST /api/jobs/recalculate-handicaps` - Manually trigger handicap recalculation for all players
+- `POST /api/jobs/process-match/{id}` - Process match completion and calculate results
+
+### User Endpoints (Requires Authentication)
+
+**Account Management**
+- `POST /api/user/link-player` - Link Clerk account to player profile
+- `GET /api/user/me` - Get current user's player information
+
+### League Member Endpoints (Requires Active Player Status)
+
+**Player Data**
+- `GET /api/players/{id}/handicap` - Get a player's current handicap
+- `GET /api/players/{id}/rounds` - Get a player's recent rounds
+
+**Match Data**
+- `GET /api/matches/{id}/scores` - Get all scores for a match
+
+**Standings**
+- `GET /api/standings` - Get league standings
 
 ## Authentication & Authorization
 
