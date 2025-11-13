@@ -5,6 +5,9 @@ A comprehensive golf league scoring and handicap system with Go backend API, Rea
 ## Features
 
 ### Backend (Go)
+- **Season Management**: Full season scheduling with ability to setup and manage league seasons, including match schedules throughout the season
+- **Match Protection**: Prevents editing of completed matches while allowing full control over future/scheduled matches
+- **Immediate Handicap Updates**: Handicaps are automatically recalculated immediately after each round is entered (no longer requires scheduled job)
 - **Handicap Calculation**: Automatic calculation of league, course, and playing handicaps using USGA-compliant formulas
 - **Match Play Scoring**: Full support for 9-hole match play with stroke allocation and point calculation
 - **Adjusted Gross Scoring**: Net Double Bogey rule for established players, par + 5 cap for new players
@@ -21,6 +24,12 @@ A comprehensive golf league scoring and handicap system with Go backend API, Rea
 - **Responsive Design**: Modern UI with Tailwind CSS
 
 ## Data Models
+
+### Season
+- ID, Name
+- Start date and end date
+- Active status (only one season can be active at a time)
+- Description and creation timestamp
 
 ### Player
 - ID, Name, Email
@@ -42,8 +51,10 @@ A comprehensive golf league scoring and handicap system with Go backend API, Rea
 - Update timestamp (for audit trail)
 
 ### Match
+- Season reference (linking match to a specific season)
 - Week number and two player references
-- Course reference, date, and status
+- Course reference, date, and status (scheduled|completed)
+- **Note**: Completed matches cannot be edited
 
 ### Score
 - Match and player references
@@ -289,15 +300,23 @@ The backend exposes RESTful endpoints using Go 1.22+ routing with method and pat
 - `GET /api/admin/players/{id}` - Get player by ID
 - `PUT /api/admin/players/{id}` - Update player
 
+**Seasons**
+- `POST /api/admin/seasons` - Create a season
+- `GET /api/admin/seasons` - List all seasons (ordered by start date)
+- `GET /api/admin/seasons/{id}` - Get season by ID
+- `PUT /api/admin/seasons/{id}` - Update season
+- `GET /api/admin/seasons/active` - Get the currently active season
+- `GET /api/admin/seasons/{id}/matches` - Get all matches for a season
+
 **Matches**
 - `POST /api/admin/matches` - Create a match
 - `GET /api/admin/matches?status=scheduled` - List matches (optionally filter by status)
 - `GET /api/admin/matches/{id}` - Get match by ID
-- `PUT /api/admin/matches/{id}` - Update match
+- `PUT /api/admin/matches/{id}` - Update match (only for scheduled matches, not completed)
 
-**Scores**
+**Scores & Rounds**
 - `POST /api/admin/scores` - Enter a score for a hole
-- `POST /api/admin/rounds` - Create a round (automatically processes adjusted scores)
+- `POST /api/admin/rounds` - Create a round (automatically processes adjusted scores and recalculates handicap)
 
 ### Player Endpoints
 

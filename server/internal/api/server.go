@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	
+
 	"golf-league-manager/server/internal/models"
 	"golf-league-manager/server/internal/persistence"
 	"golf-league-manager/server/internal/services"
@@ -408,14 +408,14 @@ func (s *APIServer) handleUpdateMatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	
+
 	// First, get the existing match to check its status
 	existingMatch, err := s.firestoreClient.GetMatch(ctx, matchID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get match: %v", err), http.StatusNotFound)
 		return
 	}
-	
+
 	// Prevent editing of completed matches
 	if existingMatch.Status == "completed" {
 		http.Error(w, "Cannot update a completed match", http.StatusForbidden)
@@ -429,7 +429,7 @@ func (s *APIServer) handleUpdateMatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	match.ID = matchID
-	
+
 	// Ensure status cannot be changed from non-completed to completed via this endpoint
 	// (should use process-match endpoint for that)
 	if existingMatch.Status != "completed" && match.Status == "completed" {
@@ -479,18 +479,18 @@ func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
 	round.ID = uuid.New().String()
 
 	ctx := r.Context()
-	
+
 	// Process the round to calculate adjusted scores
 	processor := services.NewMatchCompletionProcessor(s.firestoreClient)
 	if err := s.firestoreClient.CreateRound(ctx, round); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create round: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	if err := processor.ProcessRound(ctx, round.ID); err != nil {
 		log.Printf("Warning: Failed to process round: %v", err)
 	}
-	
+
 	// Immediately recalculate the player's handicap after the round is entered
 	job := services.NewHandicapRecalculationJob(s.firestoreClient)
 	player, err := s.firestoreClient.GetPlayer(ctx, round.PlayerID)
@@ -505,7 +505,7 @@ func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
 			for _, course := range courses {
 				coursesMap[course.ID] = course
 			}
-			
+
 			// Recalculate handicap immediately for this player
 			if err := job.RecalculatePlayerHandicap(ctx, *player, coursesMap); err != nil {
 				log.Printf("Warning: Failed to recalculate handicap: %v", err)
@@ -590,7 +590,7 @@ type StandingsEntry struct {
 
 func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// This is a simplified version - a full implementation would aggregate match results
 	players, err := s.firestoreClient.ListPlayers(ctx, true)
 	if err != nil {
@@ -601,7 +601,7 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 	standings := make([]StandingsEntry, 0, len(players))
 	for _, player := range players {
 		handicap, _ := s.firestoreClient.GetPlayerHandicap(ctx, player.ID)
-		
+
 		entry := StandingsEntry{
 			PlayerID:   player.ID,
 			PlayerName: player.Name,
@@ -620,7 +620,7 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 
 func (s *APIServer) handleRecalculateHandicaps(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	job := services.NewHandicapRecalculationJob(s.firestoreClient)
 	if err := job.Run(ctx); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to recalculate handicaps: %v", err), http.StatusInternalServerError)
@@ -639,7 +639,7 @@ func (s *APIServer) handleProcessMatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	
+
 	processor := services.NewMatchCompletionProcessor(s.firestoreClient)
 	if err := processor.ProcessMatch(ctx, matchID); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to process match: %v", err), http.StatusInternalServerError)
@@ -665,7 +665,7 @@ func StartServer(ctx context.Context, port string, projectID string) error {
 	}
 
 	server := NewAPIServer(fc)
-	
+
 	log.Printf("Starting server on port %s", port)
 	return http.ListenAndServe(":"+port, server)
 }

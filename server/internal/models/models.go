@@ -26,13 +26,13 @@ type Round struct {
 
 // Course represents a golf course
 type Course struct {
-	ID             string  `firestore:"id"`
-	Name           string  `firestore:"name"`
-	Par            int     `firestore:"par"`
-	CourseRating   float64 `firestore:"course_rating"`
-	SlopeRating    int     `firestore:"slope_rating"`
-	HoleHandicaps  []int   `firestore:"hole_handicaps"`  // 1-9 difficulty rankings
-	HolePars       []int   `firestore:"hole_pars"`       // Par for each hole
+	ID            string  `firestore:"id"`
+	Name          string  `firestore:"name"`
+	Par           int     `firestore:"par"`
+	CourseRating  float64 `firestore:"course_rating"`
+	SlopeRating   int     `firestore:"slope_rating"`
+	HoleHandicaps []int   `firestore:"hole_handicaps"` // 1-9 difficulty rankings
+	HolePars      []int   `firestore:"hole_pars"`      // Par for each hole
 }
 
 // HandicapRecord represents a player's handicap at a point in time

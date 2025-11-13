@@ -46,7 +46,7 @@ func TestAdjustedGrossScoreNetDoubleBogey_HighHandicap(t *testing.T) {
 		{Par: 5, StrokeIndex: 2},
 	}
 	grossHoleScore := []int{9, 10}
-	playingHandicap := 5 
+	playingHandicap := 5
 
 	got := AdjustedGrossScoreNetDoubleBogey(grossHoleScore, holeData, playingHandicap)
 
@@ -116,7 +116,7 @@ func TestHandicapWithMoreScoresThanUsedAndLessThanConsidered(t *testing.T) {
 	numScoresConsidered := 5
 
 	got := Handicap(differentials, numScoresUsed, numScoresConsidered)
-	want := (10.0 + 12.0  + 5.0) / 3.0
+	want := (10.0 + 12.0 + 5.0) / 3.0
 	if got != want {
 		t.Errorf("Handicap() = %f, want %f", got, want)
 	}

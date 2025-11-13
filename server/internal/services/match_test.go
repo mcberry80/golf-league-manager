@@ -3,7 +3,7 @@ package services
 import (
 	"testing"
 	"time"
-	
+
 	"golf-league-manager/server/internal/models"
 )
 
@@ -105,16 +105,16 @@ func TestAssignStrokes_StrokeAllocation(t *testing.T) {
 	// Sorted order (by handicap): hole 2(1), hole 6(2), hole 4(3), hole 8(4), hole 1(5), hole 9(6), hole 5(7), hole 7(8), hole 3(9)
 	// First 3 strokes go to: holes at indices 1, 5, 3
 	strokesA := result["playerA"]
-	
+
 	totalStrokes := 0
 	for _, s := range strokesA {
 		totalStrokes += s
 	}
-	
+
 	if totalStrokes != 3 {
 		t.Errorf("Total strokes = %v, want 3", totalStrokes)
 	}
-	
+
 	// Verify strokes go to holes with handicaps 1, 2, 3
 	if strokesA[1] != 1 { // hole with handicap 1
 		t.Errorf("Hole 2 (handicap 1) should get 1 stroke, got %d", strokesA[1])
@@ -265,7 +265,7 @@ func TestHandleAbsence(t *testing.T) {
 				LeagueHandicap: 10.0,
 			},
 			lastFiveRounds: []models.Round{
-				{CourseID: "c1", Date: baseTime, TotalAdjusted: 50},      // diff = 14
+				{CourseID: "c1", Date: baseTime, TotalAdjusted: 50},                     // diff = 14
 				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), TotalAdjusted: 51}, // diff = 15
 				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), TotalAdjusted: 52}, // diff = 16
 			},
@@ -278,7 +278,7 @@ func TestHandleAbsence(t *testing.T) {
 				LeagueHandicap: 5.0,
 			},
 			lastFiveRounds: []models.Round{
-				{CourseID: "c1", Date: baseTime, TotalAdjusted: 55},      // diff = 19
+				{CourseID: "c1", Date: baseTime, TotalAdjusted: 55},                     // diff = 19
 				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), TotalAdjusted: 56}, // diff = 20
 				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), TotalAdjusted: 57}, // diff = 21
 			},
