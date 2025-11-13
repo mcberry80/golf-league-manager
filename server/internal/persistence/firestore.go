@@ -94,6 +94,27 @@ func (fc *FirestoreClient) ListPlayers(ctx context.Context, activeOnly bool) ([]
 	return players, nil
 }
 
+// GetPlayerByClerkID retrieves a player by their Clerk user ID
+func (fc *FirestoreClient) GetPlayerByClerkID(ctx context.Context, clerkUserID string) (*models.Player, error) {
+	iter := fc.client.Collection("players").Where("clerk_user_id", "==", clerkUserID).Limit(1).Documents(ctx)
+	defer iter.Stop()
+
+	doc, err := iter.Next()
+	if err == iterator.Done {
+		return nil, fmt.Errorf("player not found with clerk_user_id: %s", clerkUserID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query player by clerk_user_id: %w", err)
+	}
+
+	var player models.Player
+	if err := doc.DataTo(&player); err != nil {
+		return nil, fmt.Errorf("failed to parse player data: %w", err)
+	}
+
+	return &player, nil
+}
+
 // models.Round operations
 
 // CreateRound creates a new round in Firestore

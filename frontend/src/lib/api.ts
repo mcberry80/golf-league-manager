@@ -4,19 +4,36 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 class APIClient {
   private baseURL: string;
+  private getToken?: () => Promise<string | null>;
 
-  constructor(baseURL: string) {
+  constructor(baseURL: string, getToken?: () => Promise<string | null>) {
     this.baseURL = baseURL;
+    this.getToken = getToken;
   }
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
+    
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    };
+
+    // Add Authorization header if token getter is available
+    if (this.getToken) {
+      try {
+        const token = await this.getToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (error) {
+        console.warn('Failed to get auth token:', error);
+      }
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -24,6 +41,11 @@ class APIClient {
     }
 
     return response.json();
+  }
+
+  // Set the token getter function (useful for updating after client initialization)
+  setTokenGetter(getToken: () => Promise<string | null>) {
+    this.getToken = getToken;
   }
 
   // Course methods
