@@ -51,12 +51,11 @@ A comprehensive golf league scoring and handicap system with Go backend API, Rea
 
 ## Project Structure
 
-The project follows a clean, modular architecture with separation between core business logic and server implementation:
+The project follows a clean, modular architecture with all business logic organized in the server structure:
 
 ```
 golf-league-manager/
-├── main.go                    # Core handicap calculation logic (preserved)
-├── main_test.go               # Tests for core handicap functions
+├── main.go                    # Root package declaration
 ├── server/                    # Server application
 │   ├── cmd/                   # Server entry point
 │   │   └── main.go           # Server startup
@@ -69,7 +68,7 @@ golf-league-manager/
 │       ├── persistence/      # Database layer
 │       │   └── firestore.go  # Firestore operations
 │       └── services/         # Business logic services
-│           ├── handicap.go   # Handicap calculations
+│           ├── handicap.go   # Core handicap calculations
 │           ├── match.go      # Match processing
 │           ├── jobs.go       # Background jobs
 │           └── *_test.go     # Service tests
@@ -81,11 +80,11 @@ golf-league-manager/
 ```
 
 **Architecture Principles:**
-- **Core Logic Preservation**: Core handicap calculation functions in `main.go` remain unchanged
+- **Business Logic in Services**: All handicap calculations and business logic in `server/internal/services`
 - **Modular Organization**: Server code organized into clear, focused packages
 - **Consistent Structure**: Server follows similar organizational pattern as frontend
 - **Separation of Concerns**: Models, persistence, services, and API layers are separated
-- **Testability**: Each layer has corresponding test files
+- **Testability**: Each layer has corresponding test files co-located with implementation
 
 ## Handicap Rules
 

@@ -1,4 +1,4 @@
-package golfleaguemanager
+package services
 
 import (
 	"testing"
