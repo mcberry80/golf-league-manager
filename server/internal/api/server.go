@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"golf-league-manager/server/internal/config"
+	"golf-league-manager/server/internal/handlers"
 	"golf-league-manager/server/internal/middleware"
 	"golf-league-manager/server/internal/models"
 	"golf-league-manager/server/internal/persistence"
@@ -100,8 +101,10 @@ func (s *APIServer) registerRoutes() {
 	s.mux.Handle("POST /api/jobs/recalculate-handicaps", chainMiddleware(http.HandlerFunc(s.handleRecalculateHandicaps), authMiddleware, adminOnly))
 	s.mux.Handle("POST /api/jobs/process-match/{id}", chainMiddleware(http.HandlerFunc(s.handleProcessMatch), authMiddleware, adminOnly))
 
-	// Health check - public endpoint
-	s.mux.HandleFunc("GET /health", s.handleHealth)
+	// Health check endpoints - public
+	healthHandler := handlers.NewHealthHandler(s.firestoreClient)
+	s.mux.HandleFunc("GET /health", healthHandler.HandleHealth)
+	s.mux.HandleFunc("GET /health/ready", healthHandler.HandleReadiness)
 }
 
 // models.Course handlers
@@ -763,15 +766,14 @@ func (s *APIServer) handleProcessMatch(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
-// Health check
-
-func (s *APIServer) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+// ServerComponents holds the server and its dependencies for graceful shutdown
+type ServerComponents struct {
+	HTTPServer      *http.Server
+	FirestoreClient *persistence.FirestoreClient
 }
 
-// StartServer starts the HTTP server and returns the server instance for graceful shutdown
-func StartServer(ctx context.Context, cfg *config.Config) (*http.Server, error) {
+// StartServer starts the HTTP server and returns components for graceful shutdown
+func StartServer(ctx context.Context, cfg *config.Config) (*ServerComponents, error) {
 	fc, err := persistence.NewFirestoreClient(ctx, cfg.ProjectID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create firestore client: %w", err)
@@ -779,6 +781,7 @@ func StartServer(ctx context.Context, cfg *config.Config) (*http.Server, error) 
 
 	apiServer, err := NewAPIServer(fc, cfg.ClerkSecretKey, cfg.CORSOrigins)
 	if err != nil {
+		fc.Close() // Clean up on error
 		return nil, fmt.Errorf("failed to create api server: %w", err)
 	}
 
@@ -795,5 +798,8 @@ func StartServer(ctx context.Context, cfg *config.Config) (*http.Server, error) 
 		}
 	}()
 
-	return server, nil
+	return &ServerComponents{
+		HTTPServer:      server,
+		FirestoreClient: fc,
+	}, nil
 }

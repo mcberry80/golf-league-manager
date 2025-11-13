@@ -11,6 +11,7 @@ import (
 	"golf-league-manager/server/internal/logger"
 	"golf-league-manager/server/internal/models"
 	"golf-league-manager/server/internal/persistence"
+	"golf-league-manager/server/internal/response"
 )
 
 // contextKey is a custom type for context keys to avoid collisions
@@ -30,14 +31,14 @@ func AuthMiddleware() func(http.Handler) http.Handler {
 			// Extract the token from the Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				WriteUnauthorized(w, "Missing authorization header")
+				response.WriteUnauthorized(w, "Missing authorization header")
 				return
 			}
 
 			// Parse "Bearer <token>"
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				WriteUnauthorized(w, "Invalid authorization header format")
+				response.WriteUnauthorized(w, "Invalid authorization header format")
 				return
 			}
 
@@ -52,14 +53,14 @@ func AuthMiddleware() func(http.Handler) http.Handler {
 					"error", err,
 					"path", r.URL.Path,
 				)
-				WriteUnauthorized(w, "Invalid or expired token")
+				response.WriteUnauthorized(w, "Invalid or expired token")
 				return
 			}
 
 			// Extract the user ID from claims
 			userID := claims.Subject
 			if userID == "" {
-				WriteUnauthorized(w, "Invalid token claims")
+				response.WriteUnauthorized(w, "Invalid token claims")
 				return
 			}
 
@@ -76,7 +77,7 @@ func AdminOnlyMiddleware(fc *persistence.FirestoreClient) func(http.Handler) htt
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			userID, ok := r.Context().Value(UserIDContextKey).(string)
 			if !ok || userID == "" {
-				WriteUnauthorized(w, "No user ID in context")
+				response.WriteUnauthorized(w, "No user ID in context")
 				return
 			}
 
@@ -87,7 +88,7 @@ func AdminOnlyMiddleware(fc *persistence.FirestoreClient) func(http.Handler) htt
 					"error", err,
 					"user_id", userID,
 				)
-				WriteUnauthorized(w, "User not found in league")
+				response.WriteUnauthorized(w, "User not found in league")
 				return
 			}
 
@@ -97,7 +98,7 @@ func AdminOnlyMiddleware(fc *persistence.FirestoreClient) func(http.Handler) htt
 					"user_id", userID,
 					"player_id", player.ID,
 				)
-				WriteForbidden(w, "Admin access required")
+				response.WriteForbidden(w, "Admin access required")
 				return
 			}
 
@@ -114,7 +115,7 @@ func LeagueMemberMiddleware(fc *persistence.FirestoreClient) func(http.Handler) 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			userID, ok := r.Context().Value(UserIDContextKey).(string)
 			if !ok || userID == "" {
-				WriteUnauthorized(w, "No user ID in context")
+				response.WriteUnauthorized(w, "No user ID in context")
 				return
 			}
 
@@ -125,7 +126,7 @@ func LeagueMemberMiddleware(fc *persistence.FirestoreClient) func(http.Handler) 
 					"error", err,
 					"user_id", userID,
 				)
-				WriteUnauthorized(w, "User not found in league")
+				response.WriteUnauthorized(w, "User not found in league")
 				return
 			}
 
@@ -135,7 +136,7 @@ func LeagueMemberMiddleware(fc *persistence.FirestoreClient) func(http.Handler) 
 					"user_id", userID,
 					"player_id", player.ID,
 				)
-				WriteForbidden(w, "Player account is inactive")
+				response.WriteForbidden(w, "Player account is inactive")
 				return
 			}
 

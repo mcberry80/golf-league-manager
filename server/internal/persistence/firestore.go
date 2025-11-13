@@ -3,11 +3,22 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
+	"golf-league-manager/server/internal/logger"
 	"golf-league-manager/server/internal/models"
+)
+
+const (
+	// DefaultTimeout is the default timeout for database operations
+	DefaultTimeout = 5 * time.Second
+	// MaxRetries is the maximum number of retry attempts for transient errors
+	MaxRetries = 3
 )
 
 // FirestoreClient wraps the Firestore client for database operations
@@ -26,46 +37,175 @@ func NewFirestoreClient(ctx context.Context, projectID string) (*FirestoreClient
 
 // Close closes the Firestore client
 func (fc *FirestoreClient) Close() error {
-	return fc.client.Close()
+	if fc.client != nil {
+		return fc.client.Close()
+	}
+	return nil
+}
+
+// HealthCheck verifies the Firestore connection is working
+func (fc *FirestoreClient) HealthCheck(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	// Try to read from a collection to verify connectivity
+	iter := fc.client.Collection("health_check").Limit(1).Documents(ctx)
+	defer iter.Stop()
+	
+	_, err := iter.Next()
+	if err != nil && err != iterator.Done {
+		// Check if it's a real error (not just empty collection)
+		if st, ok := status.FromError(err); ok {
+			// Connection errors are problematic
+			if st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded {
+				return fmt.Errorf("firestore health check failed: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// withTimeout wraps a context with a default timeout
+func withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		// Context already has a deadline, don't override
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, DefaultTimeout)
+}
+
+// retryOnTransientError retries an operation if it fails with a transient error
+func retryOnTransientError(ctx context.Context, operation func() error) error {
+	var lastErr error
+	for attempt := 0; attempt < MaxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 100ms, 200ms, 400ms
+			backoff := time.Duration(100*(1<<uint(attempt-1))) * time.Millisecond
+			logger.DebugContext(ctx, "Retrying database operation",
+				"attempt", attempt+1,
+				"backoff_ms", backoff.Milliseconds(),
+			)
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
+		err := operation()
+		if err == nil {
+			return nil
+		}
+
+		lastErr = err
+
+		// Check if error is transient
+		if !isTransientError(err) {
+			return err
+		}
+
+		logger.WarnContext(ctx, "Transient database error, will retry",
+			"error", err,
+			"attempt", attempt+1,
+		)
+	}
+
+	return fmt.Errorf("operation failed after %d attempts: %w", MaxRetries, lastErr)
+}
+
+// isTransientError checks if an error is transient and should be retried
+func isTransientError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	st, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+
+	// Retry on transient gRPC errors
+	switch st.Code() {
+	case codes.Unavailable, codes.DeadlineExceeded, codes.Aborted, codes.ResourceExhausted:
+		return true
+	default:
+		return false
+	}
 }
 
 // models.Player operations
 
-// CreatePlayer creates a new player in Firestore
+// CreatePlayer creates a new player in Firestore with retry logic and timeout
 func (fc *FirestoreClient) CreatePlayer(ctx context.Context, player models.Player) error {
-	_, err := fc.client.Collection("players").Doc(player.ID).Set(ctx, player)
-	if err != nil {
-		return fmt.Errorf("failed to create player: %w", err)
-	}
-	return nil
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("players").Doc(player.ID).Set(ctx, player)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create player",
+				"player_id", player.ID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to create player: %w", err)
+		}
+		return nil
+	})
 }
 
-// GetPlayer retrieves a player by ID
+// GetPlayer retrieves a player by ID with retry logic and timeout
 func (fc *FirestoreClient) GetPlayer(ctx context.Context, playerID string) (*models.Player, error) {
-	doc, err := fc.client.Collection("players").Doc(playerID).Get(ctx)
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	var player *models.Player
+	err := retryOnTransientError(ctx, func() error {
+		doc, err := fc.client.Collection("players").Doc(playerID).Get(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get player: %w", err)
+		}
+
+		var p models.Player
+		if err := doc.DataTo(&p); err != nil {
+			return fmt.Errorf("failed to parse player data: %w", err)
+		}
+		player = &p
+		return nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to get player: %w", err)
+		logger.ErrorContext(ctx, "Failed to retrieve player",
+			"player_id", playerID,
+			"error", err,
+		)
+		return nil, err
 	}
-
-	var player models.Player
-	if err := doc.DataTo(&player); err != nil {
-		return nil, fmt.Errorf("failed to parse player data: %w", err)
-	}
-
-	return &player, nil
+	return player, nil
 }
 
-// UpdatePlayer updates an existing player
+// UpdatePlayer updates an existing player with retry logic and timeout
 func (fc *FirestoreClient) UpdatePlayer(ctx context.Context, player models.Player) error {
-	_, err := fc.client.Collection("players").Doc(player.ID).Set(ctx, player)
-	if err != nil {
-		return fmt.Errorf("failed to update player: %w", err)
-	}
-	return nil
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("players").Doc(player.ID).Set(ctx, player)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to update player",
+				"player_id", player.ID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to update player: %w", err)
+		}
+		return nil
+	})
 }
 
-// ListPlayers retrieves all active players
+// ListPlayers retrieves all active players with timeout
 func (fc *FirestoreClient) ListPlayers(ctx context.Context, activeOnly bool) ([]models.Player, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
 	var iter *firestore.DocumentIterator
 	if activeOnly {
 		iter = fc.client.Collection("players").Where("active", "==", true).Documents(ctx)
@@ -81,11 +221,13 @@ func (fc *FirestoreClient) ListPlayers(ctx context.Context, activeOnly bool) ([]
 			break
 		}
 		if err != nil {
+			logger.ErrorContext(ctx, "Failed to iterate players", "error", err)
 			return nil, fmt.Errorf("failed to iterate players: %w", err)
 		}
 
 		var player models.Player
 		if err := doc.DataTo(&player); err != nil {
+			logger.ErrorContext(ctx, "Failed to parse player data", "error", err)
 			return nil, fmt.Errorf("failed to parse player data: %w", err)
 		}
 		players = append(players, player)
@@ -94,8 +236,11 @@ func (fc *FirestoreClient) ListPlayers(ctx context.Context, activeOnly bool) ([]
 	return players, nil
 }
 
-// GetPlayerByClerkID retrieves a player by their Clerk user ID
+// GetPlayerByClerkID retrieves a player by their Clerk user ID with timeout
 func (fc *FirestoreClient) GetPlayerByClerkID(ctx context.Context, clerkUserID string) (*models.Player, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
 	iter := fc.client.Collection("players").Where("clerk_user_id", "==", clerkUserID).Limit(1).Documents(ctx)
 	defer iter.Stop()
 
@@ -104,11 +249,16 @@ func (fc *FirestoreClient) GetPlayerByClerkID(ctx context.Context, clerkUserID s
 		return nil, fmt.Errorf("player not found with clerk_user_id: %s", clerkUserID)
 	}
 	if err != nil {
+		logger.ErrorContext(ctx, "Failed to query player by Clerk ID",
+			"clerk_user_id", clerkUserID,
+			"error", err,
+		)
 		return nil, fmt.Errorf("failed to query player by clerk_user_id: %w", err)
 	}
 
 	var player models.Player
 	if err := doc.DataTo(&player); err != nil {
+		logger.ErrorContext(ctx, "Failed to parse player data", "error", err)
 		return nil, fmt.Errorf("failed to parse player data: %w", err)
 	}
 

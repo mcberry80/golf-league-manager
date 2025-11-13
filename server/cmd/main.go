@@ -34,7 +34,7 @@ func main() {
 	defer cancel()
 
 	// Start server
-	server, err := api.StartServer(ctx, cfg)
+	components, err := api.StartServer(ctx, cfg)
 	if err != nil {
 		logger.Error("Failed to start server", "error", err)
 		os.Exit(1)
@@ -56,9 +56,13 @@ func main() {
 	defer shutdownCancel()
 
 	// Gracefully shutdown the HTTP server
-	if err := server.Shutdown(shutdownCtx); err != nil {
+	if err := components.HTTPServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Server shutdown failed", "error", err)
-		os.Exit(1)
+	}
+
+	// Close Firestore client
+	if err := components.FirestoreClient.Close(); err != nil {
+		logger.Error("Failed to close Firestore client", "error", err)
 	}
 
 	logger.Info("Server stopped gracefully")
