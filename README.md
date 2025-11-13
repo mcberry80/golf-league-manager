@@ -5,6 +5,8 @@ A comprehensive golf league scoring and handicap system with Go backend API, Rea
 ## Features
 
 ### Backend (Go)
+- **Clerk Authentication**: Secure API authentication using Clerk JWT tokens
+- **Role-Based Authorization**: Admin-only endpoints and league member access controls
 - **Season Management**: Full season scheduling with ability to setup and manage league seasons, including match schedules throughout the season
 - **Match Protection**: Prevents editing of completed matches while allowing full control over future/scheduled matches
 - **Immediate Handicap Updates**: Handicaps are automatically recalculated immediately after each round is entered (no longer requires scheduled job)
@@ -18,9 +20,10 @@ A comprehensive golf league scoring and handicap system with Go backend API, Rea
 
 ### Frontend (React/TypeScript)
 - **Clerk Authentication**: Secure user authentication with email/password and social login
-- **Admin Dashboard**: Manage courses, players, matches, and enter scores
-- **Player Portal**: View personal scores, handicaps, and match history
-- **League Standings**: Real-time standings and player rankings
+- **Account Linking**: Players can link their Clerk account to their league profile using their email
+- **Admin Dashboard**: Manage courses, players, matches, and enter scores (admin-only)
+- **Player Portal**: View personal scores, handicaps, and match history (league members)
+- **League Standings**: Real-time standings and player rankings (league members)
 - **Responsive Design**: Modern UI with Tailwind CSS
 
 ## Data Models
@@ -33,6 +36,8 @@ A comprehensive golf league scoring and handicap system with Go backend API, Rea
 
 ### Player
 - ID, Name, Email
+- Clerk User ID (for authentication linking)
+- Admin status (for role-based access control)
 - Active status and Established status (5+ rounds)
 - Creation timestamp
 
@@ -213,6 +218,9 @@ npm run dev
 # GCP Project ID for Firestore
 export GCP_PROJECT_ID="your-project-id"
 
+# Clerk Secret Key (required for JWT verification)
+export CLERK_SECRET_KEY="sk_test_..."
+
 # Server port (default: 8080)
 export PORT="8080"
 
@@ -282,11 +290,58 @@ gcloud scheduler jobs create http handicap-recalc \
   --time-zone="America/New_York"
 ```
 
+## Authentication & Authorization
+
+### Overview
+
+The Golf League Manager uses Clerk for authentication and implements role-based access control:
+
+- **Admin Role**: Full access to all admin endpoints (creating/editing courses, players, matches, scores)
+- **League Member**: Access to view league data (standings, matches, player stats)
+- **Authentication Required**: All API endpoints (except health check) require a valid Clerk JWT token
+
+### Account Linking Flow
+
+1. **Admin Creates Player**: Admin adds a player to the league with their email address
+2. **User Signs Up**: User creates a Clerk account (can be email/password, Google, etc.)
+3. **Link Account**: User visits `/link-account` and enters the email used by the admin
+4. **Verification**: System links the Clerk user ID to the player profile
+5. **Access Granted**: User can now access league features based on their role
+
+### API Authentication
+
+All authenticated endpoints require an `Authorization` header with a Clerk JWT token:
+
+```bash
+Authorization: Bearer <clerk-jwt-token>
+```
+
+The frontend automatically includes this header when using the authenticated API client.
+
+### Setting Admin Role
+
+To grant admin access to a player:
+
+1. Update the player document in Firestore
+2. Set `is_admin: true` for the player
+3. The user will have admin access on their next API request
+
 ## API Endpoints
 
 The backend exposes RESTful endpoints using Go 1.22+ routing with method and path matching:
 
+**Note**: All endpoints except `/health` require authentication via Clerk JWT token in the `Authorization` header.
+
+### User Account Endpoints
+
+**Authentication Required**
+
+- `GET /api/user/me` - Get current user information and player link status
+- `POST /api/user/link-player` - Link Clerk account to player profile by email
+
 ### Admin Endpoints
+
+**Requires Authentication + Admin Role**
 
 **Courses**
 - `POST /api/admin/courses` - Create a course
@@ -318,24 +373,60 @@ The backend exposes RESTful endpoints using Go 1.22+ routing with method and pat
 - `POST /api/admin/scores` - Enter a score for a hole
 - `POST /api/admin/rounds` - Create a round (automatically processes adjusted scores and recalculates handicap)
 
-### Player Endpoints
+**Jobs**
+- `POST /api/jobs/recalculate-handicaps` - Trigger handicap recalculation for all players
+- `POST /api/jobs/process-match/{id}` - Process a completed match
+
+### League Member Endpoints
+
+**Requires Authentication + League Membership**
 
 - `GET /api/players/{id}/handicap` - Get player's current handicap
 - `GET /api/players/{id}/rounds` - Get player's round history
 - `GET /api/matches/{id}/scores` - Get all scores for a match
 - `GET /api/standings` - Get league standings
 
-### Job Endpoints
-
-- `POST /api/jobs/recalculate-handicaps` - Trigger handicap recalculation for all players
-- `POST /api/jobs/process-match/{id}` - Process a completed match
-
 ### Frontend API Usage
+
+**Using the authenticated API client:**
+
+```typescript
+'use client'
+
+import { useAuthenticatedAPI } from '@/lib/useAuthenticatedAPI'
+
+function MyComponent() {
+  const { api, isReady } = useAuthenticatedAPI()
+
+  useEffect(() => {
+    if (isReady) {
+      // API client is configured with Clerk token
+      loadData()
+    }
+  }, [isReady])
+
+  const loadData = async () => {
+    // Automatically includes Authorization header
+    const standings = await api.getStandings()
+    
+    // Admin endpoints require admin role
+    const courses = await api.listCourses()
+  }
+}
+```
+
+**API Examples:**
 
 ```typescript
 import { api } from '@/lib/api'
 
-// Create a course
+// Link user account to player profile
+await api.linkPlayerAccount('user@example.com')
+
+// Get current user information
+const userInfo = await api.getCurrentUser()
+
+// Create a course (admin only)
 const course = await api.createCourse({
   name: 'Pine Valley',
   par: 36,
@@ -345,7 +436,7 @@ const course = await api.createCourse({
   hole_pars: [4, 3, 5, 4, 4, 3, 5, 4, 4]
 })
 
-// Get standings
+// Get standings (league members)
 const standings = await api.getStandings()
 
 // Enter a score
