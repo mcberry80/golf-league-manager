@@ -49,6 +49,13 @@ func (s *APIServer) registerRoutes() {
 	s.mux.HandleFunc("GET /api/admin/players/{id}", s.handleGetPlayer)
 	s.mux.HandleFunc("PUT /api/admin/players/{id}", s.handleUpdatePlayer)
 
+	s.mux.HandleFunc("POST /api/admin/seasons", s.handleCreateSeason)
+	s.mux.HandleFunc("GET /api/admin/seasons", s.handleListSeasons)
+	s.mux.HandleFunc("GET /api/admin/seasons/{id}", s.handleGetSeason)
+	s.mux.HandleFunc("PUT /api/admin/seasons/{id}", s.handleUpdateSeason)
+	s.mux.HandleFunc("GET /api/admin/seasons/{id}/matches", s.handleGetSeasonMatches)
+	s.mux.HandleFunc("GET /api/admin/seasons/active", s.handleGetActiveSeason)
+
 	s.mux.HandleFunc("POST /api/admin/matches", s.handleCreateMatch)
 	s.mux.HandleFunc("GET /api/admin/matches", s.handleListMatches)
 	s.mux.HandleFunc("GET /api/admin/matches/{id}", s.handleGetMatch)
@@ -230,6 +237,114 @@ func (s *APIServer) handleUpdatePlayer(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(player)
 }
 
+// Season handlers
+
+func (s *APIServer) handleCreateSeason(w http.ResponseWriter, r *http.Request) {
+	var season models.Season
+	if err := json.NewDecoder(r.Body).Decode(&season); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	season.ID = uuid.New().String()
+	season.CreatedAt = time.Now()
+
+	ctx := r.Context()
+	if err := s.firestoreClient.CreateSeason(ctx, season); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to create season: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(season)
+}
+
+func (s *APIServer) handleListSeasons(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	seasons, err := s.firestoreClient.ListSeasons(ctx)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to list seasons: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(seasons)
+}
+
+func (s *APIServer) handleGetSeason(w http.ResponseWriter, r *http.Request) {
+	seasonID := r.PathValue("id")
+	if seasonID == "" {
+		http.Error(w, "Season ID is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	season, err := s.firestoreClient.GetSeason(ctx, seasonID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get season: %v", err), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(season)
+}
+
+func (s *APIServer) handleUpdateSeason(w http.ResponseWriter, r *http.Request) {
+	seasonID := r.PathValue("id")
+	if seasonID == "" {
+		http.Error(w, "Season ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var season models.Season
+	if err := json.NewDecoder(r.Body).Decode(&season); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	season.ID = seasonID
+
+	ctx := r.Context()
+	if err := s.firestoreClient.UpdateSeason(ctx, season); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to update season: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(season)
+}
+
+func (s *APIServer) handleGetActiveSeason(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	season, err := s.firestoreClient.GetActiveSeason(ctx)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get active season: %v", err), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(season)
+}
+
+func (s *APIServer) handleGetSeasonMatches(w http.ResponseWriter, r *http.Request) {
+	seasonID := r.PathValue("id")
+	if seasonID == "" {
+		http.Error(w, "Season ID is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	matches, err := s.firestoreClient.GetSeasonMatches(ctx, seasonID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get season matches: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(matches)
+}
+
 // models.Match handlers
 
 func (s *APIServer) handleCreateMatch(w http.ResponseWriter, r *http.Request) {
@@ -292,6 +407,21 @@ func (s *APIServer) handleUpdateMatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+	
+	// First, get the existing match to check its status
+	existingMatch, err := s.firestoreClient.GetMatch(ctx, matchID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get match: %v", err), http.StatusNotFound)
+		return
+	}
+	
+	// Prevent editing of completed matches
+	if existingMatch.Status == "completed" {
+		http.Error(w, "Cannot update a completed match", http.StatusForbidden)
+		return
+	}
+
 	var match models.Match
 	if err := json.NewDecoder(r.Body).Decode(&match); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
@@ -299,8 +429,15 @@ func (s *APIServer) handleUpdateMatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	match.ID = matchID
+	
+	// Ensure status cannot be changed from non-completed to completed via this endpoint
+	// (should use process-match endpoint for that)
+	if existingMatch.Status != "completed" && match.Status == "completed" {
+		http.Error(w, "Cannot manually mark match as completed. Use the process-match endpoint", http.StatusBadRequest)
+		return
+	}
 
-	ctx := r.Context()
+	ctx = r.Context()
 	if err := s.firestoreClient.UpdateMatch(ctx, match); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to update match: %v", err), http.StatusInternalServerError)
 		return
@@ -352,6 +489,30 @@ func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
 	
 	if err := processor.ProcessRound(ctx, round.ID); err != nil {
 		log.Printf("Warning: Failed to process round: %v", err)
+	}
+	
+	// Immediately recalculate the player's handicap after the round is entered
+	job := services.NewHandicapRecalculationJob(s.firestoreClient)
+	player, err := s.firestoreClient.GetPlayer(ctx, round.PlayerID)
+	if err != nil {
+		log.Printf("Warning: Failed to get player for handicap update: %v", err)
+	} else {
+		courses, err := s.firestoreClient.ListCourses(ctx)
+		if err != nil {
+			log.Printf("Warning: Failed to get courses for handicap update: %v", err)
+		} else {
+			coursesMap := make(map[string]models.Course)
+			for _, course := range courses {
+				coursesMap[course.ID] = course
+			}
+			
+			// Recalculate handicap immediately for this player
+			if err := job.RecalculatePlayerHandicap(ctx, *player, coursesMap); err != nil {
+				log.Printf("Warning: Failed to recalculate handicap: %v", err)
+			} else {
+				log.Printf("Successfully recalculated handicap for player %s after round entry", player.Name)
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

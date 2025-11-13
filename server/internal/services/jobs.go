@@ -65,7 +65,14 @@ func (job *HandicapRecalculationJob) Run(ctx context.Context) error {
 }
 
 // recalculatePlayerHandicap recalculates and updates a single player's handicap
+// This is the internal implementation
 func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Context, player models.Player, coursesMap map[string]models.Course) error {
+	return job.RecalculatePlayerHandicap(ctx, player, coursesMap)
+}
+
+// RecalculatePlayerHandicap recalculates and updates a single player's handicap
+// This is the exported version that can be called externally
+func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Context, player models.Player, coursesMap map[string]models.Course) error {
 	// Get the last 5 rounds for the player
 	rounds, err := job.firestoreClient.GetPlayerRounds(ctx, player.ID, 5)
 	if err != nil {

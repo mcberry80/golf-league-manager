@@ -45,9 +45,21 @@ type HandicapRecord struct {
 	UpdatedAt       time.Time `firestore:"updated_at"`
 }
 
+// Season represents a league season with a schedule of matches
+type Season struct {
+	ID          string    `firestore:"id"`
+	Name        string    `firestore:"name"`
+	StartDate   time.Time `firestore:"start_date"`
+	EndDate     time.Time `firestore:"end_date"`
+	Active      bool      `firestore:"active"`
+	Description string    `firestore:"description"`
+	CreatedAt   time.Time `firestore:"created_at"`
+}
+
 // Match represents a head-to-head match between two players
 type Match struct {
 	ID         string    `firestore:"id"`
+	SeasonID   string    `firestore:"season_id"` // Reference to the season this match belongs to
 	WeekNumber int       `firestore:"week_number"`
 	PlayerAID  string    `firestore:"player_a_id"`
 	PlayerBID  string    `firestore:"player_b_id"`

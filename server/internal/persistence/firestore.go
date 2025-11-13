@@ -368,3 +368,115 @@ func (fc *FirestoreClient) GetPlayerMatchScores(ctx context.Context, matchID, pl
 	
 	return scores, nil
 }
+
+// Season operations
+
+// CreateSeason creates a new season in Firestore
+func (fc *FirestoreClient) CreateSeason(ctx context.Context, season models.Season) error {
+_, err := fc.client.Collection("seasons").Doc(season.ID).Set(ctx, season)
+if err != nil {
+return fmt.Errorf("failed to create season: %w", err)
+}
+return nil
+}
+
+// GetSeason retrieves a season by ID
+func (fc *FirestoreClient) GetSeason(ctx context.Context, seasonID string) (*models.Season, error) {
+doc, err := fc.client.Collection("seasons").Doc(seasonID).Get(ctx)
+if err != nil {
+return nil, fmt.Errorf("failed to get season: %w", err)
+}
+
+var season models.Season
+if err := doc.DataTo(&season); err != nil {
+return nil, fmt.Errorf("failed to parse season data: %w", err)
+}
+
+return &season, nil
+}
+
+// UpdateSeason updates an existing season
+func (fc *FirestoreClient) UpdateSeason(ctx context.Context, season models.Season) error {
+_, err := fc.client.Collection("seasons").Doc(season.ID).Set(ctx, season)
+if err != nil {
+return fmt.Errorf("failed to update season: %w", err)
+}
+return nil
+}
+
+// ListSeasons retrieves all seasons
+func (fc *FirestoreClient) ListSeasons(ctx context.Context) ([]models.Season, error) {
+iter := fc.client.Collection("seasons").OrderBy("start_date", firestore.Desc).Documents(ctx)
+defer iter.Stop()
+
+var seasons []models.Season
+for {
+doc, err := iter.Next()
+if err == iterator.Done {
+break
+}
+if err != nil {
+return nil, fmt.Errorf("failed to iterate seasons: %w", err)
+}
+
+var season models.Season
+if err := doc.DataTo(&season); err != nil {
+return nil, fmt.Errorf("failed to parse season data: %w", err)
+}
+seasons = append(seasons, season)
+}
+
+return seasons, nil
+}
+
+// GetActiveSeason retrieves the currently active season
+func (fc *FirestoreClient) GetActiveSeason(ctx context.Context) (*models.Season, error) {
+iter := fc.client.Collection("seasons").
+Where("active", "==", true).
+Limit(1).
+Documents(ctx)
+defer iter.Stop()
+
+doc, err := iter.Next()
+if err == iterator.Done {
+return nil, fmt.Errorf("no active season found")
+}
+if err != nil {
+return nil, fmt.Errorf("failed to get active season: %w", err)
+}
+
+var season models.Season
+if err := doc.DataTo(&season); err != nil {
+return nil, fmt.Errorf("failed to parse season data: %w", err)
+}
+
+return &season, nil
+}
+
+// GetSeasonMatches retrieves all matches for a season
+func (fc *FirestoreClient) GetSeasonMatches(ctx context.Context, seasonID string) ([]models.Match, error) {
+iter := fc.client.Collection("matches").
+Where("season_id", "==", seasonID).
+OrderBy("week_number", firestore.Asc).
+Documents(ctx)
+defer iter.Stop()
+
+var matches []models.Match
+for {
+doc, err := iter.Next()
+if err == iterator.Done {
+break
+}
+if err != nil {
+return nil, fmt.Errorf("failed to iterate matches: %w", err)
+}
+
+var match models.Match
+if err := doc.DataTo(&match); err != nil {
+return nil, fmt.Errorf("failed to parse match data: %w", err)
+}
+matches = append(matches, match)
+}
+
+return matches, nil
+}
