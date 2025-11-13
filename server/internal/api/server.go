@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/google/uuid"
 
 	"golf-league-manager/server/internal/models"
@@ -22,13 +23,16 @@ type APIServer struct {
 }
 
 // NewAPIServer creates a new API server instance
-func NewAPIServer(fc *persistence.FirestoreClient) *APIServer {
+func NewAPIServer(fc *persistence.FirestoreClient, clerkSecretKey string) (*APIServer, error) {
+	// Initialize Clerk with secret key (global configuration)
+	clerk.SetKey(clerkSecretKey)
+
 	server := &APIServer{
 		firestoreClient: fc,
 		mux:             http.NewServeMux(),
 	}
 	server.registerRoutes()
-	return server
+	return server, nil
 }
 
 // ServeHTTP implements http.Handler
@@ -38,43 +42,52 @@ func (s *APIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // registerRoutes sets up all API endpoints using Go 1.22+ routing
 func (s *APIServer) registerRoutes() {
-	// Admin endpoints
-	s.mux.HandleFunc("POST /api/admin/courses", s.handleCreateCourse)
-	s.mux.HandleFunc("GET /api/admin/courses", s.handleListCourses)
-	s.mux.HandleFunc("GET /api/admin/courses/{id}", s.handleGetCourse)
-	s.mux.HandleFunc("PUT /api/admin/courses/{id}", s.handleUpdateCourse)
+	// Create middleware
+	authMiddleware := AuthMiddleware()
+	adminOnly := AdminOnlyMiddleware(s.firestoreClient)
+	leagueMember := LeagueMemberMiddleware(s.firestoreClient)
 
-	s.mux.HandleFunc("POST /api/admin/players", s.handleCreatePlayer)
-	s.mux.HandleFunc("GET /api/admin/players", s.handleListPlayers)
-	s.mux.HandleFunc("GET /api/admin/players/{id}", s.handleGetPlayer)
-	s.mux.HandleFunc("PUT /api/admin/players/{id}", s.handleUpdatePlayer)
+	// Admin endpoints - require authentication and admin role
+	s.mux.Handle("POST /api/admin/courses", chainMiddleware(http.HandlerFunc(s.handleCreateCourse), authMiddleware, adminOnly))
+	s.mux.Handle("GET /api/admin/courses", chainMiddleware(http.HandlerFunc(s.handleListCourses), authMiddleware, adminOnly))
+	s.mux.Handle("GET /api/admin/courses/{id}", chainMiddleware(http.HandlerFunc(s.handleGetCourse), authMiddleware, adminOnly))
+	s.mux.Handle("PUT /api/admin/courses/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateCourse), authMiddleware, adminOnly))
 
-	s.mux.HandleFunc("POST /api/admin/seasons", s.handleCreateSeason)
-	s.mux.HandleFunc("GET /api/admin/seasons", s.handleListSeasons)
-	s.mux.HandleFunc("GET /api/admin/seasons/{id}", s.handleGetSeason)
-	s.mux.HandleFunc("PUT /api/admin/seasons/{id}", s.handleUpdateSeason)
-	s.mux.HandleFunc("GET /api/admin/seasons/{id}/matches", s.handleGetSeasonMatches)
-	s.mux.HandleFunc("GET /api/admin/seasons/active", s.handleGetActiveSeason)
+	s.mux.Handle("POST /api/admin/players", chainMiddleware(http.HandlerFunc(s.handleCreatePlayer), authMiddleware, adminOnly))
+	s.mux.Handle("GET /api/admin/players", chainMiddleware(http.HandlerFunc(s.handleListPlayers), authMiddleware, adminOnly))
+	s.mux.Handle("GET /api/admin/players/{id}", chainMiddleware(http.HandlerFunc(s.handleGetPlayer), authMiddleware, adminOnly))
+	s.mux.Handle("PUT /api/admin/players/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdatePlayer), authMiddleware, adminOnly))
 
-	s.mux.HandleFunc("POST /api/admin/matches", s.handleCreateMatch)
-	s.mux.HandleFunc("GET /api/admin/matches", s.handleListMatches)
-	s.mux.HandleFunc("GET /api/admin/matches/{id}", s.handleGetMatch)
-	s.mux.HandleFunc("PUT /api/admin/matches/{id}", s.handleUpdateMatch)
+	s.mux.Handle("POST /api/admin/seasons", chainMiddleware(http.HandlerFunc(s.handleCreateSeason), authMiddleware, adminOnly))
+	s.mux.Handle("GET /api/admin/seasons", chainMiddleware(http.HandlerFunc(s.handleListSeasons), authMiddleware, adminOnly))
+	s.mux.Handle("GET /api/admin/seasons/{id}", chainMiddleware(http.HandlerFunc(s.handleGetSeason), authMiddleware, adminOnly))
+	s.mux.Handle("PUT /api/admin/seasons/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateSeason), authMiddleware, adminOnly))
+	s.mux.Handle("GET /api/admin/seasons/{id}/matches", chainMiddleware(http.HandlerFunc(s.handleGetSeasonMatches), authMiddleware, adminOnly))
+	s.mux.Handle("GET /api/admin/seasons/active", chainMiddleware(http.HandlerFunc(s.handleGetActiveSeason), authMiddleware, adminOnly))
 
-	s.mux.HandleFunc("POST /api/admin/scores", s.handleEnterScore)
-	s.mux.HandleFunc("POST /api/admin/rounds", s.handleCreateRound)
+	s.mux.Handle("POST /api/admin/matches", chainMiddleware(http.HandlerFunc(s.handleCreateMatch), authMiddleware, adminOnly))
+	s.mux.Handle("GET /api/admin/matches", chainMiddleware(http.HandlerFunc(s.handleListMatches), authMiddleware, adminOnly))
+	s.mux.Handle("GET /api/admin/matches/{id}", chainMiddleware(http.HandlerFunc(s.handleGetMatch), authMiddleware, adminOnly))
+	s.mux.Handle("PUT /api/admin/matches/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateMatch), authMiddleware, adminOnly))
 
-	// models.Player endpoints
-	s.mux.HandleFunc("GET /api/players/{id}/handicap", s.handleGetPlayerHandicap)
-	s.mux.HandleFunc("GET /api/players/{id}/rounds", s.handleGetPlayerRounds)
-	s.mux.HandleFunc("GET /api/matches/{id}/scores", s.handleGetMatchScores)
-	s.mux.HandleFunc("GET /api/standings", s.handleGetStandings)
+	s.mux.Handle("POST /api/admin/scores", chainMiddleware(http.HandlerFunc(s.handleEnterScore), authMiddleware, adminOnly))
+	s.mux.Handle("POST /api/admin/rounds", chainMiddleware(http.HandlerFunc(s.handleCreateRound), authMiddleware, adminOnly))
 
-	// Job endpoints
-	s.mux.HandleFunc("POST /api/jobs/recalculate-handicaps", s.handleRecalculateHandicaps)
-	s.mux.HandleFunc("POST /api/jobs/process-match/{id}", s.handleProcessMatch)
+	// User account linking endpoints - require authentication only
+	s.mux.Handle("POST /api/user/link-player", chainMiddleware(http.HandlerFunc(s.handleLinkPlayerAccount), authMiddleware))
+	s.mux.Handle("GET /api/user/me", chainMiddleware(http.HandlerFunc(s.handleGetCurrentUser), authMiddleware))
 
-	// Health check
+	// League member endpoints - require authentication and league membership
+	s.mux.Handle("GET /api/players/{id}/handicap", chainMiddleware(http.HandlerFunc(s.handleGetPlayerHandicap), authMiddleware, leagueMember))
+	s.mux.Handle("GET /api/players/{id}/rounds", chainMiddleware(http.HandlerFunc(s.handleGetPlayerRounds), authMiddleware, leagueMember))
+	s.mux.Handle("GET /api/matches/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetMatchScores), authMiddleware, leagueMember))
+	s.mux.Handle("GET /api/standings", chainMiddleware(http.HandlerFunc(s.handleGetStandings), authMiddleware, leagueMember))
+
+	// Job endpoints - require authentication and admin role
+	s.mux.Handle("POST /api/jobs/recalculate-handicaps", chainMiddleware(http.HandlerFunc(s.handleRecalculateHandicaps), authMiddleware, adminOnly))
+	s.mux.Handle("POST /api/jobs/process-match/{id}", chainMiddleware(http.HandlerFunc(s.handleProcessMatch), authMiddleware, adminOnly))
+
+	// Health check - public endpoint
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 }
 
@@ -235,6 +248,93 @@ func (s *APIServer) handleUpdatePlayer(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(player)
+}
+
+// handleLinkPlayerAccount links a Clerk user to a player account by email
+func (s *APIServer) handleLinkPlayerAccount(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Get the authenticated user ID from context
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get the user's email from Clerk (this would come from the request body)
+	var requestBody struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Find player by email
+	players, err := s.firestoreClient.ListPlayers(ctx, false)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to list players: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	var foundPlayer *models.Player
+	for i, p := range players {
+		if p.Email == requestBody.Email {
+			foundPlayer = &players[i]
+			break
+		}
+	}
+
+	if foundPlayer == nil {
+		http.Error(w, "No player found with this email", http.StatusNotFound)
+		return
+	}
+
+	// Check if player is already linked to another account
+	if foundPlayer.ClerkUserID != "" && foundPlayer.ClerkUserID != userID {
+		http.Error(w, "This player is already linked to another account", http.StatusConflict)
+		return
+	}
+
+	// Link the Clerk user to the player
+	foundPlayer.ClerkUserID = userID
+	if err := s.firestoreClient.UpdatePlayer(ctx, *foundPlayer); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to link player: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(foundPlayer)
+}
+
+// handleGetCurrentUser returns the player info for the authenticated user
+func (s *APIServer) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Get the authenticated user ID from context
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Try to get the player associated with this Clerk user ID
+	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
+	if err != nil {
+		// User is authenticated but not linked to a player account yet
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"linked": false,
+			"clerk_user_id": userID,
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"linked": true,
+		"player": player,
+	})
 }
 
 // Season handlers
@@ -658,13 +758,16 @@ func (s *APIServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartServer starts the HTTP server
-func StartServer(ctx context.Context, port string, projectID string) error {
+func StartServer(ctx context.Context, port string, projectID string, clerkSecretKey string) error {
 	fc, err := persistence.NewFirestoreClient(ctx, projectID)
 	if err != nil {
 		return fmt.Errorf("failed to create firestore client: %w", err)
 	}
 
-	server := NewAPIServer(fc)
+	server, err := NewAPIServer(fc, clerkSecretKey)
+	if err != nil {
+		return fmt.Errorf("failed to create api server: %w", err)
+	}
 
 	log.Printf("Starting server on port %s", port)
 	return http.ListenAndServe(":"+port, server)

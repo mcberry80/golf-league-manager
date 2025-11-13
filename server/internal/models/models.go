@@ -7,6 +7,8 @@ type Player struct {
 	ID          string    `firestore:"id"`
 	Name        string    `firestore:"name"`
 	Email       string    `firestore:"email"`
+	ClerkUserID string    `firestore:"clerk_user_id"` // Links to Clerk user account
+	IsAdmin     bool      `firestore:"is_admin"`       // Admin role
 	Active      bool      `firestore:"active"`
 	Established bool      `firestore:"established"` // true if player has 5+ rounds
 	CreatedAt   time.Time `firestore:"created_at"`

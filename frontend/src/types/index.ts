@@ -2,6 +2,8 @@ export interface Player {
   id: string;
   name: string;
   email: string;
+  clerk_user_id?: string;
+  is_admin: boolean;
   active: boolean;
   established: boolean;
   created_at: string;

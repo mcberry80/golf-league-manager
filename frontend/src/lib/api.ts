@@ -4,19 +4,40 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 class APIClient {
   private baseURL: string;
+  private getToken?: () => Promise<string | null>;
 
-  constructor(baseURL: string) {
+  constructor(baseURL: string, getToken?: () => Promise<string | null>) {
     this.baseURL = baseURL;
+    this.getToken = getToken;
   }
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add any existing headers from options
+    if (options?.headers) {
+      Object.assign(headers, options.headers);
+    }
+
+    // Add Authorization header if token getter is available
+    if (this.getToken) {
+      try {
+        const token = await this.getToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (error) {
+        console.warn('Failed to get auth token:', error);
+      }
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -24,6 +45,11 @@ class APIClient {
     }
 
     return response.json();
+  }
+
+  // Set the token getter function (useful for updating after client initialization)
+  setTokenGetter(getToken: () => Promise<string | null>) {
+    this.getToken = getToken;
   }
 
   // Course methods
@@ -172,6 +198,18 @@ class APIClient {
   async processMatch(matchId: string): Promise<{ status: string }> {
     return this.request<{ status: string }>(`/api/jobs/process-match/${matchId}`, {
       method: 'POST',
+    });
+  }
+
+  // User account methods
+  async getCurrentUser(): Promise<{ linked: boolean; player?: Player; clerk_user_id?: string }> {
+    return this.request<{ linked: boolean; player?: Player; clerk_user_id?: string }>('/api/user/me');
+  }
+
+  async linkPlayerAccount(email: string): Promise<Player> {
+    return this.request<Player>('/api/user/link-player', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     });
   }
 }

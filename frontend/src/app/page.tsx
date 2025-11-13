@@ -30,6 +30,14 @@ export default function Home() {
           <SignedIn>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
               <Link 
+                href="/link-account"
+                className="p-6 border border-blue-500 rounded-lg hover:bg-blue-50 transition-colors"
+              >
+                <h2 className="text-2xl font-semibold mb-2">Link Account</h2>
+                <p className="text-gray-600">Connect your account to your player profile</p>
+              </Link>
+
+              <Link 
                 href="/standings"
                 className="p-6 border border-gray-300 rounded-lg hover:border-blue-500 transition-colors"
               >
