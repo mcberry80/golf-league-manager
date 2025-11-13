@@ -11,6 +11,8 @@ import (
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/google/uuid"
 
+	"golf-league-manager/server/internal/config"
+	"golf-league-manager/server/internal/middleware"
 	"golf-league-manager/server/internal/models"
 	"golf-league-manager/server/internal/persistence"
 	"golf-league-manager/server/internal/services"
@@ -20,10 +22,11 @@ import (
 type APIServer struct {
 	firestoreClient *persistence.FirestoreClient
 	mux             *http.ServeMux
+	handler         http.Handler
 }
 
-// NewAPIServer creates a new API server instance
-func NewAPIServer(fc *persistence.FirestoreClient, clerkSecretKey string) (*APIServer, error) {
+// NewAPIServer creates a new API server instance with middleware stack
+func NewAPIServer(fc *persistence.FirestoreClient, clerkSecretKey string, corsOrigins []string) (*APIServer, error) {
 	// Initialize Clerk with secret key (global configuration)
 	clerk.SetKey(clerkSecretKey)
 
@@ -32,12 +35,22 @@ func NewAPIServer(fc *persistence.FirestoreClient, clerkSecretKey string) (*APIS
 		mux:             http.NewServeMux(),
 	}
 	server.registerRoutes()
+	
+	// Apply global middleware stack
+	var handler http.Handler = server.mux
+	handler = middleware.Recovery()(handler)
+	handler = middleware.Logging()(handler)
+	handler = middleware.RequestID()(handler)
+	handler = middleware.CORS(corsOrigins)(handler)
+	handler = middleware.RateLimit()(handler)
+	
+	server.handler = handler
 	return server, nil
 }
 
 // ServeHTTP implements http.Handler
 func (s *APIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
+	s.handler.ServeHTTP(w, r)
 }
 
 // registerRoutes sets up all API endpoints using Go 1.22+ routing
@@ -757,18 +770,30 @@ func (s *APIServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
 }
 
-// StartServer starts the HTTP server
-func StartServer(ctx context.Context, port string, projectID string, clerkSecretKey string) error {
-	fc, err := persistence.NewFirestoreClient(ctx, projectID)
+// StartServer starts the HTTP server and returns the server instance for graceful shutdown
+func StartServer(ctx context.Context, cfg *config.Config) (*http.Server, error) {
+	fc, err := persistence.NewFirestoreClient(ctx, cfg.ProjectID)
 	if err != nil {
-		return fmt.Errorf("failed to create firestore client: %w", err)
+		return nil, fmt.Errorf("failed to create firestore client: %w", err)
 	}
 
-	server, err := NewAPIServer(fc, clerkSecretKey)
+	apiServer, err := NewAPIServer(fc, cfg.ClerkSecretKey, cfg.CORSOrigins)
 	if err != nil {
-		return fmt.Errorf("failed to create api server: %w", err)
+		return nil, fmt.Errorf("failed to create api server: %w", err)
 	}
 
-	log.Printf("Starting server on port %s", port)
-	return http.ListenAndServe(":"+port, server)
+	server := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: apiServer,
+	}
+
+	// Start server in a goroutine
+	go func() {
+		log.Printf("Starting server on port %s", cfg.Port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("Server error: %v", err)
+		}
+	}()
+
+	return server, nil
 }
