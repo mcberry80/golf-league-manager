@@ -3,14 +3,15 @@ package api
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/clerk/clerk-sdk-go/v2/jwt"
 
+	"golf-league-manager/server/internal/logger"
 	"golf-league-manager/server/internal/models"
 	"golf-league-manager/server/internal/persistence"
+	"golf-league-manager/server/internal/response"
 )
 
 // contextKey is a custom type for context keys to avoid collisions
@@ -30,14 +31,14 @@ func AuthMiddleware() func(http.Handler) http.Handler {
 			// Extract the token from the Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				http.Error(w, "Missing authorization header", http.StatusUnauthorized)
+				response.WriteUnauthorized(w, "Missing authorization header")
 				return
 			}
 
 			// Parse "Bearer <token>"
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				http.Error(w, "Invalid authorization header format", http.StatusUnauthorized)
+				response.WriteUnauthorized(w, "Invalid authorization header format")
 				return
 			}
 
@@ -48,15 +49,18 @@ func AuthMiddleware() func(http.Handler) http.Handler {
 				Token: token,
 			})
 			if err != nil {
-				log.Printf("Token verification failed: %v", err)
-				http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+				logger.WarnContext(r.Context(), "Token verification failed",
+					"error", err,
+					"path", r.URL.Path,
+				)
+				response.WriteUnauthorized(w, "Invalid or expired token")
 				return
 			}
 
 			// Extract the user ID from claims
 			userID := claims.Subject
 			if userID == "" {
-				http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+				response.WriteUnauthorized(w, "Invalid token claims")
 				return
 			}
 
@@ -73,21 +77,28 @@ func AdminOnlyMiddleware(fc *persistence.FirestoreClient) func(http.Handler) htt
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			userID, ok := r.Context().Value(UserIDContextKey).(string)
 			if !ok || userID == "" {
-				http.Error(w, "Unauthorized: No user ID in context", http.StatusUnauthorized)
+				response.WriteUnauthorized(w, "No user ID in context")
 				return
 			}
 
 			// Get the player associated with this Clerk user ID
 			player, err := fc.GetPlayerByClerkID(r.Context(), userID)
 			if err != nil {
-				log.Printf("Failed to get player by Clerk ID: %v", err)
-				http.Error(w, "Unauthorized: User not found in league", http.StatusUnauthorized)
+				logger.WarnContext(r.Context(), "Failed to get player by Clerk ID",
+					"error", err,
+					"user_id", userID,
+				)
+				response.WriteUnauthorized(w, "User not found in league")
 				return
 			}
 
 			// Check if the user is an admin
 			if !player.IsAdmin {
-				http.Error(w, "Forbidden: Admin access required", http.StatusForbidden)
+				logger.WarnContext(r.Context(), "Non-admin user attempted admin access",
+					"user_id", userID,
+					"player_id", player.ID,
+				)
+				response.WriteForbidden(w, "Admin access required")
 				return
 			}
 
@@ -104,21 +115,28 @@ func LeagueMemberMiddleware(fc *persistence.FirestoreClient) func(http.Handler) 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			userID, ok := r.Context().Value(UserIDContextKey).(string)
 			if !ok || userID == "" {
-				http.Error(w, "Unauthorized: No user ID in context", http.StatusUnauthorized)
+				response.WriteUnauthorized(w, "No user ID in context")
 				return
 			}
 
 			// Get the player associated with this Clerk user ID
 			player, err := fc.GetPlayerByClerkID(r.Context(), userID)
 			if err != nil {
-				log.Printf("Failed to get player by Clerk ID: %v", err)
-				http.Error(w, "Unauthorized: User not found in league", http.StatusUnauthorized)
+				logger.WarnContext(r.Context(), "Failed to get player by Clerk ID",
+					"error", err,
+					"user_id", userID,
+				)
+				response.WriteUnauthorized(w, "User not found in league")
 				return
 			}
 
 			// Check if the user is active in the league
 			if !player.Active {
-				http.Error(w, "Forbidden: Player account is inactive", http.StatusForbidden)
+				logger.WarnContext(r.Context(), "Inactive player attempted access",
+					"user_id", userID,
+					"player_id", player.ID,
+				)
+				response.WriteForbidden(w, "Player account is inactive")
 				return
 			}
 

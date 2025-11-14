@@ -2,32 +2,68 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"golf-league-manager/server/internal/api"
+	"golf-league-manager/server/internal/config"
+	"golf-league-manager/server/internal/logger"
 )
 
 func main() {
-	ctx := context.Background()
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
+		os.Exit(1)
 	}
 
-	projectID := os.Getenv("GCP_PROJECT_ID")
-	if projectID == "" {
-		log.Fatal("GCP_PROJECT_ID environment variable is required")
+	// Initialize structured logger
+	logger.Init(cfg.LogLevel)
+
+	// Log startup with masked sensitive values
+	logger.Info("Starting Golf League Manager API Server",
+		"config", cfg.MaskSensitive(),
+	)
+
+	// Create context for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start server
+	components, err := api.StartServer(ctx, cfg)
+	if err != nil {
+		logger.Error("Failed to start server", "error", err)
+		os.Exit(1)
 	}
 
-	clerkSecretKey := os.Getenv("CLERK_SECRET_KEY")
-	if clerkSecretKey == "" {
-		log.Fatal("CLERK_SECRET_KEY environment variable is required")
+	// Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Wait for shutdown signal
+	sig := <-sigChan
+	logger.Info("Received shutdown signal", "signal", sig)
+
+	// Cancel context to stop background operations
+	cancel()
+
+	// Create shutdown context with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	// Gracefully shutdown the HTTP server
+	if err := components.HTTPServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Server shutdown failed", "error", err)
 	}
 
-	log.Printf("Starting Golf League Manager API Server...")
-	if err := api.StartServer(ctx, port, projectID, clerkSecretKey); err != nil {
-		log.Fatalf("Server failed: %v", err)
+	// Close Firestore client
+	if err := components.FirestoreClient.Close(); err != nil {
+		logger.Error("Failed to close Firestore client", "error", err)
 	}
+
+	logger.Info("Server stopped gracefully")
 }
