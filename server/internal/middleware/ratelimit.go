@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"golf-league-manager/server/internal/logger"
+	"golf-league-manager/internal/logger"
 )
 
 // RateLimiter is a middleware that implements rate limiting per IP address

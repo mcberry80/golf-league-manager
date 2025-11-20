@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"golf-league-manager/server/internal/logger"
+	"golf-league-manager/internal/logger"
 )
 
 // Timeout is a middleware that enforces a timeout on HTTP requests.

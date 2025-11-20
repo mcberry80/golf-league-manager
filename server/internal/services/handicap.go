@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"golf-league-manager/server/internal/models"
+	"golf-league-manager/internal/models"
 )
 
 // Differential represents a score differential with timestamp

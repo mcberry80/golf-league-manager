@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"golf-league-manager/server/internal/models"
+	"golf-league-manager/internal/models"
 )
 
 func TestAssignStrokes(t *testing.T) {

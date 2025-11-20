@@ -11,12 +11,12 @@ import (
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/google/uuid"
 
-	"golf-league-manager/server/internal/config"
-	"golf-league-manager/server/internal/handlers"
-	"golf-league-manager/server/internal/middleware"
-	"golf-league-manager/server/internal/models"
-	"golf-league-manager/server/internal/persistence"
-	"golf-league-manager/server/internal/services"
+	"golf-league-manager/internal/config"
+	"golf-league-manager/internal/handlers"
+	"golf-league-manager/internal/middleware"
+	"golf-league-manager/internal/models"
+	"golf-league-manager/internal/persistence"
+	"golf-league-manager/internal/services"
 )
 
 // APIServer handles HTTP requests for the golf league management system

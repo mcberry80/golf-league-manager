@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"golf-league-manager/server/internal/logger"
+	"golf-league-manager/internal/logger"
 )
 
 func TestRequestID(t *testing.T) {

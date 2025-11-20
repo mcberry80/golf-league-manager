@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"golf-league-manager/server/internal/api"
-	"golf-league-manager/server/internal/config"
-	"golf-league-manager/server/internal/logger"
+	"golf-league-manager/internal/api"
+	"golf-league-manager/internal/config"
+	"golf-league-manager/internal/logger"
 )
 
 func main() {

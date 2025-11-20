@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"golf-league-manager/server/internal/logger"
+	"golf-league-manager/internal/logger"
 )
 
 // Recovery is a middleware that recovers from panics, logs the panic with stack trace,

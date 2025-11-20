@@ -3,32 +3,18 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
-# Copy source files
 COPY . .
-
-# Build the application
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine
+FROM nginx:alpine
 
-WORKDIR /app
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy package files
-COPY package*.json ./
-RUN npm ci --only=production
+EXPOSE 80
 
-# Copy built application
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./
-
-# Expose port
-EXPOSE 3000
-
-# Start the application
-CMD ["npm", "start"]
+CMD ["nginx", "-g", "daemon off;"]

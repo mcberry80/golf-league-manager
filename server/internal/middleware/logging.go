@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"golf-league-manager/server/internal/logger"
+	"golf-league-manager/internal/logger"
 )
 
 // responseWriter wraps http.ResponseWriter to capture status code and size

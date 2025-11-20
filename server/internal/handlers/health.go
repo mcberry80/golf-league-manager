@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"golf-league-manager/server/internal/persistence"
-	"golf-league-manager/server/internal/response"
+	"golf-league-manager/internal/persistence"
+	"golf-league-manager/internal/response"
 )
 
 // HealthHandler handles health check endpoints

@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"golf-league-manager/server/internal/logger"
+	"golf-league-manager/internal/logger"
 )
 
 // RequestID is a middleware that adds a unique request ID to each request context.

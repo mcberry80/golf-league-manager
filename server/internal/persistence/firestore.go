@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"golf-league-manager/server/internal/logger"
-	"golf-league-manager/server/internal/models"
+	"golf-league-manager/internal/logger"
+	"golf-league-manager/internal/models"
 )
 
 const (

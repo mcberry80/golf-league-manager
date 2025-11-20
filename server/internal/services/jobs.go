@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"golf-league-manager/server/internal/models"
-	"golf-league-manager/server/internal/persistence"
+	"golf-league-manager/internal/models"
+	"golf-league-manager/internal/persistence"
 )
 
 // HandicapRecalculationJob handles the weekly recalculation of all player handicaps

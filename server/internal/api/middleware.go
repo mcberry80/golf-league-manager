@@ -8,10 +8,10 @@ import (
 
 	"github.com/clerk/clerk-sdk-go/v2/jwt"
 
-	"golf-league-manager/server/internal/logger"
-	"golf-league-manager/server/internal/models"
-	"golf-league-manager/server/internal/persistence"
-	"golf-league-manager/server/internal/response"
+	"golf-league-manager/internal/logger"
+	"golf-league-manager/internal/models"
+	"golf-league-manager/internal/persistence"
+	"golf-league-manager/internal/response"
 )
 
 // contextKey is a custom type for context keys to avoid collisions

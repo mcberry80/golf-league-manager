@@ -4,7 +4,7 @@ import (
 	"math"
 	"sort"
 
-	"golf-league-manager/server/internal/models"
+	"golf-league-manager/internal/models"
 )
 
 // AssignStrokes assigns strokes to holes based on handicap difference

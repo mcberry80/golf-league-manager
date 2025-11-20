@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"golf-league-manager/server/internal/logger"
+	"golf-league-manager/internal/logger"
 )
 
 // Response represents a standard API response structure
