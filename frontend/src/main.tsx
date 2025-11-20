@@ -5,12 +5,19 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import App from './App.tsx'
 import './index.css'
 
-// Import pages (we will create these next)
+// Import pages
 import Home from './pages/Home.tsx'
-// import Admin from './pages/Admin.tsx'
-// import LinkAccount from './pages/LinkAccount.tsx'
-// import Players from './pages/Players.tsx'
-// import Standings from './pages/Standings.tsx'
+import Admin from './pages/Admin.tsx'
+import LinkAccount from './pages/LinkAccount.tsx'
+import Players from './pages/Players.tsx'
+import Standings from './pages/Standings.tsx'
+
+// Import admin pages
+import LeagueSetup from './pages/admin/LeagueSetup.tsx'
+import PlayerManagement from './pages/admin/PlayerManagement.tsx'
+import CourseManagement from './pages/admin/CourseManagement.tsx'
+import MatchScheduling from './pages/admin/MatchScheduling.tsx'
+import ScoreEntry from './pages/admin/ScoreEntry.tsx'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
@@ -24,10 +31,15 @@ const router = createBrowserRouter([
         element: <App />,
         children: [
             { path: "/", element: <Home /> },
-            // { path: "/admin", element: <Admin /> },
-            // { path: "/link-account", element: <LinkAccount /> },
-            // { path: "/players", element: <Players /> },
-            // { path: "/standings", element: <Standings /> },
+            { path: "/admin", element: <Admin /> },
+            { path: "/admin/league-setup", element: <LeagueSetup /> },
+            { path: "/admin/players", element: <PlayerManagement /> },
+            { path: "/admin/courses", element: <CourseManagement /> },
+            { path: "/admin/matches", element: <MatchScheduling /> },
+            { path: "/admin/scores", element: <ScoreEntry /> },
+            { path: "/link-account", element: <LinkAccount /> },
+            { path: "/players", element: <Players /> },
+            { path: "/standings", element: <Standings /> },
         ],
     },
 ]);

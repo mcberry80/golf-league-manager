@@ -302,7 +302,33 @@ func (s *APIServer) handleLinkPlayerAccount(w http.ResponseWriter, r *http.Reque
 	}
 
 	if foundPlayer == nil {
-		http.Error(w, "No player found with this email", http.StatusNotFound)
+		// If no player exists with this email, create one and make them admin if they're the first user
+		hasAdmins := false
+		for _, p := range players {
+			if p.IsAdmin {
+				hasAdmins = true
+				break
+			}
+		}
+
+		newPlayer := &models.Player{
+			ID:          uuid.New().String(),
+			Name:        requestBody.Email, // Use email as name initially
+			Email:       requestBody.Email,
+			ClerkUserID: userID,
+			IsAdmin:     !hasAdmins, // First user becomes admin
+			Active:      true,
+			Established: false,
+			CreatedAt:   time.Now(),
+		}
+
+		if err := s.firestoreClient.CreatePlayer(ctx, newPlayer); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to create player: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(newPlayer)
 		return
 	}
 
