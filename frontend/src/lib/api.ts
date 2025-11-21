@@ -1,0 +1,276 @@
+import type {
+    League,
+    LeagueMember,
+    LeagueMemberWithPlayer,
+    Player,
+    Course,
+    Season,
+    Match,
+    Score,
+    Round,
+    HandicapRecord,
+    StandingsEntry,
+    UserInfo,
+    CreateLeagueRequest,
+    CreateCourseRequest,
+    CreatePlayerRequest,
+    CreateSeasonRequest,
+    CreateMatchRequest,
+    CreateScoreRequest,
+    CreateRoundRequest,
+    LinkPlayerRequest,
+} from '../types';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
+class APIClient {
+    private baseURL: string;
+    private getAuthToken: (() => Promise<string | null>) | null = null;
+
+    constructor(baseURL: string) {
+        this.baseURL = baseURL;
+    }
+
+    setAuthTokenProvider(provider: () => Promise<string | null>) {
+        this.getAuthToken = provider;
+    }
+
+    private async request<T>(
+        endpoint: string,
+        options: RequestInit = {}
+    ): Promise<T> {
+        const token = this.getAuthToken ? await this.getAuthToken() : null;
+
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${this.baseURL}${endpoint}`, {
+            ...options,
+            headers,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API Error: ${response.status} - ${errorText}`);
+        }
+
+        return response.json();
+    }
+
+    // League endpoints
+    async createLeague(data: CreateLeagueRequest): Promise<League> {
+        return this.request<League>('/api/leagues', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async listLeagues(): Promise<League[]> {
+        return this.request<League[]>('/api/leagues');
+    }
+
+    async getLeague(id: string): Promise<League> {
+        return this.request<League>(`/api/leagues/${id}`);
+    }
+
+    async updateLeague(id: string, data: Partial<League>): Promise<League> {
+        return this.request<League>(`/api/leagues/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
+
+    // League Member endpoints
+    async addLeagueMember(leagueId: string, email: string, name?: string): Promise<LeagueMember> {
+        return this.request<LeagueMember>(`/api/leagues/${leagueId}/members`, {
+            method: 'POST',
+            body: JSON.stringify({ email, name }),
+        });
+    }
+
+    async listLeagueMembers(leagueId: string): Promise<LeagueMemberWithPlayer[]> {
+        return this.request<LeagueMemberWithPlayer[]>(`/api/leagues/${leagueId}/members`);
+    }
+
+    async updateLeagueMemberRole(leagueId: string, playerId: string, role: 'admin' | 'player'): Promise<LeagueMember> {
+        return this.request<LeagueMember>(`/api/leagues/${leagueId}/members/${playerId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ role }),
+        });
+    }
+
+    async removeLeagueMember(leagueId: string, playerId: string): Promise<void> {
+        return this.request<void>(`/api/leagues/${leagueId}/members/${playerId}`, {
+            method: 'DELETE',
+        });
+    }
+
+    // Course endpoints
+    async createCourse(leagueId: string, data: CreateCourseRequest): Promise<Course> {
+        return this.request<Course>(`/api/leagues/${leagueId}/courses`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async listCourses(leagueId: string): Promise<Course[]> {
+        return this.request<Course[]>(`/api/leagues/${leagueId}/courses`);
+    }
+
+    async getCourse(leagueId: string, id: string): Promise<Course> {
+        return this.request<Course>(`/api/leagues/${leagueId}/courses/${id}`);
+    }
+
+    async updateCourse(leagueId: string, id: string, data: Partial<Course>): Promise<Course> {
+        return this.request<Course>(`/api/leagues/${leagueId}/courses/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
+
+    // Player endpoints
+    async createPlayer(data: CreatePlayerRequest): Promise<Player> {
+        return this.request<Player>('/api/admin/players', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async listPlayers(activeOnly: boolean = false): Promise<Player[]> {
+        const query = activeOnly ? '?active=true' : '';
+        return this.request<Player[]>(`/api/admin/players${query}`);
+    }
+
+    async getPlayer(id: string): Promise<Player> {
+        return this.request<Player>(`/api/admin/players/${id}`);
+    }
+
+    async updatePlayer(id: string, data: Partial<Player>): Promise<Player> {
+        return this.request<Player>(`/api/admin/players/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
+
+    // Season endpoints
+    async createSeason(leagueId: string, data: CreateSeasonRequest): Promise<Season> {
+        return this.request<Season>(`/api/leagues/${leagueId}/seasons`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async listSeasons(leagueId: string): Promise<Season[]> {
+        return this.request<Season[]>(`/api/leagues/${leagueId}/seasons`);
+    }
+
+    async getSeason(leagueId: string, id: string): Promise<Season> {
+        return this.request<Season>(`/api/leagues/${leagueId}/seasons/${id}`);
+    }
+
+    async updateSeason(leagueId: string, id: string, data: Partial<Season>): Promise<Season> {
+        return this.request<Season>(`/api/leagues/${leagueId}/seasons/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async getActiveSeason(leagueId: string): Promise<Season> {
+        return this.request<Season>(`/api/leagues/${leagueId}/seasons/active`);
+    }
+
+    async getSeasonMatches(leagueId: string, seasonId: string): Promise<Match[]> {
+        return this.request<Match[]>(`/api/leagues/${leagueId}/seasons/${seasonId}/matches`);
+    }
+
+    // Match endpoints
+    async createMatch(leagueId: string, data: CreateMatchRequest): Promise<Match> {
+        return this.request<Match>(`/api/leagues/${leagueId}/matches`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async listMatches(leagueId: string, status?: string): Promise<Match[]> {
+        const query = status ? `?status=${status}` : '';
+        return this.request<Match[]>(`/api/leagues/${leagueId}/matches${query}`);
+    }
+
+    async getMatch(leagueId: string, id: string): Promise<Match> {
+        return this.request<Match>(`/api/leagues/${leagueId}/matches/${id}`);
+    }
+
+    async updateMatch(leagueId: string, id: string, data: Partial<Match>): Promise<Match> {
+        return this.request<Match>(`/api/leagues/${leagueId}/matches/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
+
+    // Score endpoints
+    async enterScore(leagueId: string, data: CreateScoreRequest): Promise<Score> {
+        return this.request<Score>(`/api/leagues/${leagueId}/scores`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async getMatchScores(leagueId: string, matchId: string): Promise<Score[]> {
+        return this.request<Score[]>(`/api/leagues/${leagueId}/matches/${matchId}/scores`);
+    }
+
+    // Round endpoints
+    async createRound(leagueId: string, data: CreateRoundRequest): Promise<Round> {
+        return this.request<Round>(`/api/leagues/${leagueId}/rounds`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async getPlayerRounds(leagueId: string, playerId: string): Promise<Round[]> {
+        return this.request<Round[]>(`/api/leagues/${leagueId}/players/${playerId}/rounds`);
+    }
+
+    // Handicap endpoints
+    async getPlayerHandicap(leagueId: string, playerId: string): Promise<HandicapRecord> {
+        return this.request<HandicapRecord>(`/api/leagues/${leagueId}/players/${playerId}/handicap`);
+    }
+
+    // User endpoints
+    async linkPlayerAccount(data: LinkPlayerRequest): Promise<Player> {
+        return this.request<Player>('/api/user/link-player', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async getCurrentUser(): Promise<UserInfo> {
+        return this.request<UserInfo>('/api/user/me');
+    }
+
+    // Standings endpoints
+    async getStandings(leagueId: string): Promise<StandingsEntry[]> {
+        return this.request<StandingsEntry[]>(`/api/leagues/${leagueId}/standings`);
+    }
+
+    // Job endpoints
+    async recalculateHandicaps(leagueId: string): Promise<{ status: string }> {
+        return this.request<{ status: string }>(`/api/leagues/${leagueId}/jobs/recalculate-handicaps`, {
+            method: 'POST',
+        });
+    }
+
+    async processMatch(leagueId: string, matchId: string): Promise<{ status: string }> {
+        return this.request<{ status: string }>(`/api/leagues/${leagueId}/jobs/process-match/${matchId}`, {
+            method: 'POST',
+        });
+    }
+}
+
+export const api = new APIClient(API_URL);
+export default api;

@@ -58,49 +58,61 @@ func (s *APIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *APIServer) registerRoutes() {
 	// Create middleware
 	authMiddleware := AuthMiddleware()
-	adminOnly := AdminOnlyMiddleware(s.firestoreClient)
-	leagueMember := LeagueMemberMiddleware(s.firestoreClient)
-
-	// Admin endpoints - require authentication and admin role
-	s.mux.Handle("POST /api/admin/courses", chainMiddleware(http.HandlerFunc(s.handleCreateCourse), authMiddleware, adminOnly))
-	s.mux.Handle("GET /api/admin/courses", chainMiddleware(http.HandlerFunc(s.handleListCourses), authMiddleware, adminOnly))
-	s.mux.Handle("GET /api/admin/courses/{id}", chainMiddleware(http.HandlerFunc(s.handleGetCourse), authMiddleware, adminOnly))
-	s.mux.Handle("PUT /api/admin/courses/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateCourse), authMiddleware, adminOnly))
-
-	s.mux.Handle("POST /api/admin/players", chainMiddleware(http.HandlerFunc(s.handleCreatePlayer), authMiddleware, adminOnly))
-	s.mux.Handle("GET /api/admin/players", chainMiddleware(http.HandlerFunc(s.handleListPlayers), authMiddleware, adminOnly))
-	s.mux.Handle("GET /api/admin/players/{id}", chainMiddleware(http.HandlerFunc(s.handleGetPlayer), authMiddleware, adminOnly))
-	s.mux.Handle("PUT /api/admin/players/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdatePlayer), authMiddleware, adminOnly))
-
-	s.mux.Handle("POST /api/admin/seasons", chainMiddleware(http.HandlerFunc(s.handleCreateSeason), authMiddleware, adminOnly))
-	s.mux.Handle("GET /api/admin/seasons", chainMiddleware(http.HandlerFunc(s.handleListSeasons), authMiddleware, adminOnly))
-	s.mux.Handle("GET /api/admin/seasons/{id}", chainMiddleware(http.HandlerFunc(s.handleGetSeason), authMiddleware, adminOnly))
-	s.mux.Handle("PUT /api/admin/seasons/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateSeason), authMiddleware, adminOnly))
-	s.mux.Handle("GET /api/admin/seasons/{id}/matches", chainMiddleware(http.HandlerFunc(s.handleGetSeasonMatches), authMiddleware, adminOnly))
-	s.mux.Handle("GET /api/admin/seasons/active", chainMiddleware(http.HandlerFunc(s.handleGetActiveSeason), authMiddleware, adminOnly))
-
-	s.mux.Handle("POST /api/admin/matches", chainMiddleware(http.HandlerFunc(s.handleCreateMatch), authMiddleware, adminOnly))
-	s.mux.Handle("GET /api/admin/matches", chainMiddleware(http.HandlerFunc(s.handleListMatches), authMiddleware, adminOnly))
-	s.mux.Handle("GET /api/admin/matches/{id}", chainMiddleware(http.HandlerFunc(s.handleGetMatch), authMiddleware, adminOnly))
-	s.mux.Handle("PUT /api/admin/matches/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateMatch), authMiddleware, adminOnly))
-
-	s.mux.Handle("POST /api/admin/scores", chainMiddleware(http.HandlerFunc(s.handleEnterScore), authMiddleware, adminOnly))
-	s.mux.Handle("POST /api/admin/rounds", chainMiddleware(http.HandlerFunc(s.handleCreateRound), authMiddleware, adminOnly))
-
+	
+	// League endpoints - require authentication
+	s.mux.Handle("POST /api/leagues", chainMiddleware(http.HandlerFunc(s.handleCreateLeague), authMiddleware))
+	s.mux.Handle("GET /api/leagues", chainMiddleware(http.HandlerFunc(s.handleListLeagues), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{id}", chainMiddleware(http.HandlerFunc(s.handleGetLeague), authMiddleware))
+	s.mux.Handle("PUT /api/leagues/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateLeague), authMiddleware))
+	
+	// League member endpoints - require authentication
+	s.mux.Handle("POST /api/leagues/{id}/members", chainMiddleware(http.HandlerFunc(s.handleAddLeagueMember), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{id}/members", chainMiddleware(http.HandlerFunc(s.handleListLeagueMembers), authMiddleware))
+	s.mux.Handle("PUT /api/leagues/{id}/members/{player_id}", chainMiddleware(http.HandlerFunc(s.handleUpdateLeagueMemberRole), authMiddleware))
+	s.mux.Handle("DELETE /api/leagues/{id}/members/{player_id}", chainMiddleware(http.HandlerFunc(s.handleRemoveLeagueMember), authMiddleware))
+	
+	// League-scoped admin endpoints - require authentication and league admin role
+	// These will be updated to use league-specific authorization
+	s.mux.Handle("POST /api/leagues/{league_id}/courses", chainMiddleware(http.HandlerFunc(s.handleCreateCourse), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/courses", chainMiddleware(http.HandlerFunc(s.handleListCourses), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/courses/{id}", chainMiddleware(http.HandlerFunc(s.handleGetCourse), authMiddleware))
+	s.mux.Handle("PUT /api/leagues/{league_id}/courses/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateCourse), authMiddleware))
+	
+	s.mux.Handle("POST /api/leagues/{league_id}/players", chainMiddleware(http.HandlerFunc(s.handleCreatePlayer), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/players", chainMiddleware(http.HandlerFunc(s.handleListPlayers), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}", chainMiddleware(http.HandlerFunc(s.handleGetPlayer), authMiddleware))
+	s.mux.Handle("PUT /api/leagues/{league_id}/players/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdatePlayer), authMiddleware))
+	
+	s.mux.Handle("POST /api/leagues/{league_id}/seasons", chainMiddleware(http.HandlerFunc(s.handleCreateSeason), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/seasons", chainMiddleware(http.HandlerFunc(s.handleListSeasons), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/seasons/{id}", chainMiddleware(http.HandlerFunc(s.handleGetSeason), authMiddleware))
+	s.mux.Handle("PUT /api/leagues/{league_id}/seasons/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateSeason), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/seasons/{id}/matches", chainMiddleware(http.HandlerFunc(s.handleGetSeasonMatches), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/seasons/active", chainMiddleware(http.HandlerFunc(s.handleGetActiveSeason), authMiddleware))
+	
+	s.mux.Handle("POST /api/leagues/{league_id}/matches", chainMiddleware(http.HandlerFunc(s.handleCreateMatch), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/matches", chainMiddleware(http.HandlerFunc(s.handleListMatches), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/matches/{id}", chainMiddleware(http.HandlerFunc(s.handleGetMatch), authMiddleware))
+	s.mux.Handle("PUT /api/leagues/{league_id}/matches/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateMatch), authMiddleware))
+	
+	s.mux.Handle("POST /api/leagues/{league_id}/scores", chainMiddleware(http.HandlerFunc(s.handleEnterScore), authMiddleware))
+	s.mux.Handle("POST /api/leagues/{league_id}/rounds", chainMiddleware(http.HandlerFunc(s.handleCreateRound), authMiddleware))
+	
+	s.mux.Handle("GET /api/leagues/{league_id}/standings", chainMiddleware(http.HandlerFunc(s.handleGetStandings), authMiddleware))
+	
 	// User account linking endpoints - require authentication only
 	s.mux.Handle("POST /api/user/link-player", chainMiddleware(http.HandlerFunc(s.handleLinkPlayerAccount), authMiddleware))
 	s.mux.Handle("GET /api/user/me", chainMiddleware(http.HandlerFunc(s.handleGetCurrentUser), authMiddleware))
-
+	
 	// League member endpoints - require authentication and league membership
-	s.mux.Handle("GET /api/players/{id}/handicap", chainMiddleware(http.HandlerFunc(s.handleGetPlayerHandicap), authMiddleware, leagueMember))
-	s.mux.Handle("GET /api/players/{id}/rounds", chainMiddleware(http.HandlerFunc(s.handleGetPlayerRounds), authMiddleware, leagueMember))
-	s.mux.Handle("GET /api/matches/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetMatchScores), authMiddleware, leagueMember))
-	s.mux.Handle("GET /api/standings", chainMiddleware(http.HandlerFunc(s.handleGetStandings), authMiddleware, leagueMember))
-
-	// Job endpoints - require authentication and admin role
-	s.mux.Handle("POST /api/jobs/recalculate-handicaps", chainMiddleware(http.HandlerFunc(s.handleRecalculateHandicaps), authMiddleware, adminOnly))
-	s.mux.Handle("POST /api/jobs/process-match/{id}", chainMiddleware(http.HandlerFunc(s.handleProcessMatch), authMiddleware, adminOnly))
-
+	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/handicap", chainMiddleware(http.HandlerFunc(s.handleGetPlayerHandicap), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/rounds", chainMiddleware(http.HandlerFunc(s.handleGetPlayerRounds), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/matches/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetMatchScores), authMiddleware))
+	
+	// Job endpoints - require authentication and league admin role
+	s.mux.Handle("POST /api/leagues/{league_id}/jobs/recalculate-handicaps", chainMiddleware(http.HandlerFunc(s.handleRecalculateHandicaps), authMiddleware))
+	s.mux.Handle("POST /api/leagues/{league_id}/jobs/process-match/{id}", chainMiddleware(http.HandlerFunc(s.handleProcessMatch), authMiddleware))
+	
 	// Health check endpoints - public
 	healthHandler := handlers.NewHealthHandler(s.firestoreClient)
 	s.mux.HandleFunc("GET /health", healthHandler.HandleHealth)
@@ -110,6 +122,12 @@ func (s *APIServer) registerRoutes() {
 // models.Course handlers
 
 func (s *APIServer) handleCreateCourse(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
 	var course models.Course
 	if err := json.NewDecoder(r.Body).Decode(&course); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
@@ -117,6 +135,7 @@ func (s *APIServer) handleCreateCourse(w http.ResponseWriter, r *http.Request) {
 	}
 
 	course.ID = uuid.New().String()
+	course.LeagueID = leagueID
 
 	ctx := r.Context()
 	if err := s.firestoreClient.CreateCourse(ctx, course); err != nil {
@@ -130,8 +149,14 @@ func (s *APIServer) handleCreateCourse(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *APIServer) handleListCourses(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
 	ctx := r.Context()
-	courses, err := s.firestoreClient.ListCourses(ctx)
+	courses, err := s.firestoreClient.ListCourses(ctx, leagueID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to list courses: %v", err), http.StatusInternalServerError)
 		return
@@ -302,7 +327,24 @@ func (s *APIServer) handleLinkPlayerAccount(w http.ResponseWriter, r *http.Reque
 	}
 
 	if foundPlayer == nil {
-		http.Error(w, "No player found with this email", http.StatusNotFound)
+		// If no player exists with this email, create one
+		newPlayer := &models.Player{
+			ID:          uuid.New().String(),
+			Name:        requestBody.Email, // Use email as name initially
+			Email:       requestBody.Email,
+			ClerkUserID: userID,
+			Active:      true,
+			Established: false,
+			CreatedAt:   time.Now(),
+		}
+
+		if err := s.firestoreClient.CreatePlayer(ctx, *newPlayer); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to create player: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(newPlayer)
 		return
 	}
 
@@ -356,6 +398,12 @@ func (s *APIServer) handleGetCurrentUser(w http.ResponseWriter, r *http.Request)
 // Season handlers
 
 func (s *APIServer) handleCreateSeason(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
 	var season models.Season
 	if err := json.NewDecoder(r.Body).Decode(&season); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
@@ -363,6 +411,7 @@ func (s *APIServer) handleCreateSeason(w http.ResponseWriter, r *http.Request) {
 	}
 
 	season.ID = uuid.New().String()
+	season.LeagueID = leagueID
 	season.CreatedAt = time.Now()
 
 	ctx := r.Context()
@@ -377,8 +426,14 @@ func (s *APIServer) handleCreateSeason(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *APIServer) handleListSeasons(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
 	ctx := r.Context()
-	seasons, err := s.firestoreClient.ListSeasons(ctx)
+	seasons, err := s.firestoreClient.ListSeasons(ctx, leagueID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to list seasons: %v", err), http.StatusInternalServerError)
 		return
@@ -432,8 +487,14 @@ func (s *APIServer) handleUpdateSeason(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *APIServer) handleGetActiveSeason(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
 	ctx := r.Context()
-	season, err := s.firestoreClient.GetActiveSeason(ctx)
+	season, err := s.firestoreClient.GetActiveSeason(ctx, leagueID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get active season: %v", err), http.StatusNotFound)
 		return
@@ -464,6 +525,12 @@ func (s *APIServer) handleGetSeasonMatches(w http.ResponseWriter, r *http.Reques
 // models.Match handlers
 
 func (s *APIServer) handleCreateMatch(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
 	var match models.Match
 	if err := json.NewDecoder(r.Body).Decode(&match); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
@@ -471,6 +538,7 @@ func (s *APIServer) handleCreateMatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	match.ID = uuid.New().String()
+	match.LeagueID = leagueID
 	match.Status = "scheduled"
 
 	ctx := r.Context()
@@ -485,10 +553,16 @@ func (s *APIServer) handleCreateMatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *APIServer) handleListMatches(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
 	status := r.URL.Query().Get("status")
 
 	ctx := r.Context()
-	matches, err := s.firestoreClient.ListMatches(ctx, status)
+	matches, err := s.firestoreClient.ListMatches(ctx, leagueID, status)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to list matches: %v", err), http.StatusInternalServerError)
 		return
@@ -517,9 +591,10 @@ func (s *APIServer) handleGetMatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *APIServer) handleUpdateMatch(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
 	matchID := r.PathValue("id")
-	if matchID == "" {
-		http.Error(w, "models.Match ID is required", http.StatusBadRequest)
+	if leagueID == "" || matchID == "" {
+		http.Error(w, "League ID and Match ID are required", http.StatusBadRequest)
 		return
 	}
 
@@ -586,6 +661,12 @@ func (s *APIServer) handleEnterScore(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
 	var round models.Round
 	if err := json.NewDecoder(r.Body).Decode(&round); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
@@ -593,6 +674,7 @@ func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
 	}
 
 	round.ID = uuid.New().String()
+	round.LeagueID = leagueID
 
 	ctx := r.Context()
 
@@ -613,7 +695,7 @@ func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Warning: Failed to get player for handicap update: %v", err)
 	} else {
-		courses, err := s.firestoreClient.ListCourses(ctx)
+		courses, err := s.firestoreClient.ListCourses(ctx, leagueID)
 		if err != nil {
 			log.Printf("Warning: Failed to get courses for handicap update: %v", err)
 		} else {
@@ -623,7 +705,7 @@ func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Recalculate handicap immediately for this player
-			if err := job.RecalculatePlayerHandicap(ctx, *player, coursesMap); err != nil {
+			if err := job.RecalculatePlayerHandicap(ctx, leagueID, *player, coursesMap); err != nil {
 				log.Printf("Warning: Failed to recalculate handicap: %v", err)
 			} else {
 				log.Printf("Successfully recalculated handicap for player %s after round entry", player.Name)
@@ -639,14 +721,15 @@ func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
 // models.Player query handlers
 
 func (s *APIServer) handleGetPlayerHandicap(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
 	playerID := r.PathValue("id")
-	if playerID == "" {
-		http.Error(w, "models.Player ID is required", http.StatusBadRequest)
+	if leagueID == "" || playerID == "" {
+		http.Error(w, "League ID and Player ID are required", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
-	handicap, err := s.firestoreClient.GetPlayerHandicap(ctx, playerID)
+	handicap, err := s.firestoreClient.GetPlayerHandicap(ctx, leagueID, playerID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get handicap: %v", err), http.StatusNotFound)
 		return
@@ -657,14 +740,15 @@ func (s *APIServer) handleGetPlayerHandicap(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *APIServer) handleGetPlayerRounds(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
 	playerID := r.PathValue("id")
-	if playerID == "" {
-		http.Error(w, "models.Player ID is required", http.StatusBadRequest)
+	if leagueID == "" || playerID == "" {
+		http.Error(w, "League ID and Player ID are required", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
-	rounds, err := s.firestoreClient.GetPlayerRounds(ctx, playerID, 20)
+	rounds, err := s.firestoreClient.GetPlayerRounds(ctx, leagueID, playerID, 20)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get rounds: %v", err), http.StatusInternalServerError)
 		return
@@ -705,18 +789,31 @@ type StandingsEntry struct {
 }
 
 func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// This is a simplified version - a full implementation would aggregate match results
-	players, err := s.firestoreClient.ListPlayers(ctx, true)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get players: %v", err), http.StatusInternalServerError)
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
 		return
 	}
 
-	standings := make([]StandingsEntry, 0, len(players))
-	for _, player := range players {
-		handicap, _ := s.firestoreClient.GetPlayerHandicap(ctx, player.ID)
+	ctx := r.Context()
+
+	// This is a simplified version - a full implementation would aggregate match results
+	// For now, we list all players in the league
+	// First get league members
+	members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get league members: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	standings := make([]StandingsEntry, 0, len(members))
+	for _, member := range members {
+		player, err := s.firestoreClient.GetPlayer(ctx, member.PlayerID)
+		if err != nil {
+			continue
+		}
+
+		handicap, _ := s.firestoreClient.GetPlayerHandicap(ctx, leagueID, player.ID)
 
 		entry := StandingsEntry{
 			PlayerID:   player.ID,
@@ -735,10 +832,16 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 // Job handlers
 
 func (s *APIServer) handleRecalculateHandicaps(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
 	ctx := r.Context()
 
 	job := services.NewHandicapRecalculationJob(s.firestoreClient)
-	if err := job.Run(ctx); err != nil {
+	if err := job.Run(ctx, leagueID); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to recalculate handicaps: %v", err), http.StatusInternalServerError)
 		return
 	}

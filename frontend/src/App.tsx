@@ -1,10 +1,13 @@
 import { Outlet } from 'react-router-dom'
+import { LeagueProvider } from './contexts/LeagueContext'
 
 function App() {
     return (
-        <div className="min-h-screen bg-white">
-            <Outlet />
-        </div>
+        <LeagueProvider>
+            <div className="min-h-screen">
+                <Outlet />
+            </div>
+        </LeagueProvider>
     )
 }
 

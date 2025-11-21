@@ -10,7 +10,6 @@ import (
 
 	"golf-league-manager/internal/logger"
 	"golf-league-manager/internal/models"
-	"golf-league-manager/internal/persistence"
 	"golf-league-manager/internal/response"
 )
 
@@ -71,81 +70,6 @@ func AuthMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
-// AdminOnlyMiddleware checks if the authenticated user is an admin
-func AdminOnlyMiddleware(fc *persistence.FirestoreClient) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userID, ok := r.Context().Value(UserIDContextKey).(string)
-			if !ok || userID == "" {
-				response.WriteUnauthorized(w, "No user ID in context")
-				return
-			}
-
-			// Get the player associated with this Clerk user ID
-			player, err := fc.GetPlayerByClerkID(r.Context(), userID)
-			if err != nil {
-				logger.WarnContext(r.Context(), "Failed to get player by Clerk ID",
-					"error", err,
-					"user_id", userID,
-				)
-				response.WriteUnauthorized(w, "User not found in league")
-				return
-			}
-
-			// Check if the user is an admin
-			if !player.IsAdmin {
-				logger.WarnContext(r.Context(), "Non-admin user attempted admin access",
-					"user_id", userID,
-					"player_id", player.ID,
-				)
-				response.WriteForbidden(w, "Admin access required")
-				return
-			}
-
-			// Store the player in the context for later use
-			ctx := context.WithValue(r.Context(), PlayerContextKey, player)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
-
-// LeagueMemberMiddleware checks if the authenticated user is a league member or admin
-func LeagueMemberMiddleware(fc *persistence.FirestoreClient) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userID, ok := r.Context().Value(UserIDContextKey).(string)
-			if !ok || userID == "" {
-				response.WriteUnauthorized(w, "No user ID in context")
-				return
-			}
-
-			// Get the player associated with this Clerk user ID
-			player, err := fc.GetPlayerByClerkID(r.Context(), userID)
-			if err != nil {
-				logger.WarnContext(r.Context(), "Failed to get player by Clerk ID",
-					"error", err,
-					"user_id", userID,
-				)
-				response.WriteUnauthorized(w, "User not found in league")
-				return
-			}
-
-			// Check if the user is active in the league
-			if !player.Active {
-				logger.WarnContext(r.Context(), "Inactive player attempted access",
-					"user_id", userID,
-					"player_id", player.ID,
-				)
-				response.WriteForbidden(w, "Player account is inactive")
-				return
-			}
-
-			// Store the player in the context for later use
-			ctx := context.WithValue(r.Context(), PlayerContextKey, player)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
 
 // Helper function to create a middleware chain
 func chainMiddleware(handler http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
