@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,8 +9,59 @@ import (
 
 	"golf-league-manager/internal/models"
 
+	"github.com/clerk/clerk-sdk-go/v2"
+	"github.com/clerk/clerk-sdk-go/v2/user"
 	"github.com/google/uuid"
 )
+
+// Helper functions for Clerk user operations
+
+// getUserFromClerk fetches user information from Clerk API
+func getUserFromClerk(ctx context.Context, userID string) (*clerk.User, error) {
+	clerkUser, err := user.Get(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user from Clerk: %w", err)
+	}
+	return clerkUser, nil
+}
+
+// getDisplayName extracts a display name from Clerk user
+func getDisplayName(u *clerk.User) string {
+	if u.FirstName != nil && u.LastName != nil && *u.FirstName != "" && *u.LastName != "" {
+		return *u.FirstName + " " + *u.LastName
+	}
+	if u.FirstName != nil && *u.FirstName != "" {
+		return *u.FirstName
+	}
+	if u.Username != nil && *u.Username != "" {
+		return *u.Username
+	}
+	// Fallback to email username part
+	if len(u.EmailAddresses) > 0 {
+		email := u.EmailAddresses[0].EmailAddress
+		for idx := 0; idx < len(email); idx++ {
+			if email[idx] == '@' {
+				return email[:idx]
+			}
+		}
+		return email
+	}
+	return "User"
+}
+
+// getPrimaryEmail extracts the primary email from Clerk user
+func getPrimaryEmail(u *clerk.User) string {
+	for _, email := range u.EmailAddresses {
+		if u.PrimaryEmailAddressID != nil && email.ID == *u.PrimaryEmailAddressID {
+			return email.EmailAddress
+		}
+	}
+	// Fallback to first email
+	if len(u.EmailAddresses) > 0 {
+		return u.EmailAddresses[0].EmailAddress
+	}
+	return ""
+}
 
 // League handlers
 
@@ -24,11 +76,32 @@ func (s *APIServer) handleCreateLeague(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the player for this user
+	// Get or create the player for this user
 	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
 	if err != nil {
-		http.Error(w, "Player not found. Please link your account first.", http.StatusNotFound)
-		return
+		// Player doesn't exist yet, create one automatically using Clerk user info
+		// Get user info from Clerk
+		clerkUser, err := getUserFromClerk(ctx, userID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to get user information: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Create a new player profile
+		player = &models.Player{
+			ID:          uuid.New().String(),
+			Name:        getDisplayName(clerkUser),
+			Email:       getPrimaryEmail(clerkUser),
+			ClerkUserID: userID,
+			Active:      true,
+			Established: false,
+			CreatedAt:   time.Now(),
+		}
+
+		if err := s.firestoreClient.CreatePlayer(ctx, *player); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to create player: %v", err), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	var req struct {

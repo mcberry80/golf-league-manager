@@ -21,6 +21,14 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     const [userLeagues, setUserLeagues] = useState<LeagueMember[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Set up auth token provider on mount
+    useEffect(() => {
+        if (userId && getToken) {
+            // Set dynamic token provider that fetches fresh token on each request
+            api.setAuthTokenProvider(getToken);
+        }
+    }, [userId, getToken]);
+
     // Load user's leagues on mount or auth change
     useEffect(() => {
         const loadLeagues = async () => {
@@ -30,29 +38,36 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
             }
 
             try {
-                const token = await getToken();
-                if (!token) return;
-
-                api.setAuthTokenProvider(async () => token);
-
-                // Get current user info which includes leagues
+                // Get current user info
                 const userInfo = await api.getCurrentUser();
-                if (userInfo.leagues) {
-                    setUserLeagues(userInfo.leagues);
+                
+                // If user has a linked player, get their leagues
+                if (userInfo.linked && userInfo.player) {
+                    const leagues = await api.listLeagues();
+                    const leagueMembers: LeagueMember[] = [];
+                    
+                    // Fetch membership info for each league
+                    for (const league of leagues) {
+                        try {
+                            const members = await api.listLeagueMembers(league.id);
+                            const userMember = members.find(m => m.player_id === userInfo.player!.id);
+                            if (userMember) {
+                                leagueMembers.push(userMember);
+                            }
+                        } catch (err) {
+                            console.error(`Failed to load members for league ${league.id}:`, err);
+                        }
+                    }
+                    
+                    setUserLeagues(leagueMembers);
 
                     // Restore selected league from local storage if available
                     const savedLeagueId = localStorage.getItem('selectedLeagueId');
-                    if (savedLeagueId) {
-                        const member = userInfo.leagues.find(l => l.league_id === savedLeagueId);
-                        if (member) {
-                            selectLeague(savedLeagueId);
-                        } else if (userInfo.leagues.length > 0) {
-                            // Default to first league if saved one not found
-                            selectLeague(userInfo.leagues[0].league_id);
-                        }
-                    } else if (userInfo.leagues.length > 0) {
+                    if (savedLeagueId && leagueMembers.some(m => m.league_id === savedLeagueId)) {
+                        selectLeague(savedLeagueId);
+                    } else if (leagueMembers.length > 0) {
                         // Default to first league
-                        selectLeague(userInfo.leagues[0].league_id);
+                        selectLeague(leagueMembers[0].league_id);
                     }
                 }
             } catch (error) {
@@ -63,7 +78,7 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
         };
 
         loadLeagues();
-    }, [userId, getToken]);
+    }, [userId]);
 
     const selectLeague = async (leagueId: string) => {
         setIsLoading(true);
@@ -84,12 +99,31 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
 
     const refreshLeagues = async () => {
         if (!userId) return;
-        const token = await getToken();
-        if (!token) return;
 
-        const userInfo = await api.getCurrentUser();
-        if (userInfo.leagues) {
-            setUserLeagues(userInfo.leagues);
+        try {
+            const userInfo = await api.getCurrentUser();
+            
+            if (userInfo.linked && userInfo.player) {
+                const leagues = await api.listLeagues();
+                const leagueMembers: LeagueMember[] = [];
+                
+                // Fetch membership info for each league
+                for (const league of leagues) {
+                    try {
+                        const members = await api.listLeagueMembers(league.id);
+                        const userMember = members.find(m => m.player_id === userInfo.player!.id);
+                        if (userMember) {
+                            leagueMembers.push(userMember);
+                        }
+                    } catch (err) {
+                        console.error(`Failed to load members for league ${league.id}:`, err);
+                    }
+                }
+                
+                setUserLeagues(leagueMembers);
+            }
+        } catch (error) {
+            console.error('Failed to refresh leagues:', error);
         }
     };
 

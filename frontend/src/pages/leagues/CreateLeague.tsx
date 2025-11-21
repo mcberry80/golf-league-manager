@@ -38,49 +38,50 @@ export default function CreateLeague() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md mx-auto">
-                <div className="mb-8">
-                    <button
-                        onClick={() => navigate('/leagues')}
-                        className="flex items-center text-sm text-gray-500 hover:text-gray-700"
-                    >
-                        <ArrowLeft className="h-4 w-4 mr-1" />
-                        Back to Leagues
-                    </button>
-                </div>
-
-                <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-                    <div className="sm:mx-auto sm:w-full sm:max-w-md mb-6">
-                        <div className="flex justify-center">
-                            <div className="bg-emerald-100 rounded-full p-3">
-                                <Trophy className="h-8 w-8 text-emerald-600" />
-                            </div>
-                        </div>
-                        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                            Create a New League
-                        </h2>
-                        <p className="mt-2 text-center text-sm text-gray-600">
-                            Start a new golf league and invite players
-                        </p>
+        <div className="min-h-screen" style={{ background: 'var(--gradient-dark)', paddingTop: 'var(--spacing-2xl)', paddingBottom: 'var(--spacing-2xl)' }}>
+            <div className="container animate-fade-in">
+                <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+                    <div style={{ marginBottom: 'var(--spacing-xl)' }}>
+                        <button
+                            onClick={() => navigate('/leagues')}
+                            className="btn btn-secondary"
+                            style={{ display: 'inline-flex', alignItems: 'center' }}
+                        >
+                            <ArrowLeft className="h-4 w-4 mr-2" />
+                            Back to Leagues
+                        </button>
                     </div>
 
-                    <form className="space-y-6" onSubmit={handleSubmit}>
-                        {error && (
-                            <div className="rounded-md bg-red-50 p-4">
-                                <div className="flex">
-                                    <div className="ml-3">
-                                        <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                                    </div>
-                                </div>
+                    <div className="card">
+                        <div style={{ textAlign: 'center', marginBottom: 'var(--spacing-2xl)' }}>
+                            <div style={{ 
+                                display: 'inline-flex', 
+                                padding: 'var(--spacing-lg)', 
+                                background: 'rgba(16, 185, 129, 0.2)', 
+                                borderRadius: 'var(--radius-full)',
+                                marginBottom: 'var(--spacing-lg)'
+                            }}>
+                                <Trophy className="h-8 w-8" style={{ color: 'var(--color-accent)' }} />
                             </div>
-                        )}
+                            <h1 style={{ marginBottom: 'var(--spacing-md)' }}>
+                                Create a New League
+                            </h1>
+                            <p style={{ color: 'var(--color-text-secondary)' }}>
+                                Start a new golf league and invite players
+                            </p>
+                        </div>
 
-                        <div>
-                            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                                League Name
-                            </label>
-                            <div className="mt-1">
+                        <form onSubmit={handleSubmit}>
+                            {error && (
+                                <div className="alert alert-error" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                                    <strong>Error:</strong> {error}
+                                </div>
+                            )}
+
+                            <div className="form-group">
+                                <label htmlFor="name" className="form-label">
+                                    League Name
+                                </label>
                                 <input
                                     id="name"
                                     name="name"
@@ -88,39 +89,38 @@ export default function CreateLeague() {
                                     required
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                                    className="form-input"
                                     placeholder="e.g. Sunday Morning Golfers"
                                 />
                             </div>
-                        </div>
 
-                        <div>
-                            <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                                Description
-                            </label>
-                            <div className="mt-1">
+                            <div className="form-group">
+                                <label htmlFor="description" className="form-label">
+                                    Description
+                                </label>
                                 <textarea
                                     id="description"
                                     name="description"
                                     rows={3}
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
-                                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                                    className="form-textarea"
                                     placeholder="Brief description of your league..."
                                 />
                             </div>
-                        </div>
 
-                        <div>
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50"
-                            >
-                                {isSubmitting ? 'Creating...' : 'Create League'}
-                            </button>
-                        </div>
-                    </form>
+                            <div style={{ marginTop: 'var(--spacing-xl)' }}>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="btn btn-primary"
+                                    style={{ width: '100%' }}
+                                >
+                                    {isSubmitting ? 'Creating...' : 'Create League'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
