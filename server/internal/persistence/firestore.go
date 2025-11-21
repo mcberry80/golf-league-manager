@@ -594,9 +594,10 @@ func (fc *FirestoreClient) GetRound(ctx context.Context, roundID string) (*model
 	return &round, nil
 }
 
-// GetPlayerRounds retrieves the last N rounds for a player, ordered by date descending
-func (fc *FirestoreClient) GetPlayerRounds(ctx context.Context, playerID string, limit int) ([]models.Round, error) {
+// GetPlayerRounds retrieves the last N rounds for a player in a specific league, ordered by date descending
+func (fc *FirestoreClient) GetPlayerRounds(ctx context.Context, leagueID, playerID string, limit int) ([]models.Round, error) {
 	iter := fc.client.Collection("rounds").
+		Where("league_id", "==", leagueID).
 		Where("player_id", "==", playerID).
 		OrderBy("date", firestore.Desc).
 		Limit(limit).
@@ -649,9 +650,11 @@ func (fc *FirestoreClient) GetCourse(ctx context.Context, courseID string) (*mod
 	return &course, nil
 }
 
-// ListCourses retrieves all courses
-func (fc *FirestoreClient) ListCourses(ctx context.Context) ([]models.Course, error) {
-	iter := fc.client.Collection("courses").Documents(ctx)
+// ListCourses retrieves all courses for a league
+func (fc *FirestoreClient) ListCourses(ctx context.Context, leagueID string) ([]models.Course, error) {
+	iter := fc.client.Collection("courses").
+		Where("league_id", "==", leagueID).
+		Documents(ctx)
 	defer iter.Stop()
 
 	var courses []models.Course
@@ -685,9 +688,10 @@ func (fc *FirestoreClient) CreateHandicap(ctx context.Context, handicap models.H
 	return nil
 }
 
-// GetPlayerHandicap retrieves the current handicap for a player
-func (fc *FirestoreClient) GetPlayerHandicap(ctx context.Context, playerID string) (*models.HandicapRecord, error) {
+// GetPlayerHandicap retrieves the current handicap for a player in a league
+func (fc *FirestoreClient) GetPlayerHandicap(ctx context.Context, leagueID, playerID string) (*models.HandicapRecord, error) {
 	iter := fc.client.Collection("handicaps").
+		Where("league_id", "==", leagueID).
 		Where("player_id", "==", playerID).
 		OrderBy("updated_at", firestore.Desc).
 		Limit(1).
@@ -696,7 +700,7 @@ func (fc *FirestoreClient) GetPlayerHandicap(ctx context.Context, playerID strin
 
 	doc, err := iter.Next()
 	if err == iterator.Done {
-		return nil, fmt.Errorf("no handicap found for player %s", playerID)
+		return nil, fmt.Errorf("no handicap found for player %s in league %s", playerID, leagueID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get handicap: %w", err)
@@ -745,13 +749,18 @@ func (fc *FirestoreClient) UpdateMatch(ctx context.Context, match models.Match) 
 	return nil
 }
 
-// ListMatches retrieves matches by status
-func (fc *FirestoreClient) ListMatches(ctx context.Context, status string) ([]models.Match, error) {
+// ListMatches retrieves matches by status for a league
+func (fc *FirestoreClient) ListMatches(ctx context.Context, leagueID, status string) ([]models.Match, error) {
 	var iter *firestore.DocumentIterator
 	if status != "" {
-		iter = fc.client.Collection("matches").Where("status", "==", status).Documents(ctx)
+		iter = fc.client.Collection("matches").
+			Where("league_id", "==", leagueID).
+			Where("status", "==", status).
+			Documents(ctx)
 	} else {
-		iter = fc.client.Collection("matches").Documents(ctx)
+		iter = fc.client.Collection("matches").
+			Where("league_id", "==", leagueID).
+			Documents(ctx)
 	}
 	defer iter.Stop()
 
@@ -878,9 +887,12 @@ func (fc *FirestoreClient) UpdateSeason(ctx context.Context, season models.Seaso
 	return nil
 }
 
-// ListSeasons retrieves all seasons
-func (fc *FirestoreClient) ListSeasons(ctx context.Context) ([]models.Season, error) {
-	iter := fc.client.Collection("seasons").OrderBy("start_date", firestore.Desc).Documents(ctx)
+// ListSeasons retrieves all seasons for a league
+func (fc *FirestoreClient) ListSeasons(ctx context.Context, leagueID string) ([]models.Season, error) {
+	iter := fc.client.Collection("seasons").
+		Where("league_id", "==", leagueID).
+		OrderBy("start_date", firestore.Desc).
+		Documents(ctx)
 	defer iter.Stop()
 
 	var seasons []models.Season
@@ -903,9 +915,10 @@ func (fc *FirestoreClient) ListSeasons(ctx context.Context) ([]models.Season, er
 	return seasons, nil
 }
 
-// GetActiveSeason retrieves the currently active season
-func (fc *FirestoreClient) GetActiveSeason(ctx context.Context) (*models.Season, error) {
+// GetActiveSeason retrieves the currently active season for a league
+func (fc *FirestoreClient) GetActiveSeason(ctx context.Context, leagueID string) (*models.Season, error) {
 	iter := fc.client.Collection("seasons").
+		Where("league_id", "==", leagueID).
 		Where("active", "==", true).
 		Limit(1).
 		Documents(ctx)

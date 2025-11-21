@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/clerk-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
-import type { Match, Player, Course } from '../../types'
+import type { Match, LeagueMemberWithPlayer, Course } from '../../types'
 
 export default function ScoreEntry() {
-    const { getToken } = useAuth()
+    const { currentLeague, userRole, isLoading: leagueLoading } = useLeague()
+    const navigate = useNavigate()
     const [matches, setMatches] = useState<Match[]>([])
     const [selectedMatch, setSelectedMatch] = useState<Match | null>(null)
-    const [players, setPlayers] = useState<Player[]>([])
+    const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
     const [courses, setCourses] = useState<Course[]>([])
     const [loading, setLoading] = useState(true)
 
@@ -23,19 +24,28 @@ export default function ScoreEntry() {
     const [submitting, setSubmitting] = useState(false)
 
     useEffect(() => {
-        loadData()
-    }, [])
+        if (!leagueLoading && !currentLeague) {
+            navigate('/leagues')
+            return
+        }
+
+        if (currentLeague) {
+            loadData()
+        }
+    }, [currentLeague, leagueLoading, navigate])
 
     async function loadData() {
+        if (!currentLeague) return
+
         try {
-            api.setAuthTokenProvider(getToken)
-            const [matchesData, playersData, coursesData] = await Promise.all([
-                api.listMatches('scheduled'),
-                api.listPlayers(true),
-                api.listCourses(),
+            const [matchesData, membersData, coursesData] = await Promise.all([
+                api.listMatches(currentLeague.id), // Should filter by scheduled? Backend doesn't support status filter yet in listMatches? 
+                // Actually listMatches returns all. I can filter here.
+                api.listLeagueMembers(currentLeague.id),
+                api.listCourses(currentLeague.id),
             ])
-            setMatches(matchesData)
-            setPlayers(playersData)
+            setMatches(matchesData.filter(m => m.status === 'scheduled'))
+            setMembers(membersData)
             setCourses(coursesData)
         } catch (error) {
             console.error('Failed to load data:', error)
@@ -55,7 +65,7 @@ export default function ScoreEntry() {
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
-        if (!selectedMatch) return
+        if (!selectedMatch || !currentLeague) return
 
         setSubmitting(true)
         try {
@@ -65,7 +75,7 @@ export default function ScoreEntry() {
             // Enter scores for all 9 holes for both players
             for (let hole = 1; hole <= 9; hole++) {
                 // Player A score
-                await api.enterScore({
+                await api.enterScore(currentLeague.id, {
                     match_id: selectedMatch.id,
                     player_id: selectedMatch.player_a_id,
                     hole_number: hole,
@@ -76,7 +86,7 @@ export default function ScoreEntry() {
                 })
 
                 // Player B score
-                await api.enterScore({
+                await api.enterScore(currentLeague.id, {
                     match_id: selectedMatch.id,
                     player_id: selectedMatch.player_b_id,
                     hole_number: hole,
@@ -88,7 +98,7 @@ export default function ScoreEntry() {
             }
 
             // Process the match to calculate points and update handicaps
-            await api.processMatch(selectedMatch.id)
+            await api.processMatch(currentLeague.id, selectedMatch.id)
 
             alert('Scores entered successfully! Match completed and handicaps updated.')
             setSelectedMatch(null)
@@ -100,15 +110,22 @@ export default function ScoreEntry() {
         }
     }
 
-    const getPlayerName = (id: string) => players.find(p => p.id === id)?.name || 'Unknown'
+    const getPlayerName = (id: string) => {
+        const member = members.find(m => m.player_id === id)
+        return member?.player?.name || 'Unknown'
+    }
     const getCourseName = (id: string) => courses.find(c => c.id === id)?.name || 'Unknown'
 
-    if (loading) {
+    if (leagueLoading || loading) {
         return (
             <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="spinner"></div>
             </div>
         )
+    }
+
+    if (!currentLeague || userRole !== 'admin') {
+        return null // Will redirect or show access denied in Admin wrapper
     }
 
     return (
@@ -118,7 +135,10 @@ export default function ScoreEntry() {
                     ← Back to Admin
                 </Link>
 
-                <h1 style={{ marginBottom: 'var(--spacing-xl)' }}>Score Entry</h1>
+                <div style={{ marginBottom: 'var(--spacing-xl)' }}>
+                    <h1>Score Entry</h1>
+                    <p className="text-gray-400 mt-1">{currentLeague.name}</p>
+                </div>
 
                 {!selectedMatch ? (
                     <div className="card-glass">

@@ -82,6 +82,7 @@ type Season struct {
 // Match represents a head-to-head match between two players
 type Match struct {
 	ID         string    `firestore:"id"`
+	LeagueID   string    `firestore:"league_id"` // Scoped to league
 	SeasonID   string    `firestore:"season_id"` // Reference to the season this match belongs to
 	WeekNumber int       `firestore:"week_number"`
 	PlayerAID  string    `firestore:"player_a_id"`

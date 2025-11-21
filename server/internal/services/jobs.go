@@ -24,8 +24,8 @@ func NewHandicapRecalculationJob(fc *persistence.FirestoreClient) *HandicapRecal
 	}
 }
 
-// Run executes the handicap recalculation for all active players
-func (job *HandicapRecalculationJob) Run(ctx context.Context) error {
+// Run executes the handicap recalculation for all active players in a league
+func (job *HandicapRecalculationJob) Run(ctx context.Context, leagueID string) error {
 	log.Println("Starting handicap recalculation job...")
 
 	// Get all active players
@@ -37,7 +37,7 @@ func (job *HandicapRecalculationJob) Run(ctx context.Context) error {
 	log.Printf("Found %d active players to process", len(players))
 
 	// Get all courses for differential calculations
-	courses, err := job.firestoreClient.ListCourses(ctx)
+	courses, err := job.firestoreClient.ListCourses(ctx, leagueID)
 	if err != nil {
 		return fmt.Errorf("failed to list courses: %w", err)
 	}
@@ -52,7 +52,7 @@ func (job *HandicapRecalculationJob) Run(ctx context.Context) error {
 
 	// Recalculate handicap for each player
 	for _, player := range players {
-		if err := job.recalculatePlayerHandicap(ctx, player, coursesMap); err != nil {
+		if err := job.recalculatePlayerHandicap(ctx, leagueID, player, coursesMap); err != nil {
 			log.Printf("Error recalculating handicap for player %s (%s): %v", player.Name, player.ID, err)
 			errorCount++
 		} else {
@@ -66,15 +66,15 @@ func (job *HandicapRecalculationJob) Run(ctx context.Context) error {
 
 // recalculatePlayerHandicap recalculates and updates a single player's handicap
 // This is the internal implementation
-func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Context, player models.Player, coursesMap map[string]models.Course) error {
-	return job.RecalculatePlayerHandicap(ctx, player, coursesMap)
+func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Context, leagueID string, player models.Player, coursesMap map[string]models.Course) error {
+	return job.RecalculatePlayerHandicap(ctx, leagueID, player, coursesMap)
 }
 
 // RecalculatePlayerHandicap recalculates and updates a single player's handicap
 // This is the exported version that can be called externally
-func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Context, player models.Player, coursesMap map[string]models.Course) error {
+func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Context, leagueID string, player models.Player, coursesMap map[string]models.Course) error {
 	// Get the last 5 rounds for the player
-	rounds, err := job.firestoreClient.GetPlayerRounds(ctx, player.ID, 5)
+	rounds, err := job.firestoreClient.GetPlayerRounds(ctx, leagueID, player.ID, 5)
 	if err != nil {
 		return fmt.Errorf("failed to get player rounds: %w", err)
 	}
@@ -115,6 +115,7 @@ func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Conte
 	handicapRecord := models.HandicapRecord{
 		ID:              uuid.New().String(),
 		PlayerID:        player.ID,
+		LeagueID:        leagueID,
 		LeagueHandicap:  leagueHandicap,
 		CourseHandicap:  courseHandicap,
 		PlayingHandicap: playingHandicap,
@@ -210,7 +211,7 @@ func (proc *MatchCompletionProcessor) ProcessRound(ctx context.Context, roundID 
 
 	// Get player's current handicap for adjusted score calculation
 	var playingHandicap int
-	handicap, err := proc.firestoreClient.GetPlayerHandicap(ctx, player.ID)
+	handicap, err := proc.firestoreClient.GetPlayerHandicap(ctx, round.LeagueID, player.ID)
 	if err == nil {
 		playingHandicap = handicap.PlayingHandicap
 	}

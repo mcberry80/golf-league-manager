@@ -1,29 +1,18 @@
-import { Link } from 'react-router-dom'
-import { useEffect, useState } from 'react'
-import { useAuth } from '@clerk/clerk-react'
-import api from '../lib/api'
+import { Link, useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useLeague } from '../contexts/LeagueContext'
 
 export default function Admin() {
-    const { getToken } = useAuth()
-    const [isAdmin, setIsAdmin] = useState(false)
-    const [loading, setLoading] = useState(true)
+    const { currentLeague, userRole, isLoading } = useLeague()
+    const navigate = useNavigate()
 
     useEffect(() => {
-        async function checkAdmin() {
-            try {
-                api.setAuthTokenProvider(getToken)
-                const userInfo = await api.getCurrentUser()
-                setIsAdmin(userInfo.player?.is_admin || false)
-            } catch (error) {
-                console.error('Failed to check admin status:', error)
-            } finally {
-                setLoading(false)
-            }
+        if (!isLoading && !currentLeague) {
+            navigate('/leagues')
         }
-        checkAdmin()
-    }, [getToken])
+    }, [currentLeague, isLoading, navigate])
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="spinner"></div>
@@ -31,11 +20,15 @@ export default function Admin() {
         )
     }
 
-    if (!isAdmin) {
+    if (!currentLeague) {
+        return null // Will redirect in useEffect
+    }
+
+    if (userRole !== 'admin') {
         return (
             <div className="container" style={{ paddingTop: 'var(--spacing-2xl)' }}>
                 <div className="alert alert-error">
-                    <strong>Access Denied:</strong> You must be an admin to access this page.
+                    <strong>Access Denied:</strong> You must be an admin of {currentLeague.name} to access this page.
                 </div>
                 <Link to="/" className="btn btn-secondary" style={{ marginTop: 'var(--spacing-lg)' }}>
                     Return Home
@@ -53,7 +46,7 @@ export default function Admin() {
                     </Link>
                     <h1 style={{ marginBottom: 'var(--spacing-sm)' }}>Admin Dashboard</h1>
                     <p style={{ color: 'var(--color-text-secondary)' }}>
-                        Manage your golf league, players, courses, and matches
+                        Manage {currentLeague.name}
                     </p>
                 </div>
 

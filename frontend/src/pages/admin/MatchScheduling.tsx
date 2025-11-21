@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/clerk-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
-import type { Match, Season, Player, Course } from '../../types'
+import type { Match, Season, LeagueMemberWithPlayer, Course } from '../../types'
 
 export default function MatchScheduling() {
-    const { getToken } = useAuth()
+    const { currentLeague, userRole, isLoading: leagueLoading } = useLeague()
+    const navigate = useNavigate()
     const [matches, setMatches] = useState<Match[]>([])
     const [seasons, setSeasons] = useState<Season[]>([])
-    const [players, setPlayers] = useState<Player[]>([])
+    const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
     const [courses, setCourses] = useState<Course[]>([])
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
@@ -22,20 +23,28 @@ export default function MatchScheduling() {
     })
 
     useEffect(() => {
-        loadData()
-    }, [])
+        if (!leagueLoading && !currentLeague) {
+            navigate('/leagues')
+            return
+        }
+
+        if (currentLeague) {
+            loadData()
+        }
+    }, [currentLeague, leagueLoading, navigate])
 
     async function loadData() {
+        if (!currentLeague) return
+
         try {
-            api.setAuthTokenProvider(getToken)
-            const [seasonsData, playersData, coursesData, matchesData] = await Promise.all([
-                api.listSeasons(),
-                api.listPlayers(true),
-                api.listCourses(),
-                api.listMatches(),
+            const [seasonsData, membersData, coursesData, matchesData] = await Promise.all([
+                api.listSeasons(currentLeague.id),
+                api.listLeagueMembers(currentLeague.id),
+                api.listCourses(currentLeague.id),
+                api.listMatches(currentLeague.id),
             ])
             setSeasons(seasonsData)
-            setPlayers(playersData)
+            setMembers(membersData)
             setCourses(coursesData)
             setMatches(matchesData)
 
@@ -53,8 +62,10 @@ export default function MatchScheduling() {
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
+        if (!currentLeague) return
+
         try {
-            await api.createMatch(formData)
+            await api.createMatch(currentLeague.id, formData)
             setShowForm(false)
             setFormData({
                 season_id: formData.season_id,
@@ -70,7 +81,12 @@ export default function MatchScheduling() {
         }
     }
 
-    const getPlayerName = (id: string) => players.find(p => p.id === id)?.name || 'Unknown'
+    const getPlayerName = (id: string) => {
+        // Match stores player_id, so we look up in members list
+        // members have player_id and player object
+        const member = members.find(m => m.player_id === id)
+        return member?.player?.name || 'Unknown'
+    }
     const getCourseName = (id: string) => courses.find(c => c.id === id)?.name || 'Unknown'
     const getSeasonName = (id: string) => seasons.find(s => s.id === id)?.name || 'Unknown'
 
@@ -81,12 +97,16 @@ export default function MatchScheduling() {
         return acc
     }, {} as Record<number, Match[]>)
 
-    if (loading) {
+    if (leagueLoading || loading) {
         return (
             <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="spinner"></div>
             </div>
         )
+    }
+
+    if (!currentLeague || userRole !== 'admin') {
+        return null // Will redirect or show access denied in Admin wrapper
     }
 
     return (
@@ -97,7 +117,10 @@ export default function MatchScheduling() {
                 </Link>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
-                    <h1>Match Scheduling</h1>
+                    <div>
+                        <h1>Match Scheduling</h1>
+                        <p className="text-gray-400 mt-1">{currentLeague.name}</p>
+                    </div>
                     <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
                         {showForm ? 'Cancel' : '+ Schedule Match'}
                     </button>
@@ -144,8 +167,8 @@ export default function MatchScheduling() {
                                         required
                                     >
                                         <option value="">Select Player</option>
-                                        {players.map(player => (
-                                            <option key={player.id} value={player.id}>{player.name}</option>
+                                        {members.map(member => (
+                                            <option key={member.id} value={member.player_id}>{member.player?.name || member.player?.email}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -158,8 +181,8 @@ export default function MatchScheduling() {
                                         required
                                     >
                                         <option value="">Select Player</option>
-                                        {players.map(player => (
-                                            <option key={player.id} value={player.id}>{player.name}</option>
+                                        {members.map(member => (
+                                            <option key={member.id} value={member.player_id}>{member.player?.name || member.player?.email}</option>
                                         ))}
                                     </select>
                                 </div>

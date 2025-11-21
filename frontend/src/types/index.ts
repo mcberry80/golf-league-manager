@@ -1,9 +1,28 @@
+export interface League {
+    id: string;
+    name: string;
+    description: string;
+    created_by: string;
+    created_at: string;
+}
+
+export interface LeagueMember {
+    id: string;
+    league_id: string;
+    player_id: string;
+    role: 'admin' | 'player';
+    joined_at: string;
+}
+
+export interface LeagueMemberWithPlayer extends LeagueMember {
+    player: Player;
+}
+
 export interface Player {
     id: string;
     name: string;
     email: string;
     clerk_user_id?: string;
-    is_admin: boolean;
     active: boolean;
     established: boolean;
     created_at: string;
@@ -11,6 +30,7 @@ export interface Player {
 
 export interface Course {
     id: string;
+    league_id: string;
     name: string;
     par: number;
     course_rating: number;
@@ -22,6 +42,7 @@ export interface Course {
 export interface Round {
     id: string;
     player_id: string;
+    league_id: string;
     date: string;
     course_id: string;
     gross_scores: number[]; // 9 holes
@@ -33,6 +54,7 @@ export interface Round {
 export interface HandicapRecord {
     id: string;
     player_id: string;
+    league_id: string;
     league_handicap: number;
     course_handicap: number;
     playing_handicap: number;
@@ -41,6 +63,7 @@ export interface HandicapRecord {
 
 export interface Season {
     id: string;
+    league_id: string;
     name: string;
     start_date: string;
     end_date: string;
@@ -51,6 +74,7 @@ export interface Season {
 
 export interface Match {
     id: string;
+    league_id: string;
     season_id: string;
     week_number: number;
     player_a_id: string;
@@ -86,9 +110,15 @@ export interface UserInfo {
     linked: boolean;
     clerk_user_id?: string;
     player?: Player;
+    leagues?: LeagueMember[]; // List of leagues the user is a member of
 }
 
 // Request/Response types
+export interface CreateLeagueRequest {
+    name: string;
+    description: string;
+}
+
 export interface CreateCourseRequest {
     name: string;
     par: number;
@@ -101,7 +131,6 @@ export interface CreateCourseRequest {
 export interface CreatePlayerRequest {
     name: string;
     email: string;
-    is_admin?: boolean;
 }
 
 export interface CreateSeasonRequest {

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/clerk-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
 import type { Course } from '../../types'
 
 export default function CourseManagement() {
-    const { getToken } = useAuth()
+    const { currentLeague, userRole, isLoading: leagueLoading } = useLeague()
+    const navigate = useNavigate()
     const [courses, setCourses] = useState<Course[]>([])
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
@@ -19,13 +20,21 @@ export default function CourseManagement() {
     })
 
     useEffect(() => {
-        loadCourses()
-    }, [])
+        if (!leagueLoading && !currentLeague) {
+            navigate('/leagues')
+            return
+        }
+
+        if (currentLeague) {
+            loadCourses()
+        }
+    }, [currentLeague, leagueLoading, navigate])
 
     async function loadCourses() {
+        if (!currentLeague) return
+
         try {
-            api.setAuthTokenProvider(getToken)
-            const data = await api.listCourses()
+            const data = await api.listCourses(currentLeague.id)
             setCourses(data)
         } catch (error) {
             console.error('Failed to load courses:', error)
@@ -36,8 +45,10 @@ export default function CourseManagement() {
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
+        if (!currentLeague) return
+
         try {
-            await api.createCourse(formData)
+            await api.createCourse(currentLeague.id, formData)
             setShowForm(false)
             setFormData({
                 name: '',
@@ -53,12 +64,16 @@ export default function CourseManagement() {
         }
     }
 
-    if (loading) {
+    if (leagueLoading || loading) {
         return (
             <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="spinner"></div>
             </div>
         )
+    }
+
+    if (!currentLeague || userRole !== 'admin') {
+        return null // Will redirect or show access denied in Admin wrapper
     }
 
     return (
@@ -69,7 +84,10 @@ export default function CourseManagement() {
                 </Link>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
-                    <h1>Course Management</h1>
+                    <div>
+                        <h1>Course Management</h1>
+                        <p className="text-gray-400 mt-1">{currentLeague.name}</p>
+                    </div>
                     <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
                         {showForm ? 'Cancel' : '+ Add Course'}
                     </button>

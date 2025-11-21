@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/clerk-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
 import type { Season } from '../../types'
 
 export default function LeagueSetup() {
-    const { getToken } = useAuth()
+    const { currentLeague, userRole, isLoading: leagueLoading } = useLeague()
+    const navigate = useNavigate()
     const [seasons, setSeasons] = useState<Season[]>([])
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
@@ -18,13 +19,21 @@ export default function LeagueSetup() {
     })
 
     useEffect(() => {
-        loadSeasons()
-    }, [])
+        if (!leagueLoading && !currentLeague) {
+            navigate('/leagues')
+            return
+        }
+
+        if (currentLeague) {
+            loadSeasons()
+        }
+    }, [currentLeague, leagueLoading, navigate])
 
     async function loadSeasons() {
+        if (!currentLeague) return
+
         try {
-            api.setAuthTokenProvider(getToken)
-            const data = await api.listSeasons()
+            const data = await api.listSeasons(currentLeague.id)
             setSeasons(data)
         } catch (error) {
             console.error('Failed to load seasons:', error)
@@ -35,8 +44,10 @@ export default function LeagueSetup() {
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
+        if (!currentLeague) return
+
         try {
-            await api.createSeason(formData)
+            await api.createSeason(currentLeague.id, formData)
             setShowForm(false)
             setFormData({ name: '', start_date: '', end_date: '', description: '', active: false })
             loadSeasons()
@@ -46,20 +57,26 @@ export default function LeagueSetup() {
     }
 
     async function toggleActive(season: Season) {
+        if (!currentLeague) return
+
         try {
-            await api.updateSeason(season.id, { ...season, active: !season.active })
+            await api.updateSeason(currentLeague.id, season.id, { ...season, active: !season.active })
             loadSeasons()
         } catch (error) {
             alert('Failed to update season: ' + (error instanceof Error ? error.message : 'Unknown error'))
         }
     }
 
-    if (loading) {
+    if (leagueLoading || loading) {
         return (
             <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="spinner"></div>
             </div>
         )
+    }
+
+    if (!currentLeague || userRole !== 'admin') {
+        return null // Will redirect or show access denied in Admin wrapper
     }
 
     return (
@@ -70,7 +87,10 @@ export default function LeagueSetup() {
                 </Link>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
-                    <h1>League Setup</h1>
+                    <div>
+                        <h1>League Setup</h1>
+                        <p className="text-gray-400 mt-1">{currentLeague.name}</p>
+                    </div>
                     <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
                         {showForm ? 'Cancel' : '+ New Season'}
                     </button>

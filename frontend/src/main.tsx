@@ -19,6 +19,10 @@ import CourseManagement from './pages/admin/CourseManagement.tsx'
 import MatchScheduling from './pages/admin/MatchScheduling.tsx'
 import ScoreEntry from './pages/admin/ScoreEntry.tsx'
 
+// Import league pages
+import LeagueList from './pages/leagues/LeagueList.tsx'
+import CreateLeague from './pages/leagues/CreateLeague.tsx'
+
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
 if (!PUBLISHABLE_KEY) {
@@ -31,6 +35,8 @@ const router = createBrowserRouter([
         element: <App />,
         children: [
             { path: "/", element: <Home /> },
+            { path: "/leagues", element: <LeagueList /> },
+            { path: "/leagues/create", element: <CreateLeague /> },
             { path: "/admin", element: <Admin /> },
             { path: "/admin/league-setup", element: <LeagueSetup /> },
             { path: "/admin/players", element: <PlayerManagement /> },
