@@ -78,7 +78,19 @@ export default function LeagueList() {
                         </div>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-3" style={{ gap: 'var(--spacing-xl)' }}>
+                    <div className="grid" style={{ gap: 'var(--spacing-xl)' }}>
+                        <style>{`
+                            @media (min-width: 1024px) {
+                                .league-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+                            }
+                            @media (min-width: 640px) and (max-width: 1023px) {
+                                .league-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+                            }
+                            @media (max-width: 639px) {
+                                .league-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+                            }
+                        `}</style>
+                        <div className="league-grid" style={{ display: 'grid', gap: 'var(--spacing-xl)' }}>
                         {leagues.map((league) => {
                             const member = userLeagues.find((l: LeagueMember) => l.league_id === league.id);
                             const role = member?.role || 'none';
@@ -151,6 +163,7 @@ export default function LeagueList() {
                                 </div>
                             );
                         })}
+                        </div>
                     </div>
                 )}
             </div>
