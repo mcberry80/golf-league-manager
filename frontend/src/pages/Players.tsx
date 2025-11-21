@@ -24,7 +24,7 @@ export default function Players() {
                         try {
                             const handicapData = await api.getPlayerHandicap(currentLeague.id, userInfo.player.id)
                             setHandicap(handicapData)
-                        } catch (err) {
+                        } catch (_err) {
                             console.log('No handicap yet')
                             setHandicap(null)
                         }
@@ -33,7 +33,7 @@ export default function Players() {
                         try {
                             const roundsData = await api.getPlayerRounds(currentLeague.id, userInfo.player.id)
                             setRounds(roundsData)
-                        } catch (err) {
+                        } catch (_err) {
                             console.log('No rounds yet')
                             setRounds([])
                         }

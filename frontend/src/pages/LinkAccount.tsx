@@ -21,7 +21,7 @@ export default function LinkAccount() {
                     setLinkedPlayer(userInfo.player)
                     setSuccess(true)
                 }
-            } catch (error) {
+            } catch (_error) {
                 // Not linked yet, that's okay
             }
         }
