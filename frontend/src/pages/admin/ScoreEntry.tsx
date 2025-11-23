@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
@@ -24,24 +24,7 @@ export default function ScoreEntry() {
 
     const [submitting, setSubmitting] = useState(false)
 
-    useEffect(() => {
-        if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
-            selectLeague(leagueId)
-        }
-    }, [leagueId, currentLeague, selectLeague])
-
-    useEffect(() => {
-        if (!leagueLoading && !currentLeague && !leagueId) {
-            navigate('/leagues')
-            return
-        }
-
-        if (currentLeague) {
-            loadData()
-        }
-    }, [currentLeague, leagueLoading, navigate, leagueId])
-
-    async function loadData() {
+    const loadData = useCallback(async () => {
         if (!currentLeague) return
 
         try {
@@ -58,7 +41,24 @@ export default function ScoreEntry() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [currentLeague])
+
+    useEffect(() => {
+        if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
+            selectLeague(leagueId)
+        }
+    }, [leagueId, currentLeague, selectLeague])
+
+    useEffect(() => {
+        if (!leagueLoading && !currentLeague && !leagueId) {
+            navigate('/leagues')
+            return
+        }
+
+        if (currentLeague) {
+            loadData()
+        }
+    }, [currentLeague, leagueLoading, navigate, leagueId, loadData])
 
     function handleMatchSelect(matchId: string) {
         const match = matches.find(m => m.id === matchId)

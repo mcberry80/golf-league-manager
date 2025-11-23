@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { League, LeagueMember } from '../types';
 import { api } from '../lib/api';
 import { useAuth } from '@clerk/clerk-react';
@@ -28,6 +28,41 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
             api.setAuthTokenProvider(getToken);
         }
     }, [userId, getToken]);
+
+    const selectLeague = useCallback(async (leagueId: string, membersList?: LeagueMember[]) => {
+        setIsLoading(true);
+        try {
+            const league = await api.getLeague(leagueId);
+            setCurrentLeague(league);
+            localStorage.setItem('selectedLeagueId', leagueId);
+
+            // Set user role for this league
+            let currentMembers = membersList || userLeagues;
+
+            // If we don't have members list and userLeagues is empty, fetch it
+            if (currentMembers.length === 0) {
+                try {
+                    const userInfo = await api.getCurrentUser();
+                    if (userInfo.linked && userInfo.player) {
+                        const members = await api.listLeagueMembers(leagueId);
+                        const userMember = members.find(m => m.playerId === userInfo.player!.id);
+                        if (userMember) {
+                            currentMembers = [userMember];
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch membership info:', err);
+                }
+            }
+
+            const member = currentMembers.find(l => l.leagueId === leagueId);
+            setUserRole(member?.role || null);
+        } catch (error) {
+            console.error('Failed to select league:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [userLeagues]);
 
     // Load user's leagues on mount or auth change
     useEffect(() => {
@@ -78,42 +113,7 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
         };
 
         loadLeagues();
-    }, [userId]);
-
-    const selectLeague = async (leagueId: string, membersList?: LeagueMember[]) => {
-        setIsLoading(true);
-        try {
-            const league = await api.getLeague(leagueId);
-            setCurrentLeague(league);
-            localStorage.setItem('selectedLeagueId', leagueId);
-
-            // Set user role for this league
-            let currentMembers = membersList || userLeagues;
-
-            // If we don't have members list and userLeagues is empty, fetch it
-            if (currentMembers.length === 0) {
-                try {
-                    const userInfo = await api.getCurrentUser();
-                    if (userInfo.linked && userInfo.player) {
-                        const members = await api.listLeagueMembers(leagueId);
-                        const userMember = members.find(m => m.playerId === userInfo.player!.id);
-                        if (userMember) {
-                            currentMembers = [userMember];
-                        }
-                    }
-                } catch (err) {
-                    console.error('Failed to fetch membership info:', err);
-                }
-            }
-
-            const member = currentMembers.find(l => l.leagueId === leagueId);
-            setUserRole(member?.role || null);
-        } catch (error) {
-            console.error('Failed to select league:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    }, [userId, selectLeague]);
 
     const refreshLeagues = async () => {
         if (!userId) return;

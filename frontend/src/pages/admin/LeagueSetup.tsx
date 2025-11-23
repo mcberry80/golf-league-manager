@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
@@ -19,6 +19,19 @@ export default function LeagueSetup() {
         active: false,
     })
 
+    const loadSeasons = useCallback(async () => {
+        if (!currentLeague) return
+
+        try {
+            const data = await api.listSeasons(currentLeague.id)
+            setSeasons(data)
+        } catch (error) {
+            console.error('Failed to load seasons:', error)
+        } finally {
+            setLoading(false)
+        }
+    }, [currentLeague])
+
     useEffect(() => {
         if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
             selectLeague(leagueId)
@@ -34,20 +47,7 @@ export default function LeagueSetup() {
         if (currentLeague) {
             loadSeasons()
         }
-    }, [currentLeague, leagueLoading, navigate, leagueId])
-
-    async function loadSeasons() {
-        if (!currentLeague) return
-
-        try {
-            const data = await api.listSeasons(currentLeague.id)
-            setSeasons(data)
-        } catch (error) {
-            console.error('Failed to load seasons:', error)
-        } finally {
-            setLoading(false)
-        }
-    }
+    }, [currentLeague, leagueLoading, navigate, leagueId, loadSeasons])
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
