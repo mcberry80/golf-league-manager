@@ -24,7 +24,7 @@ export default function Players() {
                         try {
                             const handicapData = await api.getPlayerHandicap(currentLeague.id, userInfo.player.id)
                             setHandicap(handicapData)
-                        } catch (_err) {
+                        } catch {
                             console.log('No handicap yet')
                             setHandicap(null)
                         }
@@ -33,7 +33,7 @@ export default function Players() {
                         try {
                             const roundsData = await api.getPlayerRounds(currentLeague.id, userInfo.player.id)
                             setRounds(roundsData)
-                        } catch (_err) {
+                        } catch {
                             console.log('No rounds yet')
                             setRounds([])
                         }
@@ -115,19 +115,19 @@ export default function Players() {
                                     <div>
                                         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: 'var(--spacing-xs)' }}>League Handicap</p>
                                         <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>
-                                            {handicap.league_handicap.toFixed(1)}
+                                            {handicap.leagueHandicap.toFixed(1)}
                                         </p>
                                     </div>
                                     <div>
                                         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: 'var(--spacing-xs)' }}>Course Handicap</p>
                                         <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-text)' }}>
-                                            {handicap.course_handicap.toFixed(1)}
+                                            {handicap.courseHandicap.toFixed(1)}
                                         </p>
                                     </div>
                                     <div>
                                         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: 'var(--spacing-xs)' }}>Playing Handicap</p>
                                         <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-text)' }}>
-                                            {handicap.playing_handicap}
+                                            {handicap.playingHandicap}
                                         </p>
                                     </div>
                                 </div>
@@ -153,8 +153,8 @@ export default function Players() {
                                             {rounds.map((round) => (
                                                 <tr key={round.id}>
                                                     <td>{new Date(round.date).toLocaleDateString()}</td>
-                                                    <td>{round.total_gross}</td>
-                                                    <td>{round.total_adjusted}</td>
+                                                    <td>{round.totalGross}</td>
+                                                    <td>{round.totalAdjusted}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

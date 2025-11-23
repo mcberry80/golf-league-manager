@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
@@ -23,24 +23,7 @@ export default function MatchScheduling() {
         matchDate: '',
     })
 
-    useEffect(() => {
-        if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
-            selectLeague(leagueId)
-        }
-    }, [leagueId, currentLeague, selectLeague])
-
-    useEffect(() => {
-        if (!leagueLoading && !currentLeague && !leagueId) {
-            navigate('/leagues')
-            return
-        }
-
-        if (currentLeague) {
-            loadData()
-        }
-    }, [currentLeague, leagueLoading, navigate, leagueId])
-
-    async function loadData() {
+    const loadData = useCallback(async () => {
         if (!currentLeague) return
 
         try {
@@ -65,7 +48,24 @@ export default function MatchScheduling() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [currentLeague])
+
+    useEffect(() => {
+        if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
+            selectLeague(leagueId)
+        }
+    }, [leagueId, currentLeague, selectLeague])
+
+    useEffect(() => {
+        if (!leagueLoading && !currentLeague && !leagueId) {
+            navigate('/leagues')
+            return
+        }
+
+        if (currentLeague) {
+            loadData()
+        }
+    }, [currentLeague, leagueLoading, navigate, leagueId, loadData])
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
