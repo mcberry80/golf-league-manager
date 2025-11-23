@@ -84,7 +84,7 @@ export default function Home() {
                         </div>
                     ) : (
                         <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-xl)', maxWidth: '900px', margin: '0 auto' }}>
-                            <Link to="/admin" className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <Link to={`/leagues/${currentLeague?.id}/admin`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                                 <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>⚙️</div>
                                 <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Admin</h3>
                                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>

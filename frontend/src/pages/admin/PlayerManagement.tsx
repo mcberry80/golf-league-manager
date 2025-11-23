@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
 import type { LeagueMemberWithPlayer } from '../../types'
 
 export default function PlayerManagement() {
-    const { currentLeague, userRole, isLoading: leagueLoading } = useLeague()
+    const { leagueId } = useParams<{ leagueId: string }>()
+    const { currentLeague, userRole, isLoading: leagueLoading, selectLeague } = useLeague()
     const navigate = useNavigate()
     const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
     const [loading, setLoading] = useState(true)
@@ -17,7 +18,13 @@ export default function PlayerManagement() {
     })
 
     useEffect(() => {
-        if (!leagueLoading && !currentLeague) {
+        if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
+            selectLeague(leagueId)
+        }
+    }, [leagueId, currentLeague, selectLeague])
+
+    useEffect(() => {
+        if (!leagueLoading && !currentLeague && !leagueId) {
             navigate('/leagues')
             return
         }
@@ -25,7 +32,7 @@ export default function PlayerManagement() {
         if (currentLeague) {
             loadMembers()
         }
-    }, [currentLeague, leagueLoading, navigate])
+    }, [currentLeague, leagueLoading, navigate, leagueId])
 
     async function loadMembers() {
         if (!currentLeague) return
@@ -73,7 +80,7 @@ export default function PlayerManagement() {
 
         const newRole = member.role === 'admin' ? 'player' : 'admin'
         try {
-            await api.updateLeagueMemberRole(currentLeague.id, member.player_id, newRole)
+            await api.updateLeagueMemberRole(currentLeague.id, member.playerId, newRole)
             loadMembers()
         } catch (error) {
             alert('Failed to update role: ' + (error instanceof Error ? error.message : 'Unknown error'))
@@ -85,7 +92,7 @@ export default function PlayerManagement() {
         if (!confirm(`Are you sure you want to remove ${member.player?.name || member.player?.email} from the league?`)) return
 
         try {
-            await api.removeLeagueMember(currentLeague.id, member.player_id)
+            await api.removeLeagueMember(currentLeague.id, member.playerId)
             loadMembers()
         } catch (error) {
             alert('Failed to remove member: ' + (error instanceof Error ? error.message : 'Unknown error'))
@@ -101,13 +108,22 @@ export default function PlayerManagement() {
     }
 
     if (!currentLeague || userRole !== 'admin') {
-        return null // Will redirect or show access denied in Admin wrapper
+        return (
+            <div className="container" style={{ paddingTop: 'var(--spacing-2xl)' }}>
+                <div className="alert alert-error">
+                    <strong>Access Denied:</strong> You must be an admin of {currentLeague?.name || 'this league'} to access this page.
+                </div>
+                <Link to="/" className="btn btn-secondary" style={{ marginTop: 'var(--spacing-lg)' }}>
+                    Return Home
+                </Link>
+            </div>
+        )
     }
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
             <div className="container animate-fade-in" style={{ paddingTop: 'var(--spacing-2xl)', paddingBottom: 'var(--spacing-2xl)' }}>
-                <Link to="/admin" style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
+                <Link to={`/leagues/${currentLeague.id}/admin`} style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
                     ← Back to Admin
                 </Link>
 
@@ -188,7 +204,7 @@ export default function PlayerManagement() {
                                                     {member.player?.active ? 'Active' : 'Inactive'}
                                                 </span>
                                             </td>
-                                            <td>{new Date(member.joined_at).toLocaleDateString()}</td>
+                                            <td>{new Date(member.joinedAt).toLocaleDateString()}</td>
                                             <td>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                     <button

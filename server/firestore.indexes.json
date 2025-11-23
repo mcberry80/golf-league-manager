@@ -1,0 +1,51 @@
+{
+    "indexes": [
+        {
+            "collectionGroup": "seasons",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "league_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "start_date",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "rounds",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "league_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "player_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "date",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "matches",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "league_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                }
+            ]
+        }
+    ],
+    "fieldOverrides": []
+}

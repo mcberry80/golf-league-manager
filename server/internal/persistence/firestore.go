@@ -209,7 +209,7 @@ func (fc *FirestoreClient) ListLeagues(ctx context.Context) ([]models.League, er
 	iter := fc.client.Collection("leagues").OrderBy("created_at", firestore.Desc).Documents(ctx)
 	defer iter.Stop()
 
-	var leagues []models.League
+	leagues := make([]models.League, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -325,7 +325,7 @@ func (fc *FirestoreClient) ListLeagueMembers(ctx context.Context, leagueID strin
 		Documents(ctx)
 	defer iter.Stop()
 
-	var members []models.LeagueMember
+	members := make([]models.LeagueMember, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -376,7 +376,7 @@ func (fc *FirestoreClient) GetPlayerLeagues(ctx context.Context, playerID string
 	}
 
 	// Now fetch all leagues
-	var leagues []models.League
+	leagues := make([]models.League, 0)
 	for _, leagueID := range leagueIDs {
 		league, err := fc.GetLeague(ctx, leagueID)
 		if err != nil {
@@ -517,7 +517,7 @@ func (fc *FirestoreClient) ListPlayers(ctx context.Context, activeOnly bool) ([]
 	}
 	defer iter.Stop()
 
-	var players []models.Player
+	players := make([]models.Player, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -604,7 +604,7 @@ func (fc *FirestoreClient) GetPlayerRounds(ctx context.Context, leagueID, player
 		Documents(ctx)
 	defer iter.Stop()
 
-	var rounds []models.Round
+	rounds := make([]models.Round, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -657,7 +657,7 @@ func (fc *FirestoreClient) ListCourses(ctx context.Context, leagueID string) ([]
 		Documents(ctx)
 	defer iter.Stop()
 
-	var courses []models.Course
+	courses := make([]models.Course, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -764,7 +764,7 @@ func (fc *FirestoreClient) ListMatches(ctx context.Context, leagueID, status str
 	}
 	defer iter.Stop()
 
-	var matches []models.Match
+	matches := make([]models.Match, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -803,7 +803,7 @@ func (fc *FirestoreClient) GetMatchScores(ctx context.Context, matchID string) (
 		Documents(ctx)
 	defer iter.Stop()
 
-	var scores []models.Score
+	scores := make([]models.Score, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -832,7 +832,7 @@ func (fc *FirestoreClient) GetPlayerMatchScores(ctx context.Context, matchID, pl
 		Documents(ctx)
 	defer iter.Stop()
 
-	var scores []models.Score
+	scores := make([]models.Score, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -895,7 +895,7 @@ func (fc *FirestoreClient) ListSeasons(ctx context.Context, leagueID string) ([]
 		Documents(ctx)
 	defer iter.Stop()
 
-	var seasons []models.Season
+	seasons := make([]models.Season, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -948,7 +948,7 @@ func (fc *FirestoreClient) GetSeasonMatches(ctx context.Context, seasonID string
 		Documents(ctx)
 	defer iter.Stop()
 
-	var matches []models.Match
+	matches := make([]models.Match, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {

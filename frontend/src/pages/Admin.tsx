@@ -1,16 +1,23 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useLeague } from '../contexts/LeagueContext'
 
 export default function Admin() {
-    const { currentLeague, userRole, isLoading } = useLeague()
+    const { leagueId } = useParams<{ leagueId: string }>()
+    const { currentLeague, userRole, isLoading, selectLeague } = useLeague()
     const navigate = useNavigate()
 
     useEffect(() => {
-        if (!isLoading && !currentLeague) {
+        if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
+            selectLeague(leagueId)
+        }
+    }, [leagueId, currentLeague, selectLeague])
+
+    useEffect(() => {
+        if (!isLoading && !currentLeague && !leagueId) {
             navigate('/leagues')
         }
-    }, [currentLeague, isLoading, navigate])
+    }, [currentLeague, isLoading, navigate, leagueId])
 
     if (isLoading) {
         return (
@@ -51,7 +58,7 @@ export default function Admin() {
                 </div>
 
                 <div className="grid grid-cols-3" style={{ gap: 'var(--spacing-xl)' }}>
-                    <Link to="/admin/league-setup" className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <Link to={`/leagues/${currentLeague.id}/admin/league-setup`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                         <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>🏅</div>
                         <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>League Setup</h3>
                         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
@@ -59,7 +66,7 @@ export default function Admin() {
                         </p>
                     </Link>
 
-                    <Link to="/admin/players" className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <Link to={`/leagues/${currentLeague.id}/admin/players`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                         <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>👥</div>
                         <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Players</h3>
                         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
@@ -67,7 +74,7 @@ export default function Admin() {
                         </p>
                     </Link>
 
-                    <Link to="/admin/courses" className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <Link to={`/leagues/${currentLeague.id}/admin/courses`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                         <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>⛳</div>
                         <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Courses</h3>
                         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
@@ -75,7 +82,7 @@ export default function Admin() {
                         </p>
                     </Link>
 
-                    <Link to="/admin/matches" className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <Link to={`/leagues/${currentLeague.id}/admin/matches`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                         <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>📅</div>
                         <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Match Scheduling</h3>
                         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
@@ -83,7 +90,7 @@ export default function Admin() {
                         </p>
                     </Link>
 
-                    <Link to="/admin/scores" className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <Link to={`/leagues/${currentLeague.id}/admin/scores`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                         <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>✏️</div>
                         <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Score Entry</h3>
                         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>

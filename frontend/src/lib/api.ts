@@ -224,6 +224,13 @@ class APIClient {
         return this.request<Score[]>(`/api/leagues/${leagueId}/matches/${matchId}/scores`);
     }
 
+    async enterScoreBatch(leagueId: string, scores: CreateScoreRequest[]): Promise<void> {
+        return this.request<void>(`/api/leagues/${leagueId}/scores/batch`, {
+            method: 'POST',
+            body: JSON.stringify({ scores }),
+        });
+    }
+
     // Round endpoints
     async createRound(leagueId: string, data: CreateRoundRequest): Promise<Round> {
         return this.request<Round>(`/api/leagues/${leagueId}/rounds`, {

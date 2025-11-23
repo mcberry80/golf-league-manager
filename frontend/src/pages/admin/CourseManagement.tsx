@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
 import type { Course } from '../../types'
 
 export default function CourseManagement() {
-    const { currentLeague, userRole, isLoading: leagueLoading } = useLeague()
+    const { leagueId } = useParams<{ leagueId: string }>()
+    const { currentLeague, userRole, isLoading: leagueLoading, selectLeague } = useLeague()
     const navigate = useNavigate()
     const [courses, setCourses] = useState<Course[]>([])
     const [loading, setLoading] = useState(true)
@@ -13,14 +14,20 @@ export default function CourseManagement() {
     const [formData, setFormData] = useState({
         name: '',
         par: 36,
-        course_rating: 36.0,
-        slope_rating: 113,
-        hole_pars: [4, 4, 4, 4, 4, 4, 4, 4, 4],
-        hole_handicaps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        courseRating: 36.0,
+        slopeRating: 113,
+        holePars: [4, 4, 4, 4, 4, 4, 4, 4, 4],
+        holeHandicaps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
     })
 
     useEffect(() => {
-        if (!leagueLoading && !currentLeague) {
+        if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
+            selectLeague(leagueId)
+        }
+    }, [leagueId, currentLeague, selectLeague])
+
+    useEffect(() => {
+        if (!leagueLoading && !currentLeague && !leagueId) {
             navigate('/leagues')
             return
         }
@@ -28,14 +35,14 @@ export default function CourseManagement() {
         if (currentLeague) {
             loadCourses()
         }
-    }, [currentLeague, leagueLoading, navigate])
+    }, [currentLeague, leagueLoading, navigate, leagueId])
 
     async function loadCourses() {
         if (!currentLeague) return
 
         try {
             const data = await api.listCourses(currentLeague.id)
-            setCourses(data)
+            setCourses(data || [])
         } catch (error) {
             console.error('Failed to load courses:', error)
         } finally {
@@ -53,10 +60,10 @@ export default function CourseManagement() {
             setFormData({
                 name: '',
                 par: 36,
-                course_rating: 36.0,
-                slope_rating: 113,
-                hole_pars: [4, 4, 4, 4, 4, 4, 4, 4, 4],
-                hole_handicaps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                courseRating: 36.0,
+                slopeRating: 113,
+                holePars: [4, 4, 4, 4, 4, 4, 4, 4, 4],
+                holeHandicaps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
             })
             loadCourses()
         } catch (error) {
@@ -73,13 +80,22 @@ export default function CourseManagement() {
     }
 
     if (!currentLeague || userRole !== 'admin') {
-        return null // Will redirect or show access denied in Admin wrapper
+        return (
+            <div className="container" style={{ paddingTop: 'var(--spacing-2xl)' }}>
+                <div className="alert alert-error">
+                    <strong>Access Denied:</strong> You must be an admin of {currentLeague?.name || 'this league'} to access this page.
+                </div>
+                <Link to="/" className="btn btn-secondary" style={{ marginTop: 'var(--spacing-lg)' }}>
+                    Return Home
+                </Link>
+            </div>
+        )
     }
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
             <div className="container animate-fade-in" style={{ paddingTop: 'var(--spacing-2xl)', paddingBottom: 'var(--spacing-2xl)' }}>
-                <Link to="/admin" style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
+                <Link to={`/leagues/${currentLeague.id}/admin`} style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
                     ← Back to Admin
                 </Link>
 
@@ -125,8 +141,8 @@ export default function CourseManagement() {
                                         type="number"
                                         step="0.1"
                                         className="form-input"
-                                        value={formData.course_rating}
-                                        onChange={(e) => setFormData({ ...formData, course_rating: parseFloat(e.target.value) })}
+                                        value={formData.courseRating}
+                                        onChange={(e) => setFormData({ ...formData, courseRating: parseFloat(e.target.value) })}
                                         required
                                     />
                                 </div>
@@ -135,42 +151,78 @@ export default function CourseManagement() {
                                     <input
                                         type="number"
                                         className="form-input"
-                                        value={formData.slope_rating}
-                                        onChange={(e) => setFormData({ ...formData, slope_rating: parseInt(e.target.value) })}
+                                        value={formData.slopeRating}
+                                        onChange={(e) => setFormData({ ...formData, slopeRating: parseInt(e.target.value) })}
                                         required
                                     />
                                 </div>
                             </div>
 
-                            <div className="form-group">
-                                <label className="form-label">Hole Pars (9 holes, comma-separated)</label>
-                                <input
-                                    type="text"
-                                    className="form-input"
-                                    value={formData.hole_pars.join(',')}
-                                    onChange={(e) => setFormData({
-                                        ...formData,
-                                        hole_pars: e.target.value.split(',').map(v => parseInt(v.trim()) || 4)
-                                    })}
-                                    placeholder="4,4,4,4,4,4,4,4,4"
-                                />
+                            <div style={{ marginTop: 'var(--spacing-xl)', paddingTop: 'var(--spacing-xl)', borderTop: '1px solid var(--color-border)' }}>
+                                <h4 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Hole Details (9 Holes)</h4>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
+                                    {[...Array(9)].map((_, i) => (
+                                        <div key={i} style={{ textAlign: 'center' }}>
+                                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-xs)' }}>
+                                                Hole {i + 1}
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text)', marginBottom: 'var(--spacing-sm)' }}>
+                                        Par for Each Hole
+                                    </label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 'var(--spacing-md)' }}>
+                                        {formData.holePars.map((par, i) => (
+                                            <input
+                                                key={i}
+                                                type="number"
+                                                className="form-input"
+                                                value={par}
+                                                onChange={(e) => {
+                                                    const newPars = [...formData.holePars];
+                                                    newPars[i] = parseInt(e.target.value) || 3;
+                                                    setFormData({ ...formData, holePars: newPars });
+                                                }}
+                                                min="3"
+                                                max="5"
+                                                required
+                                                style={{ padding: '0.5rem', textAlign: 'center' }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text)', marginBottom: 'var(--spacing-sm)' }}>
+                                        Handicap Ranking (1=hardest, 9=easiest)
+                                    </label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 'var(--spacing-md)' }}>
+                                        {formData.holeHandicaps.map((handicap, i) => (
+                                            <input
+                                                key={i}
+                                                type="number"
+                                                className="form-input"
+                                                value={handicap}
+                                                onChange={(e) => {
+                                                    const newHandicaps = [...formData.holeHandicaps];
+                                                    newHandicaps[i] = parseInt(e.target.value) || 1;
+                                                    setFormData({ ...formData, holeHandicaps: newHandicaps });
+                                                }}
+                                                min="1"
+                                                max="9"
+                                                required
+                                                style={{ padding: '0.5rem', textAlign: 'center' }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="form-group">
-                                <label className="form-label">Hole Handicaps (1-9, difficulty rankings)</label>
-                                <input
-                                    type="text"
-                                    className="form-input"
-                                    value={formData.hole_handicaps.join(',')}
-                                    onChange={(e) => setFormData({
-                                        ...formData,
-                                        hole_handicaps: e.target.value.split(',').map(v => parseInt(v.trim()) || 1)
-                                    })}
-                                    placeholder="1,2,3,4,5,6,7,8,9"
-                                />
-                            </div>
-
-                            <button type="submit" className="btn btn-success">
+                            <button type="submit" className="btn btn-success" style={{ marginTop: 'var(--spacing-xl)' }}>
                                 Add Course
                             </button>
                         </form>
@@ -197,8 +249,8 @@ export default function CourseManagement() {
                                         <tr key={course.id}>
                                             <td style={{ fontWeight: '600' }}>{course.name}</td>
                                             <td>{course.par}</td>
-                                            <td>{course.course_rating.toFixed(1)}</td>
-                                            <td>{course.slope_rating}</td>
+                                            <td>{course.courseRating.toFixed(1)}</td>
+                                            <td>{course.slopeRating}</td>
                                         </tr>
                                     ))}
                                 </tbody>

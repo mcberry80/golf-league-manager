@@ -91,78 +91,78 @@ export default function LeagueList() {
                             }
                         `}</style>
                         <div className="league-grid" style={{ display: 'grid', gap: 'var(--spacing-xl)' }}>
-                        {leagues.map((league) => {
-                            const member = userLeagues.find((l: LeagueMember) => l.league_id === league.id);
-                            const role = member?.role || 'none';
+                            {leagues.map((league) => {
+                                const member = userLeagues.find((l: LeagueMember) => l.leagueId === league.id);
+                                const role = member?.role || 'none';
 
-                            return (
-                                <div
-                                    key={league.id}
-                                    className="card"
-                                    style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
-                                    onClick={() => handleSelectLeague(league.id)}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-lg)' }}>
-                                        <div style={{ 
-                                            background: 'rgba(16, 185, 129, 0.2)', 
-                                            borderRadius: 'var(--radius-full)', 
-                                            padding: 'var(--spacing-md)' 
+                                return (
+                                    <div
+                                        key={league.id}
+                                        className="card"
+                                        style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
+                                        onClick={() => handleSelectLeague(league.id)}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-lg)' }}>
+                                            <div style={{
+                                                background: 'rgba(16, 185, 129, 0.2)',
+                                                borderRadius: 'var(--radius-full)',
+                                                padding: 'var(--spacing-md)'
+                                            }}>
+                                                <Trophy className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
+                                            </div>
+                                            {role === 'admin' && (
+                                                <span className="badge badge-primary">
+                                                    Admin
+                                                </span>
+                                            )}
+                                        </div>
+                                        <h3 style={{
+                                            marginBottom: 'var(--spacing-sm)',
+                                            color: 'var(--color-text)',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
                                         }}>
-                                            <Trophy className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
+                                            {league.name}
+                                        </h3>
+                                        <p style={{
+                                            marginTop: 'var(--spacing-sm)',
+                                            color: 'var(--color-text-muted)',
+                                            fontSize: '0.875rem',
+                                            minHeight: '2.5rem',
+                                            overflow: 'hidden',
+                                            display: '-webkit-box',
+                                            WebkitLineClamp: 2,
+                                            WebkitBoxOrient: 'vertical'
+                                        }}>
+                                            {league.description || 'No description provided'}
+                                        </p>
+                                        <div style={{
+                                            marginTop: 'var(--spacing-lg)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            fontSize: '0.875rem',
+                                            color: 'var(--color-text-muted)',
+                                            paddingTop: 'var(--spacing-md)',
+                                            borderTop: '1px solid var(--color-border)'
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                <Users className="flex-shrink-0 mr-1.5 h-4 w-4" />
+                                                <span>View League</span>
+                                            </div>
+                                            <ArrowRight className="h-4 w-4" />
                                         </div>
-                                        {role === 'admin' && (
-                                            <span className="badge badge-primary">
-                                                Admin
-                                            </span>
-                                        )}
-                                    </div>
-                                    <h3 style={{ 
-                                        marginBottom: 'var(--spacing-sm)', 
-                                        color: 'var(--color-text)',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        {league.name}
-                                    </h3>
-                                    <p style={{ 
-                                        marginTop: 'var(--spacing-sm)', 
-                                        color: 'var(--color-text-muted)', 
-                                        fontSize: '0.875rem',
-                                        minHeight: '2.5rem',
-                                        overflow: 'hidden',
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 2,
-                                        WebkitBoxOrient: 'vertical'
-                                    }}>
-                                        {league.description || 'No description provided'}
-                                    </p>
-                                    <div style={{ 
-                                        marginTop: 'var(--spacing-lg)', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'space-between',
-                                        fontSize: '0.875rem',
-                                        color: 'var(--color-text-muted)',
-                                        paddingTop: 'var(--spacing-md)',
-                                        borderTop: '1px solid var(--color-border)'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                                            <Users className="flex-shrink-0 mr-1.5 h-4 w-4" />
-                                            <span>View League</span>
+                                        <div style={{
+                                            marginTop: 'var(--spacing-md)',
+                                            fontSize: '0.75rem',
+                                            color: 'var(--color-text-muted)'
+                                        }}>
+                                            Created {new Date(league.createdAt).toLocaleDateString()}
                                         </div>
-                                        <ArrowRight className="h-4 w-4" />
                                     </div>
-                                    <div style={{ 
-                                        marginTop: 'var(--spacing-md)', 
-                                        fontSize: '0.75rem', 
-                                        color: 'var(--color-text-muted)' 
-                                    }}>
-                                        Created {new Date(league.created_at).toLocaleDateString()}
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
                         </div>
                     </div>
                 )}

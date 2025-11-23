@@ -11,9 +11,30 @@ import (
 	"golf-league-manager/internal/api"
 	"golf-league-manager/internal/config"
 	"golf-league-manager/internal/logger"
+	"golf-league-manager/internal/secrets"
 )
 
 func main() {
+	// Create context for initialization
+	ctx := context.Background()
+
+	// Get GCP Project ID from environment or use default
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	if projectID == "" {
+		// Try alternative environment variables set by Cloud Run
+		projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
+	}
+	if projectID == "" {
+		// Use hardcoded default (not sensitive)
+		projectID = "elite-league-manager"
+	}
+	
+	// Try to load secrets from Secret Manager
+	// This will automatically load CLERK_SECRET_KEY from Secret Manager
+	if err := secrets.TryLoadEnvironmentFromSecrets(ctx, projectID); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load secrets: %v\n", err)
+	}
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {

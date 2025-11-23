@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
 import type { Match, Season, LeagueMemberWithPlayer, Course } from '../../types'
 
 export default function MatchScheduling() {
-    const { currentLeague, userRole, isLoading: leagueLoading } = useLeague()
+    const { leagueId } = useParams<{ leagueId: string }>()
+    const { currentLeague, userRole, isLoading: leagueLoading, selectLeague } = useLeague()
     const navigate = useNavigate()
     const [matches, setMatches] = useState<Match[]>([])
     const [seasons, setSeasons] = useState<Season[]>([])
@@ -14,16 +15,22 @@ export default function MatchScheduling() {
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
     const [formData, setFormData] = useState({
-        season_id: '',
-        week_number: 1,
-        player_a_id: '',
-        player_b_id: '',
-        course_id: '',
-        match_date: '',
+        seasonId: '',
+        weekNumber: 1,
+        playerAId: '',
+        playerBId: '',
+        courseId: '',
+        matchDate: '',
     })
 
     useEffect(() => {
-        if (!leagueLoading && !currentLeague) {
+        if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
+            selectLeague(leagueId)
+        }
+    }, [leagueId, currentLeague, selectLeague])
+
+    useEffect(() => {
+        if (!leagueLoading && !currentLeague && !leagueId) {
             navigate('/leagues')
             return
         }
@@ -31,7 +38,7 @@ export default function MatchScheduling() {
         if (currentLeague) {
             loadData()
         }
-    }, [currentLeague, leagueLoading, navigate])
+    }, [currentLeague, leagueLoading, navigate, leagueId])
 
     async function loadData() {
         if (!currentLeague) return
@@ -51,7 +58,7 @@ export default function MatchScheduling() {
             // Set active season as default
             const activeSeason = seasonsData.find(s => s.active)
             if (activeSeason) {
-                setFormData(prev => ({ ...prev, season_id: activeSeason.id }))
+                setFormData(prev => ({ ...prev, seasonId: activeSeason.id }))
             }
         } catch (error) {
             console.error('Failed to load data:', error)
@@ -68,12 +75,12 @@ export default function MatchScheduling() {
             await api.createMatch(currentLeague.id, formData)
             setShowForm(false)
             setFormData({
-                season_id: formData.season_id,
-                week_number: formData.week_number + 1,
-                player_a_id: '',
-                player_b_id: '',
-                course_id: '',
-                match_date: '',
+                seasonId: formData.seasonId,
+                weekNumber: formData.weekNumber + 1,
+                playerAId: '',
+                playerBId: '',
+                courseId: '',
+                matchDate: '',
             })
             loadData()
         } catch (error) {
@@ -84,7 +91,7 @@ export default function MatchScheduling() {
     const getPlayerName = (id: string) => {
         // Match stores player_id, so we look up in members list
         // members have player_id and player object
-        const member = members.find(m => m.player_id === id)
+        const member = members.find(m => m.playerId === id)
         return member?.player?.name || 'Unknown'
     }
     const getCourseName = (id: string) => courses.find(c => c.id === id)?.name || 'Unknown'
@@ -92,8 +99,8 @@ export default function MatchScheduling() {
 
     // Group matches by week
     const matchesByWeek = matches.reduce((acc, match) => {
-        if (!acc[match.week_number]) acc[match.week_number] = []
-        acc[match.week_number].push(match)
+        if (!acc[match.weekNumber]) acc[match.weekNumber] = []
+        acc[match.weekNumber].push(match)
         return acc
     }, {} as Record<number, Match[]>)
 
@@ -106,13 +113,22 @@ export default function MatchScheduling() {
     }
 
     if (!currentLeague || userRole !== 'admin') {
-        return null // Will redirect or show access denied in Admin wrapper
+        return (
+            <div className="container" style={{ paddingTop: 'var(--spacing-2xl)' }}>
+                <div className="alert alert-error">
+                    <strong>Access Denied:</strong> You must be an admin of {currentLeague?.name || 'this league'} to access this page.
+                </div>
+                <Link to="/" className="btn btn-secondary" style={{ marginTop: 'var(--spacing-lg)' }}>
+                    Return Home
+                </Link>
+            </div>
+        )
     }
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
             <div className="container animate-fade-in" style={{ paddingTop: 'var(--spacing-2xl)', paddingBottom: 'var(--spacing-2xl)' }}>
-                <Link to="/admin" style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
+                <Link to={`/leagues/${currentLeague.id}/admin`} style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
                     ← Back to Admin
                 </Link>
 
@@ -135,8 +151,8 @@ export default function MatchScheduling() {
                                     <label className="form-label">Season</label>
                                     <select
                                         className="form-select"
-                                        value={formData.season_id}
-                                        onChange={(e) => setFormData({ ...formData, season_id: e.target.value })}
+                                        value={formData.seasonId}
+                                        onChange={(e) => setFormData({ ...formData, seasonId: e.target.value })}
                                         required
                                     >
                                         <option value="">Select Season</option>
@@ -152,8 +168,8 @@ export default function MatchScheduling() {
                                     <input
                                         type="number"
                                         className="form-input"
-                                        value={formData.week_number}
-                                        onChange={(e) => setFormData({ ...formData, week_number: parseInt(e.target.value) })}
+                                        value={formData.weekNumber}
+                                        onChange={(e) => setFormData({ ...formData, weekNumber: parseInt(e.target.value) })}
                                         required
                                         min="1"
                                     />
@@ -162,13 +178,13 @@ export default function MatchScheduling() {
                                     <label className="form-label">Player A</label>
                                     <select
                                         className="form-select"
-                                        value={formData.player_a_id}
-                                        onChange={(e) => setFormData({ ...formData, player_a_id: e.target.value })}
+                                        value={formData.playerAId}
+                                        onChange={(e) => setFormData({ ...formData, playerAId: e.target.value })}
                                         required
                                     >
                                         <option value="">Select Player</option>
                                         {members.map(member => (
-                                            <option key={member.id} value={member.player_id}>{member.player?.name || member.player?.email}</option>
+                                            <option key={member.id} value={member.playerId}>{member.player?.name || member.player?.email}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -176,13 +192,13 @@ export default function MatchScheduling() {
                                     <label className="form-label">Player B</label>
                                     <select
                                         className="form-select"
-                                        value={formData.player_b_id}
-                                        onChange={(e) => setFormData({ ...formData, player_b_id: e.target.value })}
+                                        value={formData.playerBId}
+                                        onChange={(e) => setFormData({ ...formData, playerBId: e.target.value })}
                                         required
                                     >
                                         <option value="">Select Player</option>
                                         {members.map(member => (
-                                            <option key={member.id} value={member.player_id}>{member.player?.name || member.player?.email}</option>
+                                            <option key={member.id} value={member.playerId}>{member.player?.name || member.player?.email}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -190,8 +206,8 @@ export default function MatchScheduling() {
                                     <label className="form-label">Course</label>
                                     <select
                                         className="form-select"
-                                        value={formData.course_id}
-                                        onChange={(e) => setFormData({ ...formData, course_id: e.target.value })}
+                                        value={formData.courseId}
+                                        onChange={(e) => setFormData({ ...formData, courseId: e.target.value })}
                                         required
                                     >
                                         <option value="">Select Course</option>
@@ -205,8 +221,8 @@ export default function MatchScheduling() {
                                     <input
                                         type="date"
                                         className="form-input"
-                                        value={formData.match_date}
-                                        onChange={(e) => setFormData({ ...formData, match_date: e.target.value })}
+                                        value={formData.matchDate}
+                                        onChange={(e) => setFormData({ ...formData, matchDate: e.target.value })}
                                         required
                                     />
                                 </div>
@@ -243,12 +259,12 @@ export default function MatchScheduling() {
                                             <tbody>
                                                 {matchesByWeek[parseInt(week)].map(match => (
                                                     <tr key={match.id}>
-                                                        <td>{new Date(match.match_date).toLocaleDateString()}</td>
+                                                        <td>{new Date(match.matchDate).toLocaleDateString()}</td>
                                                         <td style={{ fontWeight: '600' }}>
-                                                            {getPlayerName(match.player_a_id)} vs {getPlayerName(match.player_b_id)}
+                                                            {getPlayerName(match.playerAId)} vs {getPlayerName(match.playerBId)}
                                                         </td>
-                                                        <td>{getCourseName(match.course_id)}</td>
-                                                        <td>{getSeasonName(match.season_id)}</td>
+                                                        <td>{getCourseName(match.courseId)}</td>
+                                                        <td>{getSeasonName(match.seasonId)}</td>
                                                         <td>
                                                             <span className={`badge ${match.status === 'completed' ? 'badge-success' : 'badge-warning'}`}>
                                                                 {match.status}

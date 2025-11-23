@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
 import type { Match, LeagueMemberWithPlayer, Course } from '../../types'
 
 export default function ScoreEntry() {
-    const { currentLeague, userRole, isLoading: leagueLoading } = useLeague()
+    const { leagueId } = useParams<{ leagueId: string }>()
+    const { currentLeague, userRole, isLoading: leagueLoading, selectLeague } = useLeague()
     const navigate = useNavigate()
     const [matches, setMatches] = useState<Match[]>([])
     const [selectedMatch, setSelectedMatch] = useState<Match | null>(null)
@@ -24,7 +25,13 @@ export default function ScoreEntry() {
     const [submitting, setSubmitting] = useState(false)
 
     useEffect(() => {
-        if (!leagueLoading && !currentLeague) {
+        if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
+            selectLeague(leagueId)
+        }
+    }, [leagueId, currentLeague, selectLeague])
+
+    useEffect(() => {
+        if (!leagueLoading && !currentLeague && !leagueId) {
             navigate('/leagues')
             return
         }
@@ -32,15 +39,14 @@ export default function ScoreEntry() {
         if (currentLeague) {
             loadData()
         }
-    }, [currentLeague, leagueLoading, navigate])
+    }, [currentLeague, leagueLoading, navigate, leagueId])
 
     async function loadData() {
         if (!currentLeague) return
 
         try {
             const [matchesData, membersData, coursesData] = await Promise.all([
-                api.listMatches(currentLeague.id), // Should filter by scheduled? Backend doesn't support status filter yet in listMatches? 
-                // Actually listMatches returns all. I can filter here.
+                api.listMatches(currentLeague.id),
                 api.listLeagueMembers(currentLeague.id),
                 api.listCourses(currentLeague.id),
             ])
@@ -57,8 +63,13 @@ export default function ScoreEntry() {
     function handleMatchSelect(matchId: string) {
         const match = matches.find(m => m.id === matchId)
         setSelectedMatch(match || null)
-        setPlayerAScores(Array(9).fill(0))
-        setPlayerBScores(Array(9).fill(0))
+
+        // Get course par for default values
+        const course = match ? courses.find(c => c.id === match.courseId) : null
+        const defaultScores = course?.holePars || Array(9).fill(4)
+
+        setPlayerAScores(defaultScores)
+        setPlayerBScores(defaultScores)
         setPlayerAAbsent(false)
         setPlayerBAbsent(false)
     }
@@ -69,33 +80,32 @@ export default function ScoreEntry() {
 
         setSubmitting(true)
         try {
-            // For absent players, we still need to create score records
-            // The backend will handle absence handicap calculation
+            // Batch all scores into a single API call for each player
+            const playerAScoreData = playerAScores.map((score, index) => ({
+                matchId: selectedMatch.id,
+                playerId: selectedMatch.playerAId,
+                holeNumber: index + 1,
+                grossScore: playerAAbsent ? 0 : score,
+                netScore: 0, // Backend will calculate
+                strokesReceived: 0, // Backend will calculate
+                playerAbsent: playerAAbsent,
+            }))
 
-            // Enter scores for all 9 holes for both players
-            for (let hole = 1; hole <= 9; hole++) {
-                // Player A score
-                await api.enterScore(currentLeague.id, {
-                    match_id: selectedMatch.id,
-                    player_id: selectedMatch.player_a_id,
-                    hole_number: hole,
-                    gross_score: playerAAbsent ? 0 : playerAScores[hole - 1],
-                    net_score: 0, // Backend will calculate
-                    strokes_received: 0, // Backend will calculate
-                    player_absent: playerAAbsent,
-                })
+            const playerBScoreData = playerBScores.map((score, index) => ({
+                matchId: selectedMatch.id,
+                playerId: selectedMatch.playerBId,
+                holeNumber: index + 1,
+                grossScore: playerBAbsent ? 0 : score,
+                netScore: 0, // Backend will calculate
+                strokesReceived: 0, // Backend will calculate
+                playerAbsent: playerBAbsent,
+            }))
 
-                // Player B score
-                await api.enterScore(currentLeague.id, {
-                    match_id: selectedMatch.id,
-                    player_id: selectedMatch.player_b_id,
-                    hole_number: hole,
-                    gross_score: playerBAbsent ? 0 : playerBScores[hole - 1],
-                    net_score: 0, // Backend will calculate
-                    strokes_received: 0, // Backend will calculate
-                    player_absent: playerBAbsent,
-                })
-            }
+            // Submit all scores in parallel (2 API calls instead of 18)
+            await Promise.all([
+                api.enterScoreBatch(currentLeague.id, playerAScoreData),
+                api.enterScoreBatch(currentLeague.id, playerBScoreData),
+            ])
 
             // Process the match to calculate points and update handicaps
             await api.processMatch(currentLeague.id, selectedMatch.id)
@@ -111,10 +121,11 @@ export default function ScoreEntry() {
     }
 
     const getPlayerName = (id: string) => {
-        const member = members.find(m => m.player_id === id)
+        const member = members.find(m => m.playerId === id)
         return member?.player?.name || 'Unknown'
     }
     const getCourseName = (id: string) => courses.find(c => c.id === id)?.name || 'Unknown'
+    const getCourse = (id: string) => courses.find(c => c.id === id)
 
     if (leagueLoading || loading) {
         return (
@@ -125,13 +136,24 @@ export default function ScoreEntry() {
     }
 
     if (!currentLeague || userRole !== 'admin') {
-        return null // Will redirect or show access denied in Admin wrapper
+        return (
+            <div className="container" style={{ paddingTop: 'var(--spacing-2xl)' }}>
+                <div className="alert alert-error">
+                    <strong>Access Denied:</strong> You must be an admin of {currentLeague?.name || 'this league'} to access this page.
+                </div>
+                <Link to="/" className="btn btn-secondary" style={{ marginTop: 'var(--spacing-lg)' }}>
+                    Return Home
+                </Link>
+            </div>
+        )
     }
+
+    const course = selectedMatch ? getCourse(selectedMatch.courseId) : null
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
             <div className="container animate-fade-in" style={{ paddingTop: 'var(--spacing-2xl)', paddingBottom: 'var(--spacing-2xl)' }}>
-                <Link to="/admin" style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
+                <Link to={`/leagues/${currentLeague.id}/admin`} style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
                     ← Back to Admin
                 </Link>
 
@@ -140,173 +162,156 @@ export default function ScoreEntry() {
                     <p className="text-gray-400 mt-1">{currentLeague.name}</p>
                 </div>
 
-                {!selectedMatch ? (
-                    <div className="card-glass">
-                        <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Select a Match</h3>
-                        {matches.length === 0 ? (
-                            <p style={{ color: 'var(--color-text-muted)' }}>No scheduled matches available.</p>
-                        ) : (
-                            <div className="table-container">
-                                <table className="table">
+                <div className="card-glass" style={{ marginBottom: 'var(--spacing-xl)' }}>
+                    <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Select Match</h3>
+                    {matches.length === 0 ? (
+                        <p style={{ color: 'var(--color-text-muted)' }}>No scheduled matches available.</p>
+                    ) : (
+                        <select
+                            className="form-input"
+                            value={selectedMatch?.id || ''}
+                            onChange={(e) => handleMatchSelect(e.target.value)}
+                            style={{ maxWidth: '500px' }}
+                        >
+                            <option value="">-- Select a match --</option>
+                            {matches.map((match) => (
+                                <option key={match.id} value={match.id}>
+                                    Week {match.weekNumber}: {getPlayerName(match.playerAId)} vs {getPlayerName(match.playerBId)} - {getCourseName(match.courseId)}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+
+                {selectedMatch && (
+                    <form onSubmit={handleSubmit}>
+                        <div className="card-glass" style={{ marginBottom: 'var(--spacing-xl)', overflow: 'auto' }}>
+                            <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Scorecard</h3>
+
+                            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-lg)' }}>
+                                <strong>{getCourseName(selectedMatch.courseId)}</strong> • Par {course?.par || 36}
+                            </div>
+
+                            {/* Scorecard Table */}
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                                     <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Week</th>
-                                            <th>Matchup</th>
-                                            <th>Course</th>
-                                            <th>Action</th>
+                                        <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
+                                            <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--color-text-secondary)', fontWeight: '600' }}>Hole</th>
+                                            {[...Array(9)].map((_, i) => (
+                                                <th key={i} style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text)', fontWeight: '600' }}>{i + 1}</th>
+                                            ))}
+                                            <th style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text)', fontWeight: '700', borderLeft: '2px solid var(--color-border)' }}>Total</th>
+                                        </tr>
+                                        <tr style={{ borderBottom: '1px solid var(--color-border)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                            <td style={{ padding: '0.75rem', color: 'var(--color-text-secondary)' }}>Par</td>
+                                            {(course?.holePars || Array(9).fill(4)).map((par, i) => (
+                                                <td key={i} style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>{par}</td>
+                                            ))}
+                                            <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', borderLeft: '2px solid var(--color-border)', color: 'var(--color-text-secondary)' }}>
+                                                {course?.par || 36}
+                                            </td>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {matches.map(match => (
-                                            <tr key={match.id}>
-                                                <td>{new Date(match.match_date).toLocaleDateString()}</td>
-                                                <td>Week {match.week_number}</td>
-                                                <td style={{ fontWeight: '600' }}>
-                                                    {getPlayerName(match.player_a_id)} vs {getPlayerName(match.player_b_id)}
-                                                </td>
-                                                <td>{getCourseName(match.course_id)}</td>
-                                                <td>
-                                                    <button
-                                                        onClick={() => handleMatchSelect(match.id)}
-                                                        className="btn btn-primary"
-                                                        style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
-                                                    >
-                                                        Enter Scores
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="card-glass">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
-                            <div>
-                                <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>
-                                    {getPlayerName(selectedMatch.player_a_id)} vs {getPlayerName(selectedMatch.player_b_id)}
-                                </h3>
-                                <p style={{ color: 'var(--color-text-muted)' }}>
-                                    {getCourseName(selectedMatch.course_id)} • Week {selectedMatch.week_number}
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setSelectedMatch(null)}
-                                className="btn btn-secondary"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit}>
-                            <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-xl)' }}>
-                                {/* Player A */}
-                                <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
-                                        <h4 style={{ color: 'var(--color-text)' }}>{getPlayerName(selectedMatch.player_a_id)}</h4>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', cursor: 'pointer' }}>
-                                            <input
-                                                type="checkbox"
-                                                className="form-checkbox"
-                                                checked={playerAAbsent}
-                                                onChange={(e) => setPlayerAAbsent(e.target.checked)}
-                                            />
-                                            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>Absent</span>
-                                        </label>
-                                    </div>
-                                    {!playerAAbsent && (
-                                        <div style={{ display: 'grid', gap: 'var(--spacing-sm)' }}>
-                                            {[...Array(9)].map((_, i) => (
-                                                <div key={i} className="form-group" style={{ marginBottom: 0 }}>
-                                                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Hole {i + 1}</label>
+                                        {/* Player A */}
+                                        <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                            <td style={{ padding: '0.75rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+                                                    <strong style={{ color: 'var(--color-text)' }}>{getPlayerName(selectedMatch.playerAId)}</strong>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={playerAAbsent}
+                                                            onChange={(e) => setPlayerAAbsent(e.target.checked)}
+                                                        />
+                                                        Absent
+                                                    </label>
+                                                </div>
+                                            </td>
+                                            {playerAScores.map((score, i) => (
+                                                <td key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>
                                                     <input
                                                         type="number"
                                                         className="form-input"
-                                                        value={playerAScores[i] || ''}
+                                                        value={score}
                                                         onChange={(e) => {
                                                             const newScores = [...playerAScores]
                                                             newScores[i] = parseInt(e.target.value) || 0
                                                             setPlayerAScores(newScores)
                                                         }}
-                                                        required={!playerAAbsent}
-                                                        min="1"
+                                                        disabled={playerAAbsent}
+                                                        min="0"
                                                         max="15"
-                                                        style={{ padding: '0.5rem' }}
+                                                        style={{ width: '50px', padding: '0.5rem', textAlign: 'center', fontSize: '0.875rem' }}
                                                     />
-                                                </div>
+                                                </td>
                                             ))}
-                                        </div>
-                                    )}
-                                    {playerAAbsent && (
-                                        <div className="alert alert-warning">
-                                            Player marked as absent. Absence handicap will be applied automatically.
-                                        </div>
-                                    )}
-                                </div>
+                                            <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '700', fontSize: '1rem', borderLeft: '2px solid var(--color-border)', color: 'var(--color-primary)' }}>
+                                                {playerAAbsent ? '-' : playerAScores.reduce((a, b) => a + b, 0)}
+                                            </td>
+                                        </tr>
 
-                                {/* Player B */}
-                                <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
-                                        <h4 style={{ color: 'var(--color-text)' }}>{getPlayerName(selectedMatch.player_b_id)}</h4>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', cursor: 'pointer' }}>
-                                            <input
-                                                type="checkbox"
-                                                className="form-checkbox"
-                                                checked={playerBAbsent}
-                                                onChange={(e) => setPlayerBAbsent(e.target.checked)}
-                                            />
-                                            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>Absent</span>
-                                        </label>
-                                    </div>
-                                    {!playerBAbsent && (
-                                        <div style={{ display: 'grid', gap: 'var(--spacing-sm)' }}>
-                                            {[...Array(9)].map((_, i) => (
-                                                <div key={i} className="form-group" style={{ marginBottom: 0 }}>
-                                                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Hole {i + 1}</label>
+                                        {/* Player B */}
+                                        <tr>
+                                            <td style={{ padding: '0.75rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+                                                    <strong style={{ color: 'var(--color-text)' }}>{getPlayerName(selectedMatch.playerBId)}</strong>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={playerBAbsent}
+                                                            onChange={(e) => setPlayerBAbsent(e.target.checked)}
+                                                        />
+                                                        Absent
+                                                    </label>
+                                                </div>
+                                            </td>
+                                            {playerBScores.map((score, i) => (
+                                                <td key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>
                                                     <input
                                                         type="number"
                                                         className="form-input"
-                                                        value={playerBScores[i] || ''}
+                                                        value={score}
                                                         onChange={(e) => {
                                                             const newScores = [...playerBScores]
                                                             newScores[i] = parseInt(e.target.value) || 0
                                                             setPlayerBScores(newScores)
                                                         }}
-                                                        required={!playerBAbsent}
-                                                        min="1"
+                                                        disabled={playerBAbsent}
+                                                        min="0"
                                                         max="15"
-                                                        style={{ padding: '0.5rem' }}
+                                                        style={{ width: '50px', padding: '0.5rem', textAlign: 'center', fontSize: '0.875rem' }}
                                                     />
-                                                </div>
+                                                </td>
                                             ))}
-                                        </div>
-                                    )}
-                                    {playerBAbsent && (
-                                        <div className="alert alert-warning">
-                                            Player marked as absent. Absence handicap will be applied automatically.
-                                        </div>
-                                    )}
-                                </div>
+                                            <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '700', fontSize: '1rem', borderLeft: '2px solid var(--color-border)', color: 'var(--color-primary)' }}>
+                                                {playerBAbsent ? '-' : playerBScores.reduce((a, b) => a + b, 0)}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
+                        </div>
 
-                            <div style={{ marginTop: 'var(--spacing-xl)', paddingTop: 'var(--spacing-xl)', borderTop: '1px solid var(--color-border)' }}>
-                                <button
-                                    type="submit"
-                                    className="btn btn-success"
-                                    disabled={submitting}
-                                    style={{ width: '100%' }}
-                                >
-                                    {submitting ? 'Submitting...' : 'Submit Scores & Complete Match'}
-                                </button>
-                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginTop: 'var(--spacing-md)', textAlign: 'center' }}>
-                                    This will calculate net scores, match points (22 total), and update handicaps automatically.
-                                </p>
-                            </div>
-                        </form>
-                    </div>
+                        <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+                            <button
+                                type="submit"
+                                className="btn btn-success"
+                                disabled={submitting}
+                            >
+                                {submitting ? 'Submitting...' : 'Submit Scores & Complete Match'}
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => setSelectedMatch(null)}
+                                disabled={submitting}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
                 )}
             </div>
         </div>

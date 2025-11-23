@@ -24,19 +24,27 @@ gcloud config set project $ProjectId
 
 # Deploy Backend
 Write-Host "`n🔧 Building and deploying backend..." -ForegroundColor Yellow
+
+# First, ensure secrets are set up in Secret Manager
+Write-Host "`n🔐 Ensuring secrets are configured in Secret Manager..." -ForegroundColor Yellow
+& "$PSScriptRoot\setup-secrets.ps1" -ProjectId $ProjectId -ClerkSecretKey $ClerkSecretKey -ClerkPublishableKey $ClerkPublishableKey
+
 Push-Location server
 
 # Build and deploy backend to Cloud Run
 gcloud builds submit --tag gcr.io/$ProjectId/golf-league-backend
 
+# Deploy with only non-sensitive environment variables
+# Secrets will be loaded from Secret Manager at runtime
 gcloud run deploy golf-league-backend `
   --image gcr.io/$ProjectId/golf-league-backend `
   --platform managed `
   --region $Region `
   --allow-unauthenticated `
-  --set-env-vars "GCP_PROJECT_ID=$ProjectId,CLERK_SECRET_KEY=$ClerkSecretKey,ENVIRONMENT=production"
+  --set-env-vars "ENVIRONMENT=production,GOOGLE_CLOUD_PROJECT=$ProjectId"
 
 Pop-Location
+
 
 # Get backend URL
 Write-Host "`n🔍 Getting backend URL..." -ForegroundColor Yellow

@@ -1,25 +1,32 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
 import type { Season } from '../../types'
 
 export default function LeagueSetup() {
-    const { currentLeague, userRole, isLoading: leagueLoading } = useLeague()
+    const { leagueId } = useParams<{ leagueId: string }>()
+    const { currentLeague, userRole, isLoading: leagueLoading, selectLeague } = useLeague()
     const navigate = useNavigate()
     const [seasons, setSeasons] = useState<Season[]>([])
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
     const [formData, setFormData] = useState({
         name: '',
-        start_date: '',
-        end_date: '',
+        startDate: '',
+        endDate: '',
         description: '',
         active: false,
     })
 
     useEffect(() => {
-        if (!leagueLoading && !currentLeague) {
+        if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
+            selectLeague(leagueId)
+        }
+    }, [leagueId, currentLeague, selectLeague])
+
+    useEffect(() => {
+        if (!leagueLoading && !currentLeague && !leagueId) {
             navigate('/leagues')
             return
         }
@@ -27,7 +34,7 @@ export default function LeagueSetup() {
         if (currentLeague) {
             loadSeasons()
         }
-    }, [currentLeague, leagueLoading, navigate])
+    }, [currentLeague, leagueLoading, navigate, leagueId])
 
     async function loadSeasons() {
         if (!currentLeague) return
@@ -49,7 +56,7 @@ export default function LeagueSetup() {
         try {
             await api.createSeason(currentLeague.id, formData)
             setShowForm(false)
-            setFormData({ name: '', start_date: '', end_date: '', description: '', active: false })
+            setFormData({ name: '', startDate: '', endDate: '', description: '', active: false })
             loadSeasons()
         } catch (error) {
             alert('Failed to create season: ' + (error instanceof Error ? error.message : 'Unknown error'))
@@ -76,13 +83,22 @@ export default function LeagueSetup() {
     }
 
     if (!currentLeague || userRole !== 'admin') {
-        return null // Will redirect or show access denied in Admin wrapper
+        return (
+            <div className="container" style={{ paddingTop: 'var(--spacing-2xl)' }}>
+                <div className="alert alert-error">
+                    <strong>Access Denied:</strong> You must be an admin of {currentLeague?.name || 'this league'} to access this page.
+                </div>
+                <Link to="/" className="btn btn-secondary" style={{ marginTop: 'var(--spacing-lg)' }}>
+                    Return Home
+                </Link>
+            </div>
+        )
     }
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
             <div className="container animate-fade-in" style={{ paddingTop: 'var(--spacing-2xl)', paddingBottom: 'var(--spacing-2xl)' }}>
-                <Link to="/admin" style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
+                <Link to={`/leagues/${currentLeague.id}/admin`} style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
                     ← Back to Admin
                 </Link>
 
@@ -127,8 +143,8 @@ export default function LeagueSetup() {
                                     <input
                                         type="date"
                                         className="form-input"
-                                        value={formData.start_date}
-                                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                                        value={formData.startDate}
+                                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                                         required
                                     />
                                 </div>
@@ -137,8 +153,8 @@ export default function LeagueSetup() {
                                     <input
                                         type="date"
                                         className="form-input"
-                                        value={formData.end_date}
-                                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                                        value={formData.endDate}
+                                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                                         required
                                     />
                                 </div>
@@ -182,8 +198,8 @@ export default function LeagueSetup() {
                                     {seasons.map((season) => (
                                         <tr key={season.id}>
                                             <td style={{ fontWeight: '600' }}>{season.name}</td>
-                                            <td>{new Date(season.start_date).toLocaleDateString()}</td>
-                                            <td>{new Date(season.end_date).toLocaleDateString()}</td>
+                                            <td>{new Date(season.startDate).toLocaleDateString()}</td>
+                                            <td>{new Date(season.endDate).toLocaleDateString()}</td>
                                             <td>{season.description}</td>
                                             <td>
                                                 <span className={`badge ${season.active ? 'badge-success' : 'badge-secondary'}`}>

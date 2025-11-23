@@ -223,57 +223,71 @@ npm run dev
 
 ### Environment Variables
 
-**Backend (.env or export)**
-```bash
-# Required: GCP Project ID for Firestore
-export GCP_PROJECT_ID="your-project-id"
+**⚠️ Important: Use Secret Manager for Production**
 
-# Required: Clerk Secret Key for JWT verification
-export CLERK_SECRET_KEY="sk_test_..."
+For production deployments, sensitive values (like `CLERK_SECRET_KEY`) should be stored in Google Cloud Secret Manager, not as environment variables. See [SECRET_MANAGEMENT.md](SECRET_MANAGEMENT.md) for detailed instructions.
 
-# Optional: Server port (default: 8080)
-export PORT="8080"
-
-# Optional: Deployment environment (default: production)
-# Options: dev, staging, production
-export ENVIRONMENT="production"
-
-# Optional: Log level (default: INFO)
-# Options: DEBUG, INFO, WARN, ERROR
-export LOG_LEVEL="INFO"
-
-# Optional: CORS allowed origins (default: *)
-# Comma-separated list of origins
-export CORS_ORIGINS="http://localhost:3000,https://yourdomain.com"
-
-# Optional: Application version for health checks
-export APP_VERSION="1.0.0"
-
-# For local development with Firestore emulator
-export FIRESTORE_EMULATOR_HOST="localhost:8080"
+**Quick Setup with Secret Manager:**
+```powershell
+# Set up secrets in Google Cloud Secret Manager
+.\setup-secrets.ps1 `
+    -ProjectId "your-project-id" `
+    -ClerkSecretKey "sk_test_..." `
+    -ClerkPublishableKey "pk_test_..."
 ```
+
+**Backend Environment Variables**
+
+Required:
+- `GCP_PROJECT_ID` - Your GCP project ID for Firestore
+- `CLERK_SECRET_KEY` - Clerk API secret key for JWT verification
+
+Optional:
+- `PORT` - Server port (default: 8080)
+- `ENVIRONMENT` - Deployment environment: dev, staging, production (default: production)
+- `LOG_LEVEL` - Logging level: DEBUG, INFO, WARN, ERROR (default: INFO)
+- `CORS_ORIGINS` - Comma-separated list of allowed origins (default: *)
+- `APP_VERSION` - Application version for health checks
 
 **Frontend (frontend/.env.local)**
 ```bash
 # Clerk Authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
 
 # API Configuration
-NEXT_PUBLIC_API_URL=http://localhost:8080
+VITE_API_URL=http://localhost:8080
 ```
 
 ### Running the Backend Server
 
-```bash
-# Set environment variables
-export GCP_PROJECT_ID="your-project-id"
-export PORT="8080"
+**Option 1: Quick Start (Recommended)**
+```powershell
+# Loads secrets from Secret Manager and starts the server
+.\start-dev.ps1 -ProjectId "your-project-id"
+```
+
+**Option 2: Load Secrets Manually**
+```powershell
+# Load secrets from Secret Manager
+.\load-secrets-local.ps1 -ProjectId "your-project-id"
 
 # Run the server
-cd server/cmd
+cd server\cmd
 go run main.go
 ```
+
+**Option 3: Set Environment Variables Manually**
+```powershell
+$env:GCP_PROJECT_ID = "your-project-id"
+$env:CLERK_SECRET_KEY = "sk_test_..."
+$env:PORT = "8080"
+$env:ENVIRONMENT = "dev"
+$env:LOG_LEVEL = "DEBUG"
+
+cd server\cmd
+go run main.go
+```
+
 
 The API server will be available at `http://localhost:8080`
 

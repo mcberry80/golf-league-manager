@@ -17,7 +17,7 @@ export default function Standings() {
             try {
                 const data = await api.getStandings(currentLeague.id)
                 // Sort by total points descending
-                const sorted = data.sort((a, b) => b.total_points - a.total_points)
+                const sorted = data.sort((a, b) => b.totalPoints - a.totalPoints)
                 setStandings(sorted)
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to load standings')
@@ -86,7 +86,7 @@ export default function Standings() {
                                     </thead>
                                     <tbody>
                                         {standings.map((entry, index) => (
-                                            <tr key={entry.player_id}>
+                                            <tr key={entry.playerId}>
                                                 <td>
                                                     <span style={{
                                                         fontWeight: 'bold',
@@ -95,21 +95,21 @@ export default function Standings() {
                                                         {index === 0 && '🏆 '}#{index + 1}
                                                     </span>
                                                 </td>
-                                                <td style={{ fontWeight: '600' }}>{entry.player_name}</td>
-                                                <td>{entry.matches_played}</td>
-                                                <td style={{ color: 'var(--color-accent)' }}>{entry.matches_won}</td>
-                                                <td style={{ color: 'var(--color-danger)' }}>{entry.matches_lost}</td>
-                                                <td style={{ color: 'var(--color-text-muted)' }}>{entry.matches_tied}</td>
+                                                <td style={{ fontWeight: '600' }}>{entry.playerName}</td>
+                                                <td>{entry.matchesPlayed}</td>
+                                                <td style={{ color: 'var(--color-accent)' }}>{entry.matchesWon}</td>
+                                                <td style={{ color: 'var(--color-danger)' }}>{entry.matchesLost}</td>
+                                                <td style={{ color: 'var(--color-text-muted)' }}>{entry.matchesTied}</td>
                                                 <td>
                                                     <span style={{
                                                         fontWeight: 'bold',
                                                         fontSize: '1.1rem',
                                                         color: 'var(--color-primary)'
                                                     }}>
-                                                        {entry.total_points}
+                                                        {entry.totalPoints}
                                                     </span>
                                                 </td>
-                                                <td>{entry.league_handicap.toFixed(1)}</td>
+                                                <td>{entry.leagueHandicap.toFixed(1)}</td>
                                             </tr>
                                         ))}
                                     </tbody>

@@ -54,6 +54,13 @@ func (s *APIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handler.ServeHTTP(w, r)
 }
 
+// respondWithError sends a JSON error response
+func (s *APIServer) respondWithError(w http.ResponseWriter, code int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
 // registerRoutes sets up all API endpoints using Go 1.22+ routing
 func (s *APIServer) registerRoutes() {
 	// Create middleware
@@ -96,6 +103,7 @@ func (s *APIServer) registerRoutes() {
 	s.mux.Handle("PUT /api/leagues/{league_id}/matches/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateMatch), authMiddleware))
 	
 	s.mux.Handle("POST /api/leagues/{league_id}/scores", chainMiddleware(http.HandlerFunc(s.handleEnterScore), authMiddleware))
+	s.mux.Handle("POST /api/leagues/{league_id}/scores/batch", chainMiddleware(http.HandlerFunc(s.handleEnterScoreBatch), authMiddleware))
 	s.mux.Handle("POST /api/leagues/{league_id}/rounds", chainMiddleware(http.HandlerFunc(s.handleCreateRound), authMiddleware))
 	
 	s.mux.Handle("GET /api/leagues/{league_id}/standings", chainMiddleware(http.HandlerFunc(s.handleGetStandings), authMiddleware))
@@ -658,6 +666,36 @@ func (s *APIServer) handleEnterScore(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(score)
+}
+
+func (s *APIServer) handleEnterScoreBatch(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Scores []models.Score `json:"scores"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	for i := range req.Scores {
+		req.Scores[i].ID = uuid.New().String()
+		if err := s.firestoreClient.CreateScore(ctx, req.Scores[i]); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to create score: %v", err), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"status": "success", "count": fmt.Sprintf("%d", len(req.Scores))})
 }
 
 func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {

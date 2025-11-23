@@ -34,7 +34,7 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Port:        getEnvOrDefault("PORT", "8080"),
-		ProjectID:   os.Getenv("GCP_PROJECT_ID"),
+		ProjectID:   getEnvOrDefault("GCP_PROJECT_ID", "elite-league-manager"),
 		ClerkSecretKey: os.Getenv("CLERK_SECRET_KEY"),
 		Environment: getEnvOrDefault("ENVIRONMENT", "production"),
 		LogLevel:    getEnvOrDefault("LOG_LEVEL", "INFO"),
@@ -42,10 +42,6 @@ func Load() (*Config, error) {
 	}
 
 	// Validate required fields
-	if cfg.ProjectID == "" {
-		return nil, fmt.Errorf("GCP_PROJECT_ID environment variable is required")
-	}
-
 	if cfg.ClerkSecretKey == "" {
 		return nil, fmt.Errorf("CLERK_SECRET_KEY environment variable is required")
 	}
