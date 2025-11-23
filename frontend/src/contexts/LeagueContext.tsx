@@ -96,41 +96,28 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
 
                     setUserLeagues(leagueMembers);
 
+                    // Helper to select league inline to avoid circular dependency
+                    const selectLeagueInline = async (leagueId: string, membersList: LeagueMember[]) => {
+                        setIsLoading(true);
+                        try {
+                            const league = await api.getLeague(leagueId);
+                            setCurrentLeague(league);
+                            localStorage.setItem('selectedLeagueId', leagueId);
+                            const member = membersList.find(l => l.leagueId === leagueId);
+                            setUserRole(member?.role || null);
+                        } catch (error) {
+                            console.error('Failed to select league:', error);
+                        } finally {
+                            setIsLoading(false);
+                        }
+                    };
+
                     // Restore selected league from local storage if available
                     const savedLeagueId = localStorage.getItem('selectedLeagueId');
                     if (savedLeagueId && leagueMembers.some(m => m.leagueId === savedLeagueId)) {
-                        // Call selectLeague inline to avoid circular dependency
-                        const selectLeagueInline = async (leagueId: string, membersList: LeagueMember[]) => {
-                            setIsLoading(true);
-                            try {
-                                const league = await api.getLeague(leagueId);
-                                setCurrentLeague(league);
-                                localStorage.setItem('selectedLeagueId', leagueId);
-                                const member = membersList.find(l => l.leagueId === leagueId);
-                                setUserRole(member?.role || null);
-                            } catch (error) {
-                                console.error('Failed to select league:', error);
-                            } finally {
-                                setIsLoading(false);
-                            }
-                        };
                         await selectLeagueInline(savedLeagueId, leagueMembers);
                     } else if (leagueMembers.length > 0) {
                         // Default to first league
-                        const selectLeagueInline = async (leagueId: string, membersList: LeagueMember[]) => {
-                            setIsLoading(true);
-                            try {
-                                const league = await api.getLeague(leagueId);
-                                setCurrentLeague(league);
-                                localStorage.setItem('selectedLeagueId', leagueId);
-                                const member = membersList.find(l => l.leagueId === leagueId);
-                                setUserRole(member?.role || null);
-                            } catch (error) {
-                                console.error('Failed to select league:', error);
-                            } finally {
-                                setIsLoading(false);
-                            }
-                        };
                         await selectLeagueInline(leagueMembers[0].leagueId, leagueMembers);
                     }
                 }
