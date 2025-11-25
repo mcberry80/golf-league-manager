@@ -79,27 +79,40 @@ type Season struct {
 	CreatedAt   time.Time `firestore:"created_at" json:"createdAt"`
 }
 
+// MatchDay represents a collection of matches at a specific course on a specific day
+type MatchDay struct {
+	ID        string    `firestore:"id" json:"id"`
+	LeagueID  string    `firestore:"league_id" json:"leagueId"`
+	SeasonID  string    `firestore:"season_id" json:"seasonId"`
+	Date      time.Time `firestore:"date" json:"date"`
+	CourseID  string    `firestore:"course_id" json:"courseId"`
+	CreatedAt time.Time `firestore:"created_at" json:"createdAt"`
+}
+
 // Match represents a head-to-head match between two players
 type Match struct {
 	ID         string    `firestore:"id" json:"id"`
 	LeagueID   string    `firestore:"league_id" json:"leagueId"` // Scoped to league
 	SeasonID   string    `firestore:"season_id" json:"seasonId"` // Reference to the season this match belongs to
+	MatchDayID string    `firestore:"match_day_id" json:"matchDayId"` // Reference to the match day
 	WeekNumber int       `firestore:"week_number" json:"weekNumber"`
 	PlayerAID  string    `firestore:"player_a_id" json:"playerAId"`
 	PlayerBID  string    `firestore:"player_b_id" json:"playerBId"`
-	CourseID   string    `firestore:"course_id" json:"courseId"`
-	MatchDate  time.Time `firestore:"match_date" json:"matchDate"`
+	CourseID   string    `firestore:"course_id" json:"courseId"` // Denormalized from MatchDay for easier querying if needed, or can be removed. Keeping for now.
+	MatchDate  time.Time `firestore:"match_date" json:"matchDate"` // Denormalized
 	Status     string    `firestore:"status" json:"status"` // scheduled|completed
 }
 
-// Score represents a player's score for a specific hole in a match
+// Score represents a player's scorecard for a match
 type Score struct {
-	ID              string `firestore:"id" json:"id"`
-	MatchID         string `firestore:"match_id" json:"matchId"`
-	PlayerID        string `firestore:"player_id" json:"playerId"`
-	HoleNumber      int    `firestore:"hole_number" json:"holeNumber"`
-	GrossScore      int    `firestore:"gross_score" json:"grossScore"`
-	NetScore        int    `firestore:"net_score" json:"netScore"`
-	StrokesReceived int    `firestore:"strokes_received" json:"strokesReceived"`
-	PlayerAbsent    bool   `firestore:"player_absent" json:"playerAbsent"` // Track if player was absent
+	ID                   string  `firestore:"id" json:"id"`
+	MatchID              string  `firestore:"match_id" json:"matchId"`
+	PlayerID             string  `firestore:"player_id" json:"playerId"`
+	HoleScores           []int   `firestore:"hole_scores" json:"holeScores"`       // Array of 9 scores
+	GrossScore           int     `firestore:"gross_score" json:"grossScore"`       // Total Gross
+	NetScore             int     `firestore:"net_score" json:"netScore"`           // Total Net
+	AdjustedGross        int     `firestore:"adjusted_gross" json:"adjustedGross"` // ESC adjusted
+	HandicapDifferential float64 `firestore:"handicap_differential" json:"handicapDifferential"`
+	StrokesReceived      int     `firestore:"strokes_received" json:"strokesReceived"`
+	PlayerAbsent         bool    `firestore:"player_absent" json:"playerAbsent"`
 }

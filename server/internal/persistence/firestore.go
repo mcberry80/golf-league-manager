@@ -799,7 +799,6 @@ func (fc *FirestoreClient) CreateScore(ctx context.Context, score models.Score) 
 func (fc *FirestoreClient) GetMatchScores(ctx context.Context, matchID string) ([]models.Score, error) {
 	iter := fc.client.Collection("scores").
 		Where("match_id", "==", matchID).
-		OrderBy("hole_number", firestore.Asc).
 		Documents(ctx)
 	defer iter.Stop()
 
@@ -823,12 +822,64 @@ func (fc *FirestoreClient) GetMatchScores(ctx context.Context, matchID string) (
 	return scores, nil
 }
 
+// MatchDay operations
+
+// CreateMatchDay creates a new match day in Firestore
+func (fc *FirestoreClient) CreateMatchDay(ctx context.Context, matchDay models.MatchDay) error {
+	_, err := fc.client.Collection("match_days").Doc(matchDay.ID).Set(ctx, matchDay)
+	if err != nil {
+		return fmt.Errorf("failed to create match day: %w", err)
+	}
+	return nil
+}
+
+// GetMatchDay retrieves a match day by ID
+func (fc *FirestoreClient) GetMatchDay(ctx context.Context, matchDayID string) (*models.MatchDay, error) {
+	doc, err := fc.client.Collection("match_days").Doc(matchDayID).Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get match day: %w", err)
+	}
+
+	var matchDay models.MatchDay
+	if err := doc.DataTo(&matchDay); err != nil {
+		return nil, fmt.Errorf("failed to parse match day data: %w", err)
+	}
+
+	return &matchDay, nil
+}
+
+// ListMatchDays retrieves all match days for a league
+func (fc *FirestoreClient) ListMatchDays(ctx context.Context, leagueID string) ([]models.MatchDay, error) {
+	iter := fc.client.Collection("match_days").
+		Where("league_id", "==", leagueID).
+		OrderBy("date", firestore.Desc).
+		Documents(ctx)
+	defer iter.Stop()
+
+	matchDays := make([]models.MatchDay, 0)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate match days: %w", err)
+		}
+
+		var matchDay models.MatchDay
+		if err := doc.DataTo(&matchDay); err != nil {
+			return nil, fmt.Errorf("failed to parse match day data: %w", err)
+		}
+		matchDays = append(matchDays, matchDay)
+	}
+
+	return matchDays, nil
+}
 // GetPlayerMatchScores retrieves all scores for a specific player in a match
 func (fc *FirestoreClient) GetPlayerMatchScores(ctx context.Context, matchID, playerID string) ([]models.Score, error) {
 	iter := fc.client.Collection("scores").
 		Where("match_id", "==", matchID).
 		Where("player_id", "==", playerID).
-		OrderBy("hole_number", firestore.Asc).
 		Documents(ctx)
 	defer iter.Stop()
 

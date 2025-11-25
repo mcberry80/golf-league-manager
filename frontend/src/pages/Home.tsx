@@ -24,7 +24,8 @@ export default function Home() {
                                         <span className="text-gray-200 font-medium">{currentLeague.name}</span>
                                         <button
                                             onClick={() => navigate('/leagues')}
-                                            className="ml-2 text-xs text-emerald-500 hover:text-emerald-400 transition-colors"
+                                            className="btn btn-sm btn-outline ml-2"
+                                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: 'auto' }}
                                         >
                                             Switch
                                         </button>
@@ -44,7 +45,7 @@ export default function Home() {
                                 <div className="flex items-center gap-4">
                                     <button
                                         onClick={() => navigate('/leagues')}
-                                        className="md:hidden text-sm text-emerald-500 hover:text-emerald-400"
+                                        className="btn btn-sm btn-outline md:hidden"
                                     >
                                         Leagues
                                     </button>
@@ -92,7 +93,7 @@ export default function Home() {
                                 </p>
                             </Link>
 
-                            <Link to="/standings" className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <Link to={`/leagues/${currentLeague?.id}/standings`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                                 <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>🏆</div>
                                 <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Standings</h3>
                                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>

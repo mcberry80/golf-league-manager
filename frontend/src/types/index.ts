@@ -72,10 +72,20 @@ export interface Season {
     createdAt: string;
 }
 
+export interface MatchDay {
+    id: string;
+    leagueId: string;
+    seasonId: string;
+    date: string;
+    courseId: string;
+    createdAt: string;
+}
+
 export interface Match {
     id: string;
     leagueId: string;
     seasonId: string;
+    matchDayId?: string;
     weekNumber: number;
     playerAId: string;
     playerBId: string;
@@ -88,9 +98,11 @@ export interface Score {
     id: string;
     matchId: string;
     playerId: string;
-    holeNumber: number;
+    holeScores: number[];
     grossScore: number;
     netScore: number;
+    adjustedGross: number;
+    handicapDifferential: number;
     strokesReceived: number;
     playerAbsent?: boolean;
 }
@@ -148,6 +160,20 @@ export interface CreateMatchRequest {
     playerBId: string;
     courseId: string;
     matchDate: string;
+    matchDayId?: string;
+}
+
+export interface CreateMatchDayRequest {
+    date: string;
+    courseId: string;
+    seasonId: string;
+    matches: Partial<Match>[];
+}
+
+export interface ScoreSubmission {
+    matchId: string;
+    playerId: string;
+    holeScores: number[];
 }
 
 export interface CreateScoreRequest {

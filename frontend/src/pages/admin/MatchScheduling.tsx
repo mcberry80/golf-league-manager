@@ -2,40 +2,48 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
-import type { Match, Season, LeagueMemberWithPlayer, Course } from '../../types'
+import type { MatchDay, Season, LeagueMemberWithPlayer, Course, Match } from '../../types'
 
 export default function MatchScheduling() {
     const { leagueId } = useParams<{ leagueId: string }>()
     const { currentLeague, userRole, isLoading: leagueLoading, selectLeague } = useLeague()
     const navigate = useNavigate()
+
+    const [matchDays, setMatchDays] = useState<MatchDay[]>([])
     const [matches, setMatches] = useState<Match[]>([])
     const [seasons, setSeasons] = useState<Season[]>([])
     const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
     const [courses, setCourses] = useState<Course[]>([])
+
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
+
+    // Form state
     const [formData, setFormData] = useState({
         seasonId: '',
-        weekNumber: 1,
-        playerAId: '',
-        playerBId: '',
         courseId: '',
-        matchDate: '',
+        date: '',
     })
+
+    const [matchups, setMatchups] = useState<{ playerAId: string; playerBId: string }[]>([
+        { playerAId: '', playerBId: '' }
+    ])
 
     const loadData = useCallback(async () => {
         if (!currentLeague) return
 
         try {
-            const [seasonsData, membersData, coursesData, matchesData] = await Promise.all([
+            const [seasonsData, membersData, coursesData, matchDaysData, matchesData] = await Promise.all([
                 api.listSeasons(currentLeague.id),
                 api.listLeagueMembers(currentLeague.id),
                 api.listCourses(currentLeague.id),
+                api.listMatchDays(currentLeague.id),
                 api.listMatches(currentLeague.id),
             ])
             setSeasons(seasonsData)
             setMembers(membersData)
             setCourses(coursesData)
+            setMatchDays(matchDaysData)
             setMatches(matchesData)
 
             // Set active season as default
@@ -67,42 +75,63 @@ export default function MatchScheduling() {
         }
     }, [currentLeague, leagueLoading, navigate, leagueId, loadData])
 
+    const handleAddMatchup = () => {
+        setMatchups([...matchups, { playerAId: '', playerBId: '' }])
+    }
+
+    const handleRemoveMatchup = (index: number) => {
+        setMatchups(matchups.filter((_, i) => i !== index))
+    }
+
+    const handleMatchupChange = (index: number, field: 'playerAId' | 'playerBId', value: string) => {
+        const newMatchups = [...matchups]
+        newMatchups[index][field] = value
+        setMatchups(newMatchups)
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
         if (!currentLeague) return
 
+        // Validate matchups
+        const validMatchups = matchups.filter(m => m.playerAId && m.playerBId)
+        if (validMatchups.length === 0) {
+            alert('Please add at least one valid matchup')
+            return
+        }
+
         try {
-            await api.createMatch(currentLeague.id, formData)
+            await api.createMatchDay(currentLeague.id, {
+                seasonId: formData.seasonId,
+                courseId: formData.courseId,
+                date: formData.date,
+                matches: validMatchups.map((m) => ({
+                    playerAId: m.playerAId,
+                    playerBId: m.playerBId,
+                    weekNumber: 1, // Default, maybe should be calculated or input?
+                    // MatchDayID will be assigned by backend
+                }))
+            })
+
             setShowForm(false)
             setFormData({
                 seasonId: formData.seasonId,
-                weekNumber: formData.weekNumber + 1,
-                playerAId: '',
-                playerBId: '',
                 courseId: '',
-                matchDate: '',
+                date: '',
             })
+            setMatchups([{ playerAId: '', playerBId: '' }])
             loadData()
         } catch (error) {
-            alert('Failed to create match: ' + (error instanceof Error ? error.message : 'Unknown error'))
+            alert('Failed to create match day: ' + (error instanceof Error ? error.message : 'Unknown error'))
         }
     }
 
     const getPlayerName = (id: string) => {
-        // Match stores player_id, so we look up in members list
-        // members have player_id and player object
         const member = members.find(m => m.playerId === id)
         return member?.player?.name || 'Unknown'
     }
     const getCourseName = (id: string) => courses.find(c => c.id === id)?.name || 'Unknown'
     const getSeasonName = (id: string) => seasons.find(s => s.id === id)?.name || 'Unknown'
-
-    // Group matches by week
-    const matchesByWeek = matches.reduce((acc, match) => {
-        if (!acc[match.weekNumber]) acc[match.weekNumber] = []
-        acc[match.weekNumber].push(match)
-        return acc
-    }, {} as Record<number, Match[]>)
 
     if (leagueLoading || loading) {
         return (
@@ -138,15 +167,15 @@ export default function MatchScheduling() {
                         <p className="text-gray-400 mt-1">{currentLeague.name}</p>
                     </div>
                     <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-                        {showForm ? 'Cancel' : '+ Schedule Match'}
+                        {showForm ? 'Cancel' : '+ Create Match Day'}
                     </button>
                 </div>
 
                 {showForm && (
                     <div className="card-glass" style={{ marginBottom: 'var(--spacing-xl)' }}>
-                        <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Schedule New Match</h3>
+                        <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Create Match Day</h3>
                         <form onSubmit={handleSubmit}>
-                            <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-lg)' }}>
+                            <div className="grid grid-cols-3" style={{ gap: 'var(--spacing-lg)', marginBottom: 'var(--spacing-lg)' }}>
                                 <div className="form-group">
                                     <label className="form-label">Season</label>
                                     <select
@@ -160,45 +189,6 @@ export default function MatchScheduling() {
                                             <option key={season.id} value={season.id}>
                                                 {season.name} {season.active && '(Active)'}
                                             </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Week Number</label>
-                                    <input
-                                        type="number"
-                                        className="form-input"
-                                        value={formData.weekNumber}
-                                        onChange={(e) => setFormData({ ...formData, weekNumber: parseInt(e.target.value) })}
-                                        required
-                                        min="1"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Player A</label>
-                                    <select
-                                        className="form-select"
-                                        value={formData.playerAId}
-                                        onChange={(e) => setFormData({ ...formData, playerAId: e.target.value })}
-                                        required
-                                    >
-                                        <option value="">Select Player</option>
-                                        {members.map(member => (
-                                            <option key={member.id} value={member.playerId}>{member.player?.name || member.player?.email}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Player B</label>
-                                    <select
-                                        className="form-select"
-                                        value={formData.playerBId}
-                                        onChange={(e) => setFormData({ ...formData, playerBId: e.target.value })}
-                                        required
-                                    >
-                                        <option value="">Select Player</option>
-                                        {members.map(member => (
-                                            <option key={member.id} value={member.playerId}>{member.player?.name || member.player?.email}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -217,54 +207,102 @@ export default function MatchScheduling() {
                                     </select>
                                 </div>
                                 <div className="form-group">
-                                    <label className="form-label">Match Date</label>
+                                    <label className="form-label">Date</label>
                                     <input
                                         type="date"
                                         className="form-input"
-                                        value={formData.matchDate}
-                                        onChange={(e) => setFormData({ ...formData, matchDate: e.target.value })}
+                                        value={formData.date}
+                                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                                         required
                                     />
                                 </div>
                             </div>
-                            <button type="submit" className="btn btn-success">
-                                Schedule Match
+
+                            <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text)' }}>Matchups</h4>
+                            {matchups.map((matchup, index) => (
+                                <div key={index} className="grid grid-cols-2" style={{ gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)', alignItems: 'end' }}>
+                                    <div className="form-group">
+                                        <label className="form-label">Player A</label>
+                                        <select
+                                            className="form-select"
+                                            value={matchup.playerAId}
+                                            onChange={(e) => handleMatchupChange(index, 'playerAId', e.target.value)}
+                                            required
+                                        >
+                                            <option value="">Select Player</option>
+                                            {members.map(member => (
+                                                <option key={member.id} value={member.playerId} disabled={matchups.some((m, i) => i !== index && (m.playerAId === member.playerId || m.playerBId === member.playerId)) || matchup.playerBId === member.playerId}>
+                                                    {member.player?.name || member.player?.email}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                        <div className="form-group" style={{ flex: 1 }}>
+                                            <label className="form-label">Player B</label>
+                                            <select
+                                                className="form-select"
+                                                value={matchup.playerBId}
+                                                onChange={(e) => handleMatchupChange(index, 'playerBId', e.target.value)}
+                                                required
+                                            >
+                                                <option value="">Select Player</option>
+                                                {members.map(member => (
+                                                    <option key={member.id} value={member.playerId} disabled={matchups.some((m, i) => i !== index && (m.playerAId === member.playerId || m.playerBId === member.playerId)) || matchup.playerAId === member.playerId}>
+                                                        {member.player?.name || member.player?.email}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <button type="button" className="btn btn-danger" onClick={() => handleRemoveMatchup(index)} disabled={matchups.length === 1}>
+                                            X
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+
+                            <button type="button" className="btn btn-secondary" onClick={handleAddMatchup} style={{ marginBottom: 'var(--spacing-lg)' }}>
+                                + Add Matchup
                             </button>
+
+                            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--spacing-lg)' }}>
+                                <button type="submit" className="btn btn-success">
+                                    Save Match Day
+                                </button>
+                            </div>
                         </form>
                     </div>
                 )}
 
                 <div className="card-glass">
-                    <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Scheduled Matches ({matches.length})</h3>
-                    {matches.length === 0 ? (
-                        <p style={{ color: 'var(--color-text-muted)' }}>No matches scheduled yet.</p>
+                    <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Scheduled Match Days</h3>
+                    {matchDays.length === 0 ? (
+                        <p style={{ color: 'var(--color-text-muted)' }}>No match days scheduled yet.</p>
                     ) : (
                         <div>
-                            {Object.keys(matchesByWeek).sort((a, b) => parseInt(a) - parseInt(b)).map(week => (
-                                <div key={week} style={{ marginBottom: 'var(--spacing-xl)' }}>
-                                    <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
-                                        Week {week}
-                                    </h4>
+                            {matchDays.map(day => (
+                                <div key={day.id} style={{ marginBottom: 'var(--spacing-xl)', borderBottom: '1px solid var(--color-border)', paddingBottom: 'var(--spacing-lg)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+                                        <h4 style={{ color: 'var(--color-text)' }}>
+                                            {new Date(day.date).toLocaleDateString()} @ {getCourseName(day.courseId)}
+                                        </h4>
+                                        <span className="badge badge-info">{getSeasonName(day.seasonId)}</span>
+                                    </div>
+
                                     <div className="table-container">
                                         <table className="table">
                                             <thead>
                                                 <tr>
-                                                    <th>Date</th>
                                                     <th>Matchup</th>
-                                                    <th>Course</th>
-                                                    <th>Season</th>
                                                     <th>Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {matchesByWeek[parseInt(week)].map(match => (
+                                                {matches.filter(m => m.matchDayId === day.id).map(match => (
                                                     <tr key={match.id}>
-                                                        <td>{new Date(match.matchDate).toLocaleDateString()}</td>
                                                         <td style={{ fontWeight: '600' }}>
                                                             {getPlayerName(match.playerAId)} vs {getPlayerName(match.playerBId)}
                                                         </td>
-                                                        <td>{getCourseName(match.courseId)}</td>
-                                                        <td>{getSeasonName(match.seasonId)}</td>
                                                         <td>
                                                             <span className={`badge ${match.status === 'completed' ? 'badge-success' : 'badge-warning'}`}>
                                                                 {match.status}

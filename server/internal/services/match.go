@@ -77,25 +77,17 @@ func AssignStrokes(playerAHandicap, playerBHandicap models.HandicapRecord, cours
 // Each 9-hole match = 22 points:
 // - 2 points per hole (best net wins; ties split 1-1)
 // - 4 points for overall lower net total
-func CalculateMatchPoints(scoresA, scoresB []models.Score, course models.Course) (pointsA, pointsB int) {
-	if len(scoresA) != 9 || len(scoresB) != 9 {
+func CalculateMatchPoints(scoreA, scoreB models.Score, strokesA, strokesB []int) (pointsA, pointsB int) {
+	if len(scoreA.HoleScores) != 9 || len(scoreB.HoleScores) != 9 {
 		return 0, 0
 	}
-
-	// Sort scores by hole number
-	sort.Slice(scoresA, func(i, j int) bool {
-		return scoresA[i].HoleNumber < scoresA[j].HoleNumber
-	})
-	sort.Slice(scoresB, func(i, j int) bool {
-		return scoresB[i].HoleNumber < scoresB[j].HoleNumber
-	})
 
 	var totalNetA, totalNetB int
 
 	// Calculate points for each hole
 	for i := 0; i < 9; i++ {
-		netA := scoresA[i].NetScore
-		netB := scoresB[i].NetScore
+		netA := scoreA.HoleScores[i] - strokesA[i]
+		netB := scoreB.HoleScores[i] - strokesB[i]
 
 		totalNetA += netA
 		totalNetB += netB

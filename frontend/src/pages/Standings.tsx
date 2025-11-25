@@ -109,7 +109,7 @@ export default function Standings() {
                                                         {entry.totalPoints}
                                                     </span>
                                                 </td>
-                                                <td>{entry.leagueHandicap.toFixed(1)}</td>
+                                                <td>{entry.leagueHandicap?.toFixed(1) || 'N/A'}</td>
                                             </tr>
                                         ))}
                                     </tbody>

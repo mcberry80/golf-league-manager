@@ -19,6 +19,9 @@ import type {
     CreateScoreRequest,
     CreateRoundRequest,
     LinkPlayerRequest,
+    MatchDay,
+    CreateMatchDayRequest,
+    ScoreSubmission,
 } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -209,6 +212,29 @@ class APIClient {
         return this.request<Match>(`/api/leagues/${leagueId}/matches/${id}`, {
             method: 'PUT',
             body: JSON.stringify(data),
+        });
+    }
+
+    // Match Day endpoints
+    async createMatchDay(leagueId: string, data: CreateMatchDayRequest): Promise<MatchDay> {
+        return this.request<MatchDay>(`/api/leagues/${leagueId}/match-days`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async listMatchDays(leagueId: string): Promise<MatchDay[]> {
+        return this.request<MatchDay[]>(`/api/leagues/${leagueId}/match-days`);
+    }
+
+    async getMatchDay(leagueId: string, id: string): Promise<MatchDay> {
+        return this.request<MatchDay>(`/api/leagues/${leagueId}/match-days/${id}`);
+    }
+
+    async enterMatchDayScores(leagueId: string, scores: ScoreSubmission[]): Promise<void> {
+        return this.request<void>(`/api/leagues/${leagueId}/match-days/scores`, {
+            method: 'POST',
+            body: JSON.stringify({ scores }),
         });
     }
 

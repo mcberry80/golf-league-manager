@@ -168,14 +168,35 @@ func (proc *MatchCompletionProcessor) ProcessMatch(ctx context.Context, matchID 
 	if err != nil {
 		return fmt.Errorf("failed to get player A scores: %w", err)
 	}
+	if len(scoresA) == 0 {
+		return fmt.Errorf("player A scores missing")
+	}
 
 	scoresB, err := proc.firestoreClient.GetPlayerMatchScores(ctx, matchID, match.PlayerBID)
 	if err != nil {
 		return fmt.Errorf("failed to get player B scores: %w", err)
 	}
+	if len(scoresB) == 0 {
+		return fmt.Errorf("player B scores missing")
+	}
+
+	// Get handicaps
+	handicapA, err := proc.firestoreClient.GetPlayerHandicap(ctx, match.LeagueID, match.PlayerAID)
+	if err != nil {
+		return fmt.Errorf("failed to get player A handicap: %w", err)
+	}
+	handicapB, err := proc.firestoreClient.GetPlayerHandicap(ctx, match.LeagueID, match.PlayerBID)
+	if err != nil {
+		return fmt.Errorf("failed to get player B handicap: %w", err)
+	}
+
+	// Assign strokes
+	strokes := AssignStrokes(*handicapA, *handicapB, *course)
+	strokesA := strokes[match.PlayerAID]
+	strokesB := strokes[match.PlayerBID]
 
 	// Calculate match points
-	pointsA, pointsB := CalculateMatchPoints(scoresA, scoresB, *course)
+	pointsA, pointsB := CalculateMatchPoints(scoresA[0], scoresB[0], strokesA, strokesB)
 
 	log.Printf("models.Match %s completed: models.Player A (%s) = %d points, models.Player B (%s) = %d points",
 		matchID, match.PlayerAID, pointsA, match.PlayerBID, pointsB)

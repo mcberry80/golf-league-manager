@@ -45,7 +45,7 @@ const router = createBrowserRouter([
             { path: "/leagues/:leagueId/admin/scores", element: <ScoreEntry /> },
             { path: "/link-account", element: <LinkAccount /> },
             { path: "/players", element: <Players /> },
-            { path: "/standings", element: <Standings /> },
+            { path: "/leagues/:leagueId/standings", element: <Standings /> },
         ],
     },
 ]);
