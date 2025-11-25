@@ -149,29 +149,14 @@ func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Conte
 		}
 	}
 
-	// Get a default course for course handicap calculation (use first available)
-	var defaultCourse models.Course
-	for _, course := range coursesMap {
-		defaultCourse = course
-		break
-	}
-
-	if defaultCourse.ID == "" {
-		return fmt.Errorf("no courses available for handicap calculation")
-	}
-
-	// Calculate course and playing handicap
-	courseHandicap, playingHandicap := CalculateCourseAndPlayingHandicap(leagueHandicap, defaultCourse)
-
-	// Create new handicap record
+	// Create new handicap record (only stores league handicap index)
+	// Course handicap and playing handicap are calculated per-round and stored in Round model
 	handicapRecord := models.HandicapRecord{
-		ID:              uuid.New().String(),
-		PlayerID:        player.ID,
-		LeagueID:        leagueID,
-		LeagueHandicap:  leagueHandicap,
-		CourseHandicap:  courseHandicap,
-		PlayingHandicap: playingHandicap,
-		UpdatedAt:       time.Now(),
+		ID:                  uuid.New().String(),
+		PlayerID:            player.ID,
+		LeagueID:            leagueID,
+		LeagueHandicapIndex: leagueHandicap,
+		UpdatedAt:           time.Now(),
 	}
 
 	// Save the handicap record
@@ -179,8 +164,8 @@ func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Conte
 		return fmt.Errorf("failed to save handicap record: %w", err)
 	}
 
-	log.Printf("Updated handicap for player %s (%s): league=%.1f, course=%.1f, playing=%d",
-		player.Name, player.ID, leagueHandicap, courseHandicap, playingHandicap)
+	log.Printf("Updated handicap for player %s (%s): league handicap index=%.1f",
+		player.Name, player.ID, leagueHandicap)
 
 	return nil
 }
@@ -232,7 +217,7 @@ func (proc *MatchCompletionProcessor) ProcessMatch(ctx context.Context, matchID 
 		return fmt.Errorf("player B scores missing")
 	}
 
-	// Get handicaps
+	// Get handicap records (contain league handicap index)
 	handicapA, err := proc.firestoreClient.GetPlayerHandicap(ctx, match.LeagueID, match.PlayerAID)
 	if err != nil {
 		return fmt.Errorf("failed to get player A handicap: %w", err)
@@ -242,16 +227,20 @@ func (proc *MatchCompletionProcessor) ProcessMatch(ctx context.Context, matchID 
 		return fmt.Errorf("failed to get player B handicap: %w", err)
 	}
 
-	// Assign strokes
-	strokes := AssignStrokes(*handicapA, *handicapB, *course)
+	// Calculate course and playing handicaps for this match
+	_, playingHandicapA := CalculateCourseAndPlayingHandicap(handicapA.LeagueHandicapIndex, *course)
+	_, playingHandicapB := CalculateCourseAndPlayingHandicap(handicapB.LeagueHandicapIndex, *course)
+
+	// Assign strokes based on the difference in playing handicaps
+	strokes := AssignStrokes(match.PlayerAID, playingHandicapA, match.PlayerBID, playingHandicapB, *course)
 	strokesA := strokes[match.PlayerAID]
 	strokesB := strokes[match.PlayerBID]
 
 	// Calculate match points
 	pointsA, pointsB := CalculateMatchPoints(scoresA[0], scoresB[0], strokesA, strokesB)
 
-	log.Printf("models.Match %s completed: models.Player A (%s) = %d points, models.Player B (%s) = %d points",
-		matchID, match.PlayerAID, pointsA, match.PlayerBID, pointsB)
+	log.Printf("Match %s completed: Player A (%s, handicap %d) = %d points, Player B (%s, handicap %d) = %d points",
+		matchID, match.PlayerAID, playingHandicapA, pointsA, match.PlayerBID, playingHandicapB, pointsB)
 
 	// Update match status
 	match.Status = "completed"
@@ -263,17 +252,12 @@ func (proc *MatchCompletionProcessor) ProcessMatch(ctx context.Context, matchID 
 }
 
 // ProcessRound processes a completed round and calculates adjusted scores
+// Also stores the league handicap index, course handicap, and playing handicap at time of play
 func (proc *MatchCompletionProcessor) ProcessRound(ctx context.Context, roundID string) error {
 	// Get the round
 	round, err := proc.firestoreClient.GetRound(ctx, roundID)
 	if err != nil {
 		return fmt.Errorf("failed to get round: %w", err)
-	}
-
-	// Get the player
-	player, err := proc.firestoreClient.GetPlayer(ctx, round.PlayerID)
-	if err != nil {
-		return fmt.Errorf("failed to get player: %w", err)
 	}
 
 	// Get the course
@@ -282,15 +266,25 @@ func (proc *MatchCompletionProcessor) ProcessRound(ctx context.Context, roundID 
 		return fmt.Errorf("failed to get course: %w", err)
 	}
 
-	// Get player's current handicap for adjusted score calculation
+	// Get player's current handicap record for adjusted score calculation
+	var leagueHandicapIndex float64
+	var courseHandicap float64
 	var playingHandicap int
-	handicap, err := proc.firestoreClient.GetPlayerHandicap(ctx, round.LeagueID, player.ID)
-	if err == nil {
-		playingHandicap = handicap.PlayingHandicap
+
+	handicap, err := proc.firestoreClient.GetPlayerHandicap(ctx, round.LeagueID, round.PlayerID)
+	if err == nil && handicap != nil {
+		leagueHandicapIndex = handicap.LeagueHandicapIndex
+		// Calculate course and playing handicap for this specific course
+		courseHandicap, playingHandicap = CalculateCourseAndPlayingHandicap(leagueHandicapIndex, *course)
 	}
 
-	// Calculate adjusted gross scores
-	adjustedScores := CalculateAdjustedGrossScores(*round, *player, *course, playingHandicap)
+	// Store handicap information at time of play in the round
+	round.LeagueHandicapIndex = leagueHandicapIndex
+	round.CourseHandicap = courseHandicap
+	round.PlayingHandicap = playingHandicap
+
+	// Calculate adjusted gross scores using net double bogey rule (based on course handicap)
+	adjustedScores := CalculateAdjustedGrossScores(*round, *course, int(math.Round(courseHandicap)))
 
 	// Update round with adjusted scores
 	round.AdjustedGrossScores = adjustedScores
@@ -304,13 +298,16 @@ func (proc *MatchCompletionProcessor) ProcessRound(ctx context.Context, roundID 
 	round.TotalGross = totalGross
 	round.TotalAdjusted = totalAdjusted
 
+	// Calculate the differential for this round
+	round.HandicapDifferential = ScoreDifferential(totalAdjusted, course.CourseRating, course.SlopeRating)
+
 	// Save updated round
 	if err := proc.firestoreClient.CreateRound(ctx, *round); err != nil {
 		return fmt.Errorf("failed to update round: %w", err)
 	}
 
-	log.Printf("Processed round %s for player %s: gross=%d, adjusted=%d",
-		roundID, player.Name, totalGross, totalAdjusted)
+	log.Printf("Processed round %s for player %s: gross=%d, adjusted=%d, playing handicap=%d, differential=%.1f",
+		roundID, round.PlayerID, totalGross, totalAdjusted, playingHandicap, round.HandicapDifferential)
 
 	return nil
 }

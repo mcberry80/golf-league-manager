@@ -7,45 +7,51 @@ import (
 	"golf-league-manager/internal/models"
 )
 
-// AssignStrokes assigns strokes to holes based on handicap difference
+// Constants for match scoring
+const (
+	holesPerRound = 9   // Number of holes in a 9-hole round
+	maxStrokes    = 18  // Maximum strokes that can be allocated (2 per hole)
+)
+
+// AssignStrokes assigns strokes to holes based on playing handicap difference
 // Only the higher-handicap player receives strokes
 // Strokes are allocated in order of hole handicaps (1 → 9)
-func AssignStrokes(playerAHandicap, playerBHandicap models.HandicapRecord, course models.Course) map[string][]int {
+func AssignStrokes(playerAID string, playerAPlayingHandicap int, playerBID string, playerBPlayingHandicap int, course models.Course) map[string][]int {
 	result := make(map[string][]int)
 
 	// Calculate handicap difference
-	diff := playerAHandicap.PlayingHandicap - playerBHandicap.PlayingHandicap
+	diff := playerAPlayingHandicap - playerBPlayingHandicap
 
 	// Determine who receives strokes
 	var receivingPlayerID string
 	var strokesToAllocate int
 
 	if diff > 0 {
-		// models.Player A has higher handicap, receives strokes
-		receivingPlayerID = playerAHandicap.PlayerID
+		// Player A has higher handicap, receives strokes
+		receivingPlayerID = playerAID
 		strokesToAllocate = diff
 	} else if diff < 0 {
-		// models.Player B has higher handicap, receives strokes
-		receivingPlayerID = playerBHandicap.PlayerID
+		// Player B has higher handicap, receives strokes
+		receivingPlayerID = playerBID
 		strokesToAllocate = -diff
 	} else {
 		// Equal handicaps, no strokes
-		result[playerAHandicap.PlayerID] = make([]int, 9)
-		result[playerBHandicap.PlayerID] = make([]int, 9)
+		result[playerAID] = make([]int, holesPerRound)
+		result[playerBID] = make([]int, holesPerRound)
 		return result
 	}
 
 	// Initialize stroke arrays
-	strokesA := make([]int, 9)
-	strokesB := make([]int, 9)
+	strokesA := make([]int, holesPerRound)
+	strokesB := make([]int, holesPerRound)
 
 	// Create slice of hole indices sorted by handicap
 	type holeInfo struct {
 		index    int
 		handicap int
 	}
-	holes := make([]holeInfo, 9)
-	for i := 0; i < 9; i++ {
+	holes := make([]holeInfo, holesPerRound)
+	for i := 0; i < holesPerRound; i++ {
 		holes[i] = holeInfo{
 			index:    i,
 			handicap: course.HoleHandicaps[i],
@@ -58,17 +64,17 @@ func AssignStrokes(playerAHandicap, playerBHandicap models.HandicapRecord, cours
 	})
 
 	// Allocate strokes in order of hole handicaps
-	for strokeNum := 0; strokeNum < strokesToAllocate && strokeNum < 18; strokeNum++ {
-		holeIdx := holes[strokeNum%9].index
-		if receivingPlayerID == playerAHandicap.PlayerID {
+	for strokeNum := 0; strokeNum < strokesToAllocate && strokeNum < maxStrokes; strokeNum++ {
+		holeIdx := holes[strokeNum%holesPerRound].index
+		if receivingPlayerID == playerAID {
 			strokesA[holeIdx]++
 		} else {
 			strokesB[holeIdx]++
 		}
 	}
 
-	result[playerAHandicap.PlayerID] = strokesA
-	result[playerBHandicap.PlayerID] = strokesB
+	result[playerAID] = strokesA
+	result[playerBID] = strokesB
 
 	return result
 }
@@ -121,7 +127,7 @@ func CalculateMatchPoints(scoreA, scoreB models.Score, strokesA, strokesB []int)
 // absent_handicap = max(posted_handicap + 2, average_of_worst_3_from_last_5)
 // cap increase at posted_handicap + 4
 func HandleAbsence(absentPlayer models.HandicapRecord, lastFiveRounds []models.Round, courses map[string]models.Course) float64 {
-	postedHandicap := absentPlayer.LeagueHandicap
+	postedHandicap := absentPlayer.LeagueHandicapIndex
 
 	// Calculate base adjustment
 	baseAdjustment := postedHandicap + 2

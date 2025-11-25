@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 
 	"golf-league-manager/internal/models"
@@ -66,11 +67,16 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			continue
 		}
 
-		// Get Player Handicap
+		// Get Player Handicap Record (contains league handicap index)
+		var leagueHandicapIndex float64
+		var courseHandicap float64
+		var playingHandicap int
+		
 		handicapRecord, err := s.firestoreClient.GetPlayerHandicap(ctx, leagueID, sub.PlayerID)
-		playingHandicap := 0
-		if err == nil {
-			playingHandicap = handicapRecord.PlayingHandicap
+		if err == nil && handicapRecord != nil {
+			leagueHandicapIndex = handicapRecord.LeagueHandicapIndex
+			// Calculate course and playing handicap for this specific course
+			courseHandicap, playingHandicap = services.CalculateCourseAndPlayingHandicap(leagueHandicapIndex, *course)
 		}
 
 		// Calculate Stats
@@ -81,17 +87,20 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 
 		// Create Round object for calculations
 		round := models.Round{
-			ID:          uuid.New().String(),
-			PlayerID:    sub.PlayerID,
-			LeagueID:    leagueID,
-			Date:        match.MatchDate, // Use match date
-			CourseID:    match.CourseID,
-			GrossScores: sub.HoleScores,
-			TotalGross:  totalGross,
+			ID:                  uuid.New().String(),
+			PlayerID:            sub.PlayerID,
+			LeagueID:            leagueID,
+			Date:                match.MatchDate, // Use match date
+			CourseID:            match.CourseID,
+			GrossScores:         sub.HoleScores,
+			TotalGross:          totalGross,
+			LeagueHandicapIndex: leagueHandicapIndex,
+			CourseHandicap:      courseHandicap,
+			PlayingHandicap:     playingHandicap,
 		}
 
-		// Calculate Adjusted Gross (Net Double Bogey)
-		adjustedScores := services.CalculateAdjustedGrossScores(round, *player, *course, playingHandicap)
+		// Calculate Adjusted Gross (Net Double Bogey) - based on course handicap (rounded)
+		adjustedScores := services.CalculateAdjustedGrossScores(round, *course, int(math.Round(courseHandicap)))
 		totalAdjusted := 0
 		for _, s := range adjustedScores {
 			totalAdjusted += s

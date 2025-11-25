@@ -103,8 +103,7 @@ func TestCalculateLeagueHandicap(t *testing.T) {
 	}
 }
 
-func TestCalculateAdjustedGrossScores_EstablishedPlayer(t *testing.T) {
-	player := models.Player{Established: true}
+func TestCalculateAdjustedGrossScores_WithCourseHandicap(t *testing.T) {
 	course := models.Course{
 		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
 		HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
@@ -112,11 +111,11 @@ func TestCalculateAdjustedGrossScores_EstablishedPlayer(t *testing.T) {
 	round := models.Round{
 		GrossScores: []int{7, 5, 8, 6, 6, 5, 9, 6, 6},
 	}
-	playingHandicap := 9
+	courseHandicap := 9
 
-	got := CalculateAdjustedGrossScores(round, player, course, playingHandicap)
+	got := CalculateAdjustedGrossScores(round, course, courseHandicap)
 
-	// With handicap of 9, each hole gets 1 stroke
+	// With course handicap of 9, each hole gets 1 stroke
 	// Expected: min(gross, par+2+1) for each hole
 	// Hole 1 (HC 1): 1 stroke, min(7, 4+2+1) = 7
 	// Hole 2 (HC 7): 1 stroke, min(5, 3+2+1) = 5
@@ -136,24 +135,31 @@ func TestCalculateAdjustedGrossScores_EstablishedPlayer(t *testing.T) {
 	}
 }
 
-func TestCalculateAdjustedGrossScores_NewPlayer(t *testing.T) {
-	player := models.Player{Established: false}
+func TestCalculateAdjustedGrossScores_HighCourseHandicapPlayer(t *testing.T) {
 	course := models.Course{
-		HolePars: []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+		HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
 	}
 	round := models.Round{
 		GrossScores: []int{10, 9, 12, 8, 8, 9, 11, 8, 8},
 	}
-	playingHandicap := 0
+	// High course handicap player (18) - each hole gets 2 strokes
+	courseHandicap := 18
 
-	got := CalculateAdjustedGrossScores(round, player, course, playingHandicap)
+	got := CalculateAdjustedGrossScores(round, course, courseHandicap)
 
-	// New player: cap at par + 5
-	// Expected: min(gross, par+5) for each hole
-	// Hole 1: min(10, 4+5) = 9
-	// Hole 2: min(9, 3+5) = 8
-	// Hole 3: min(12, 5+5) = 10
-	want := []int{9, 8, 10, 8, 8, 8, 10, 8, 8}
+	// With course handicap of 18, each hole gets 2 strokes
+	// Expected: min(gross, par+2+2) for each hole
+	// Hole 1 (par 4): min(10, 4+2+2) = 8
+	// Hole 2 (par 3): min(9, 3+2+2) = 7
+	// Hole 3 (par 5): min(12, 5+2+2) = 9
+	// Hole 4 (par 4): min(8, 4+2+2) = 8
+	// Hole 5 (par 4): min(8, 4+2+2) = 8
+	// Hole 6 (par 3): min(9, 3+2+2) = 7
+	// Hole 7 (par 5): min(11, 5+2+2) = 9
+	// Hole 8 (par 4): min(8, 4+2+2) = 8
+	// Hole 9 (par 4): min(8, 4+2+2) = 8
+	want := []int{8, 7, 9, 8, 8, 7, 9, 8, 8}
 
 	for i := range got {
 		if got[i] != want[i] {

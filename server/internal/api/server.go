@@ -834,14 +834,14 @@ func (s *APIServer) handleGetMatchScores(w http.ResponseWriter, r *http.Request)
 
 // StandingsEntry represents a player's standing in the league
 type StandingsEntry struct {
-	PlayerID       string  `json:"player_id"`
-	PlayerName     string  `json:"player_name"`
-	MatchesPlayed  int     `json:"matches_played"`
-	MatchesWon     int     `json:"matches_won"`
-	MatchesLost    int     `json:"matches_lost"`
-	MatchesTied    int     `json:"matches_tied"`
-	TotalPoints    int     `json:"total_points"`
-	LeagueHandicap float64 `json:"league_handicap"`
+	PlayerID            string  `json:"player_id"`
+	PlayerName          string  `json:"player_name"`
+	MatchesPlayed       int     `json:"matches_played"`
+	MatchesWon          int     `json:"matches_won"`
+	MatchesLost         int     `json:"matches_lost"`
+	MatchesTied         int     `json:"matches_tied"`
+	TotalPoints         int     `json:"total_points"`
+	LeagueHandicapIndex float64 `json:"league_handicap_index"`
 }
 
 func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
@@ -876,7 +876,7 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 			PlayerName: player.Name,
 		}
 		if handicap != nil {
-			entry.LeagueHandicap = handicap.LeagueHandicap
+			entry.LeagueHandicapIndex = handicap.LeagueHandicapIndex
 		}
 		standings = append(standings, entry)
 	}
