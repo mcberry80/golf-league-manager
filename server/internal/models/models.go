@@ -44,6 +44,9 @@ type Round struct {
 	TotalGross           int       `firestore:"total_gross" json:"totalGross"`
 	TotalAdjusted        int       `firestore:"total_adjusted" json:"totalAdjusted"`
 	HandicapDifferential float64   `firestore:"handicap_differential" json:"handicapDifferential"` // Calculated differential for this round
+	LeagueHandicapIndex  float64   `firestore:"league_handicap_index" json:"leagueHandicapIndex"`  // League handicap index at time of play
+	CourseHandicap       float64   `firestore:"course_handicap" json:"courseHandicap"`             // Calculated course handicap for this round
+	PlayingHandicap      int       `firestore:"playing_handicap" json:"playingHandicap"`           // Playing handicap (rounded) for this round
 }
 
 // Course represents a golf course (scoped to a league)
@@ -58,15 +61,14 @@ type Course struct {
 	HolePars      []int   `firestore:"hole_pars" json:"holePars"`      // Par for each hole
 }
 
-// HandicapRecord represents a player's handicap at a point in time (scoped to league)
+// HandicapRecord represents a player's current handicap index (scoped to league)
+// Note: CourseHandicap and PlayingHandicap are calculated per-round and stored in the Round model
 type HandicapRecord struct {
-	ID              string    `firestore:"id" json:"id"`
-	PlayerID        string    `firestore:"player_id" json:"playerId"`
-	LeagueID        string    `firestore:"league_id" json:"leagueId"` // Scoped to league
-	LeagueHandicap  float64   `firestore:"league_handicap" json:"leagueHandicap"`
-	CourseHandicap  float64   `firestore:"course_handicap" json:"courseHandicap"`
-	PlayingHandicap int       `firestore:"playing_handicap" json:"playingHandicap"`
-	UpdatedAt       time.Time `firestore:"updated_at" json:"updatedAt"`
+	ID                  string    `firestore:"id" json:"id"`
+	PlayerID            string    `firestore:"player_id" json:"playerId"`
+	LeagueID            string    `firestore:"league_id" json:"leagueId"` // Scoped to league
+	LeagueHandicapIndex float64   `firestore:"league_handicap_index" json:"leagueHandicapIndex"`
+	UpdatedAt           time.Time `firestore:"updated_at" json:"updatedAt"`
 }
 
 // Season represents a league season with a schedule of matches (scoped to a league)
