@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
@@ -20,6 +20,19 @@ export default function CourseManagement() {
         holeHandicaps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
     })
 
+    const loadCourses = useCallback(async () => {
+        if (!currentLeague) return
+
+        try {
+            const data = await api.listCourses(currentLeague.id)
+            setCourses(data || [])
+        } catch (error) {
+            console.error('Failed to load courses:', error)
+        } finally {
+            setLoading(false)
+        }
+    }, [currentLeague])
+
     useEffect(() => {
         if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
             selectLeague(leagueId)
@@ -35,20 +48,7 @@ export default function CourseManagement() {
         if (currentLeague) {
             loadCourses()
         }
-    }, [currentLeague, leagueLoading, navigate, leagueId])
-
-    async function loadCourses() {
-        if (!currentLeague) return
-
-        try {
-            const data = await api.listCourses(currentLeague.id)
-            setCourses(data || [])
-        } catch (error) {
-            console.error('Failed to load courses:', error)
-        } finally {
-            setLoading(false)
-        }
-    }
+    }, [currentLeague, leagueLoading, navigate, leagueId, loadCourses])
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
