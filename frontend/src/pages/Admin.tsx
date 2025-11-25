@@ -98,7 +98,7 @@ export default function Admin() {
                         </p>
                     </Link>
 
-                    <Link to="/standings" className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <Link to={`/leagues/${currentLeague.id}/standings`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                         <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>📊</div>
                         <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>View Standings</h3>
                         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>

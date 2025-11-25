@@ -127,6 +127,15 @@ export default function ScoreEntry() {
     const getCourseName = (id: string) => courses.find(c => c.id === id)?.name || 'Unknown'
     const getCourse = (id: string) => courses.find(c => c.id === id)
 
+    // Format date to display only the date part without timezone conversion
+    const formatDateOnly = (dateString: string) => {
+        const date = new Date(dateString)
+        const year = date.getUTCFullYear()
+        const month = date.getUTCMonth() + 1
+        const day = date.getUTCDate()
+        return `${month}/${day}/${year}`
+    }
+
     if (leagueLoading || loading) {
         return (
             <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -177,7 +186,7 @@ export default function ScoreEntry() {
                             <option value="">-- Select a Match Day --</option>
                             {matchDays.map((day) => (
                                 <option key={day.id} value={day.id}>
-                                    {new Date(day.date).toLocaleDateString()} @ {getCourseName(day.courseId)}
+                                    {formatDateOnly(day.date)} @ {getCourseName(day.courseId)}
                                 </option>
                             ))}
                         </select>
@@ -188,7 +197,7 @@ export default function ScoreEntry() {
                     <form onSubmit={handleSubmit}>
                         <div className="card-glass" style={{ marginBottom: 'var(--spacing-xl)', overflow: 'auto' }}>
                             <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>
-                                Scores for {new Date(selectedMatchDay.date).toLocaleDateString()}
+                                Scores for {formatDateOnly(selectedMatchDay.date)}
                             </h3>
 
                             {dayMatches.map(match => (

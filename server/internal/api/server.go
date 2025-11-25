@@ -748,8 +748,20 @@ func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
 				coursesMap[course.ID] = course
 			}
 
+			// Get league members to retrieve provisional handicap
+			members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
+			provisionalHandicap := 0.0
+			if err == nil {
+				for _, m := range members {
+					if m.PlayerID == round.PlayerID {
+						provisionalHandicap = m.ProvisionalHandicap
+						break
+					}
+				}
+			}
+
 			// Recalculate handicap immediately for this player
-			if err := job.RecalculatePlayerHandicap(ctx, leagueID, *player, coursesMap); err != nil {
+			if err := job.RecalculatePlayerHandicap(ctx, leagueID, *player, provisionalHandicap, coursesMap); err != nil {
 				log.Printf("Warning: Failed to recalculate handicap: %v", err)
 			} else {
 				log.Printf("Successfully recalculated handicap for player %s after round entry", player.Name)

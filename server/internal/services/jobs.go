@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,12 +48,25 @@ func (job *HandicapRecalculationJob) Run(ctx context.Context, leagueID string) e
 		coursesMap[course.ID] = course
 	}
 
+	// Get all league members to retrieve provisional handicaps
+	members, err := job.firestoreClient.ListLeagueMembers(ctx, leagueID)
+	if err != nil {
+		return fmt.Errorf("failed to list league members: %w", err)
+	}
+
+	// Create a map of player ID to provisional handicap
+	provisionalHandicaps := make(map[string]float64)
+	for _, member := range members {
+		provisionalHandicaps[member.PlayerID] = member.ProvisionalHandicap
+	}
+
 	successCount := 0
 	errorCount := 0
 
 	// Recalculate handicap for each player
 	for _, player := range players {
-		if err := job.recalculatePlayerHandicap(ctx, leagueID, player, coursesMap); err != nil {
+		provisionalHandicap := provisionalHandicaps[player.ID]
+		if err := job.RecalculatePlayerHandicap(ctx, leagueID, player, provisionalHandicap, coursesMap); err != nil {
 			log.Printf("Error recalculating handicap for player %s (%s): %v", player.Name, player.ID, err)
 			errorCount++
 		} else {
@@ -64,38 +78,76 @@ func (job *HandicapRecalculationJob) Run(ctx context.Context, leagueID string) e
 	return nil
 }
 
-// recalculatePlayerHandicap recalculates and updates a single player's handicap
-// This is the internal implementation
+// recalculatePlayerHandicap is deprecated - use RecalculatePlayerHandicap directly
 func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Context, leagueID string, player models.Player, coursesMap map[string]models.Course) error {
-	return job.RecalculatePlayerHandicap(ctx, leagueID, player, coursesMap)
+	// This function is no longer used but kept for backwards compatibility
+	return job.RecalculatePlayerHandicap(ctx, leagueID, player, 0.0, coursesMap)
 }
 
 // RecalculatePlayerHandicap recalculates and updates a single player's handicap
 // This is the exported version that can be called externally
-func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Context, leagueID string, player models.Player, coursesMap map[string]models.Course) error {
+func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Context, leagueID string, player models.Player, provisionalHandicap float64, coursesMap map[string]models.Course) error {
 	// Get the last 5 rounds for the player
 	rounds, err := job.firestoreClient.GetPlayerRounds(ctx, leagueID, player.ID, 5)
 	if err != nil {
 		return fmt.Errorf("failed to get player rounds: %w", err)
 	}
 
-	if len(rounds) == 0 {
-		log.Printf("models.Player %s (%s) has no rounds, skipping", player.Name, player.ID)
-		return nil
+	roundCount := len(rounds)
+	var leagueHandicap float64
+
+	// Calculate league handicap based on rounds played (Golf League Rules 3.2)
+	switch {
+	case roundCount == 0:
+		// Use provisional handicap
+		leagueHandicap = provisionalHandicap
+		log.Printf("Player %s (%s): Using provisional handicap %.1f (0 rounds)", player.Name, player.ID, provisionalHandicap)
+
+	case roundCount == 1:
+		// ((2 × provisional) + diff₁) / 3
+		course := coursesMap[rounds[0].CourseID]
+		diff1 := CalculateDifferential(rounds[0], course)
+		leagueHandicap = ((2 * provisionalHandicap) + diff1) / 3
+		log.Printf("Player %s (%s): 1 round - ((2 × %.1f) + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, diff1, leagueHandicap)
+
+	case roundCount == 2:
+		// (provisional + diff₁ + diff₂) / 3
+		course1 := coursesMap[rounds[0].CourseID]
+		course2 := coursesMap[rounds[1].CourseID]
+		diff1 := CalculateDifferential(rounds[0], course1)
+		diff2 := CalculateDifferential(rounds[1], course2)
+		leagueHandicap = (provisionalHandicap + diff1 + diff2) / 3
+		log.Printf("Player %s (%s): 2 rounds - (%.1f + %.1f + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, diff1, diff2, leagueHandicap)
+
+	case roundCount >= 3 && roundCount <= 4:
+		// Average all differentials (no drops)
+		sum := 0.0
+		for _, r := range rounds {
+			course := coursesMap[r.CourseID]
+			diff := CalculateDifferential(r, course)
+			sum += diff
+		}
+		leagueHandicap = sum / float64(roundCount)
+		log.Printf("Player %s (%s): %d rounds - average all differentials = %.1f", player.Name, player.ID, roundCount, leagueHandicap)
+
+	default: // 5+ rounds
+		// Drop 2 worst, average best 3 (existing logic)
+		leagueHandicap = CalculateLeagueHandicap(rounds, coursesMap)
+		log.Printf("Player %s (%s): %d rounds - drop 2 worst, average best 3 = %.1f", player.Name, player.ID, roundCount, leagueHandicap)
 	}
+
+	// Round to nearest 0.1
+	leagueHandicap = math.Round(leagueHandicap*10) / 10
 
 	// Update player's established status (5 or more rounds)
 	wasEstablished := player.Established
-	player.Established = len(rounds) >= 5
+	player.Established = roundCount >= 5
 
 	if wasEstablished != player.Established {
 		if err := job.firestoreClient.UpdatePlayer(ctx, player); err != nil {
 			log.Printf("Warning: failed to update player established status: %v", err)
 		}
 	}
-
-	// Calculate league handicap
-	leagueHandicap := CalculateLeagueHandicap(rounds, coursesMap)
 
 	// Get a default course for course handicap calculation (use first available)
 	var defaultCourse models.Course

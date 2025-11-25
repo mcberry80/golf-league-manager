@@ -15,6 +15,7 @@ export default function PlayerManagement() {
         name: '',
         email: '',
         role: 'player',
+        provisionalHandicap: 0,
     })
 
     const loadMembers = useCallback(async () => {
@@ -52,7 +53,7 @@ export default function PlayerManagement() {
         if (!currentLeague) return
 
         try {
-            await api.addLeagueMember(currentLeague.id, formData.email, formData.name)
+            await api.addLeagueMember(currentLeague.id, formData.email, formData.name, formData.provisionalHandicap)
             // If role is admin, we need to update it separately as addLeagueMember defaults to player or uses what's passed?
             // Wait, addLeagueMember doesn't take role in frontend API yet?
             // Actually, I didn't update api.addLeagueMember to take role. It defaults to 'player' in backend if not provided, 
@@ -68,7 +69,7 @@ export default function PlayerManagement() {
             // I'll update api.ts in a sec if I really need it, but for now let's just add.
 
             setShowForm(false)
-            setFormData({ name: '', email: '', role: 'player' })
+            setFormData({ name: '', email: '', role: 'player', provisionalHandicap: 0 })
             loadMembers()
         } catch (error) {
             alert('Failed to add player: ' + (error instanceof Error ? error.message : 'Unknown error'))
@@ -141,7 +142,7 @@ export default function PlayerManagement() {
                     <div className="card-glass" style={{ marginBottom: 'var(--spacing-xl)' }}>
                         <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Add New Player</h3>
                         <form onSubmit={handleSubmit}>
-                            <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-lg)' }}>
+                            <div className="grid grid-cols-3" style={{ gap: 'var(--spacing-lg)' }}>
                                 <div className="form-group">
                                     <label className="form-label">Player Name</label>
                                     <input
@@ -162,6 +163,20 @@ export default function PlayerManagement() {
                                         required
                                         placeholder="john@example.com"
                                     />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Provisional Handicap</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        className="form-input"
+                                        value={formData.provisionalHandicap}
+                                        onChange={(e) => setFormData({ ...formData, provisionalHandicap: parseFloat(e.target.value) || 0 })}
+                                        placeholder="12.5"
+                                    />
+                                    <small className="text-gray-400" style={{ fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                                        Starting handicap for this season (see League Rules 3.2)
+                                    </small>
                                 </div>
                             </div>
                             {/* Role selection could go here if supported by API */}
@@ -184,6 +199,7 @@ export default function PlayerManagement() {
                                         <th>Name</th>
                                         <th>Email</th>
                                         <th>Role</th>
+                                        <th>Provisional Handicap</th>
                                         <th>Status</th>
                                         <th>Joined</th>
                                         <th>Actions</th>
@@ -199,6 +215,7 @@ export default function PlayerManagement() {
                                                     {member.role}
                                                 </span>
                                             </td>
+                                            <td>{member.provisionalHandicap?.toFixed(1) || '0.0'}</td>
                                             <td>
                                                 <span className={`badge ${member.player?.active ? 'badge-success' : 'badge-danger'}`}>
                                                     {member.player?.active ? 'Active' : 'Inactive'}

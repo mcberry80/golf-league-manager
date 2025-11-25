@@ -89,10 +89,10 @@ class APIClient {
     }
 
     // League Member endpoints
-    async addLeagueMember(leagueId: string, email: string, name?: string): Promise<LeagueMember> {
+    async addLeagueMember(leagueId: string, email: string, name?: string, provisionalHandicap?: number): Promise<LeagueMember> {
         return this.request<LeagueMember>(`/api/leagues/${leagueId}/members`, {
             method: 'POST',
-            body: JSON.stringify({ email, name }),
+            body: JSON.stringify({ email, name, provisionalHandicap: provisionalHandicap || 0 }),
         });
     }
 

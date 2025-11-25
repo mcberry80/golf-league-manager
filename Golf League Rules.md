@@ -54,14 +54,16 @@ Differentials: 10.5, 12.0, 14.0, 15.5, 18.0
 
 ---
 
-### **3.2 New Players (Provisional Handicaps)**
+### **3.2 New Players (Provisional Handicaps) and start of season**
+
+All new players will receive a provisional handicap assigned by the committee based on their prior known ability or estimated average score. At the start of a season, the provisional handicap will be the previous season's handicap, for returning players.
 
 | Rounds Played | Method | Notes |
 | ----- | ----- | ----- |
-| 1–2 rounds | Committee-assigned provisional handicap | Based on prior known ability or estimated average score |
+| 0 rounds | Committee-assigned provisional handicap | Based on prior known ability or estimated average score |
+| 1 round | ((2 * Committee-assigned provisional handicap) + differential from round 1) / 3 | Weighted average of provisional handicap and first round differential |
+| 2 rounds | ((Committee-assigned provisional handicap) + (differential from round 1) + (differential from round 2)) / 3 | Average of provisional handicap and first two rounds differentials |
 | 3–4 rounds | Average of all differentials (no drops) | Converts to full league handicap after 5 rounds |
-
-For their first three matches, new players compete using their provisional handicap \+ 2 strokes.
 
 ---
 

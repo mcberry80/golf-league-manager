@@ -101,6 +101,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 
 		// Calculate Differential
 		differential := services.CalculateDifferential(round, *course)
+		round.HandicapDifferential = differential // Store in round for history
 
 		// Calculate Net Score (Total Gross - Playing Handicap)
 		// Note: This is a simplified net score. Match play uses strokes per hole.
@@ -139,7 +140,20 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		for _, c := range courses {
 			coursesMap[c.ID] = c
 		}
-		if err := job.RecalculatePlayerHandicap(ctx, leagueID, *player, coursesMap); err != nil {
+		
+		// Get league member to retrieve provisional handicap
+		members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
+		provisionalHandicap := 0.0
+		if err == nil {
+			for _, m := range members {
+				if m.PlayerID == sub.PlayerID {
+					provisionalHandicap = m.ProvisionalHandicap
+					break
+				}
+			}
+		}
+		
+		if err := job.RecalculatePlayerHandicap(ctx, leagueID, *player, provisionalHandicap, coursesMap); err != nil {
 			log.Printf("Error recalculating handicap for player %s: %v", sub.PlayerID, err)
 		}
 

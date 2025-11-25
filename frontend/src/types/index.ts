@@ -11,6 +11,7 @@ export interface LeagueMember {
     leagueId: string;
     playerId: string;
     role: 'admin' | 'player';
+    provisionalHandicap: number; // Starting handicap for the season (Golf League Rules 3.2)
     joinedAt: string;
 }
 
@@ -49,6 +50,7 @@ export interface Round {
     adjustedGrossScores: number[]; // 9 holes
     totalGross: number;
     totalAdjusted: number;
+    handicapDifferential: number; // Calculated differential for this round
 }
 
 export interface HandicapRecord {

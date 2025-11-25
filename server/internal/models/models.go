@@ -13,11 +13,12 @@ type League struct {
 
 // LeagueMember represents a player's membership in a league with their role
 type LeagueMember struct {
-	ID       string    `firestore:"id" json:"id"`
-	LeagueID string    `firestore:"league_id" json:"leagueId"`
-	PlayerID string    `firestore:"player_id" json:"playerId"`
-	Role     string    `firestore:"role" json:"role"` // "admin" or "player"
-	JoinedAt time.Time `firestore:"joined_at" json:"joinedAt"`
+	ID                  string    `firestore:"id" json:"id"`
+	LeagueID            string    `firestore:"league_id" json:"leagueId"`
+	PlayerID            string    `firestore:"player_id" json:"playerId"`
+	Role                string    `firestore:"role" json:"role"` // "admin" or "player"
+	ProvisionalHandicap float64   `firestore:"provisional_handicap" json:"provisionalHandicap"` // Starting handicap for the season
+	JoinedAt            time.Time `firestore:"joined_at" json:"joinedAt"`
 }
 
 // Player represents a golf league player (global, can be in multiple leagues)
@@ -33,15 +34,16 @@ type Player struct {
 
 // Round represents a single golf round played by a player
 type Round struct {
-	ID                  string    `firestore:"id" json:"id"`
-	PlayerID            string    `firestore:"player_id" json:"playerId"`
-	LeagueID            string    `firestore:"league_id" json:"leagueId"` // Scoped to league
-	Date                time.Time `firestore:"date" json:"date"`
-	CourseID            string    `firestore:"course_id" json:"courseId"`
-	GrossScores         []int     `firestore:"gross_scores" json:"grossScores"`          // 9 holes
-	AdjustedGrossScores []int     `firestore:"adjusted_gross_scores" json:"adjustedGrossScores"` // 9 holes
-	TotalGross          int       `firestore:"total_gross" json:"totalGross"`
-	TotalAdjusted       int       `firestore:"total_adjusted" json:"totalAdjusted"`
+	ID                   string    `firestore:"id" json:"id"`
+	PlayerID             string    `firestore:"player_id" json:"playerId"`
+	LeagueID             string    `firestore:"league_id" json:"leagueId"` // Scoped to league
+	Date                 time.Time `firestore:"date" json:"date"`
+	CourseID             string    `firestore:"course_id" json:"courseId"`
+	GrossScores          []int     `firestore:"gross_scores" json:"grossScores"`                   // 9 holes
+	AdjustedGrossScores  []int     `firestore:"adjusted_gross_scores" json:"adjustedGrossScores"`  // 9 holes
+	TotalGross           int       `firestore:"total_gross" json:"totalGross"`
+	TotalAdjusted        int       `firestore:"total_adjusted" json:"totalAdjusted"`
+	HandicapDifferential float64   `firestore:"handicap_differential" json:"handicapDifferential"` // Calculated differential for this round
 }
 
 // Course represents a golf course (scoped to a league)

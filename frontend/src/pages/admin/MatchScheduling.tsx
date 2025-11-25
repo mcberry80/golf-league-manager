@@ -133,6 +133,16 @@ export default function MatchScheduling() {
     const getCourseName = (id: string) => courses.find(c => c.id === id)?.name || 'Unknown'
     const getSeasonName = (id: string) => seasons.find(s => s.id === id)?.name || 'Unknown'
 
+    // Format date to display only the date part without timezone conversion
+    const formatDateOnly = (dateString: string) => {
+        // Parse the date string and extract just the date part (YYYY-MM-DD)
+        const date = new Date(dateString)
+        const year = date.getUTCFullYear()
+        const month = date.getUTCMonth() + 1
+        const day = date.getUTCDate()
+        return `${month}/${day}/${year}`
+    }
+
     if (leagueLoading || loading) {
         return (
             <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -254,7 +264,7 @@ export default function MatchScheduling() {
                                                 ))}
                                             </select>
                                         </div>
-                                        <button type="button" className="btn btn-danger" onClick={() => handleRemoveMatchup(index)} disabled={matchups.length === 1}>
+                                        <button type="button" className="btn btn-danger" onClick={() => handleRemoveMatchup(index)} disabled={matchups.length === 1} style={{ padding: '0.5rem 0.75rem', height: 'auto', fontSize: '0.875rem', alignSelf: 'flex-end' }}>
                                             X
                                         </button>
                                     </div>
@@ -272,7 +282,8 @@ export default function MatchScheduling() {
                             </div>
                         </form>
                     </div>
-                )}
+                )
+                }
 
                 <div className="card-glass">
                     <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Scheduled Match Days</h3>
@@ -284,7 +295,7 @@ export default function MatchScheduling() {
                                 <div key={day.id} style={{ marginBottom: 'var(--spacing-xl)', borderBottom: '1px solid var(--color-border)', paddingBottom: 'var(--spacing-lg)' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
                                         <h4 style={{ color: 'var(--color-text)' }}>
-                                            {new Date(day.date).toLocaleDateString()} @ {getCourseName(day.courseId)}
+                                            {formatDateOnly(day.date)} @ {getCourseName(day.courseId)}
                                         </h4>
                                         <span className="badge badge-info">{getSeasonName(day.seasonId)}</span>
                                     </div>
@@ -318,7 +329,7 @@ export default function MatchScheduling() {
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     )
 }
