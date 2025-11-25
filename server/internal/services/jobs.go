@@ -283,8 +283,8 @@ func (proc *MatchCompletionProcessor) ProcessRound(ctx context.Context, roundID 
 	round.CourseHandicap = courseHandicap
 	round.PlayingHandicap = playingHandicap
 
-	// Calculate adjusted gross scores using net double bogey rule
-	adjustedScores := CalculateAdjustedGrossScores(*round, *course, playingHandicap)
+	// Calculate adjusted gross scores using net double bogey rule (based on course handicap)
+	adjustedScores := CalculateAdjustedGrossScores(*round, *course, int(math.Round(courseHandicap)))
 
 	// Update round with adjusted scores
 	round.AdjustedGrossScores = adjustedScores

@@ -16,7 +16,7 @@ The league handicap and scoring system ensures fair and competitive play between
 
 * Adjusted Gross Score (AGS): The player's gross score after applying net double bogey adjustments for handicap calculation purposes only.
 
-  * Net Double Bogey \= Par \+ 2 \+ strokes received on that hole.
+  * Net Double Bogey \= Par \+ 2 \+ strokes received on that hole (based on course handicap).
   
   * This applies to ALL players, including new players with provisional handicaps.
 

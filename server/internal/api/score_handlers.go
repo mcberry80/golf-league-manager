@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 
 	"golf-league-manager/internal/models"
@@ -98,8 +99,8 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			PlayingHandicap:     playingHandicap,
 		}
 
-		// Calculate Adjusted Gross (Net Double Bogey) - all players use net double bogey
-		adjustedScores := services.CalculateAdjustedGrossScores(round, *course, playingHandicap)
+		// Calculate Adjusted Gross (Net Double Bogey) - based on course handicap (rounded)
+		adjustedScores := services.CalculateAdjustedGrossScores(round, *course, int(math.Round(courseHandicap)))
 		totalAdjusted := 0
 		for _, s := range adjustedScores {
 			totalAdjusted += s

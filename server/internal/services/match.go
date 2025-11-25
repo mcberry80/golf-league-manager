@@ -9,8 +9,8 @@ import (
 
 // Constants for match scoring
 const (
-	holesPerNine = 9    // Number of holes in a 9-hole round
-	maxStrokes   = 18   // Maximum strokes that can be allocated (2 per hole)
+	holesPerRound = 9   // Number of holes in a 9-hole round
+	maxStrokes    = 18  // Maximum strokes that can be allocated (2 per hole)
 )
 
 // AssignStrokes assigns strokes to holes based on playing handicap difference
@@ -36,22 +36,22 @@ func AssignStrokes(playerAID string, playerAPlayingHandicap int, playerBID strin
 		strokesToAllocate = -diff
 	} else {
 		// Equal handicaps, no strokes
-		result[playerAID] = make([]int, holesPerNine)
-		result[playerBID] = make([]int, holesPerNine)
+		result[playerAID] = make([]int, holesPerRound)
+		result[playerBID] = make([]int, holesPerRound)
 		return result
 	}
 
 	// Initialize stroke arrays
-	strokesA := make([]int, holesPerNine)
-	strokesB := make([]int, holesPerNine)
+	strokesA := make([]int, holesPerRound)
+	strokesB := make([]int, holesPerRound)
 
 	// Create slice of hole indices sorted by handicap
 	type holeInfo struct {
 		index    int
 		handicap int
 	}
-	holes := make([]holeInfo, holesPerNine)
-	for i := 0; i < holesPerNine; i++ {
+	holes := make([]holeInfo, holesPerRound)
+	for i := 0; i < holesPerRound; i++ {
 		holes[i] = holeInfo{
 			index:    i,
 			handicap: course.HoleHandicaps[i],
@@ -65,7 +65,7 @@ func AssignStrokes(playerAID string, playerAPlayingHandicap int, playerBID strin
 
 	// Allocate strokes in order of hole handicaps
 	for strokeNum := 0; strokeNum < strokesToAllocate && strokeNum < maxStrokes; strokeNum++ {
-		holeIdx := holes[strokeNum%holesPerNine].index
+		holeIdx := holes[strokeNum%holesPerRound].index
 		if receivingPlayerID == playerAID {
 			strokesA[holeIdx]++
 		} else {

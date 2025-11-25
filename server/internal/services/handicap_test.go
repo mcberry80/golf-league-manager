@@ -103,7 +103,7 @@ func TestCalculateLeagueHandicap(t *testing.T) {
 	}
 }
 
-func TestCalculateAdjustedGrossScores_WithPlayingHandicap(t *testing.T) {
+func TestCalculateAdjustedGrossScores_WithCourseHandicap(t *testing.T) {
 	course := models.Course{
 		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
 		HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
@@ -111,11 +111,11 @@ func TestCalculateAdjustedGrossScores_WithPlayingHandicap(t *testing.T) {
 	round := models.Round{
 		GrossScores: []int{7, 5, 8, 6, 6, 5, 9, 6, 6},
 	}
-	playingHandicap := 9
+	courseHandicap := 9
 
-	got := CalculateAdjustedGrossScores(round, course, playingHandicap)
+	got := CalculateAdjustedGrossScores(round, course, courseHandicap)
 
-	// With handicap of 9, each hole gets 1 stroke
+	// With course handicap of 9, each hole gets 1 stroke
 	// Expected: min(gross, par+2+1) for each hole
 	// Hole 1 (HC 1): 1 stroke, min(7, 4+2+1) = 7
 	// Hole 2 (HC 7): 1 stroke, min(5, 3+2+1) = 5
@@ -135,7 +135,7 @@ func TestCalculateAdjustedGrossScores_WithPlayingHandicap(t *testing.T) {
 	}
 }
 
-func TestCalculateAdjustedGrossScores_HighHandicapPlayer(t *testing.T) {
+func TestCalculateAdjustedGrossScores_HighCourseHandicapPlayer(t *testing.T) {
 	course := models.Course{
 		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
 		HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
@@ -143,12 +143,12 @@ func TestCalculateAdjustedGrossScores_HighHandicapPlayer(t *testing.T) {
 	round := models.Round{
 		GrossScores: []int{10, 9, 12, 8, 8, 9, 11, 8, 8},
 	}
-	// High handicap player (18) - each hole gets 2 strokes
-	playingHandicap := 18
+	// High course handicap player (18) - each hole gets 2 strokes
+	courseHandicap := 18
 
-	got := CalculateAdjustedGrossScores(round, course, playingHandicap)
+	got := CalculateAdjustedGrossScores(round, course, courseHandicap)
 
-	// With handicap of 18, each hole gets 2 strokes
+	// With course handicap of 18, each hole gets 2 strokes
 	// Expected: min(gross, par+2+2) for each hole
 	// Hole 1 (par 4): min(10, 4+2+2) = 8
 	// Hole 2 (par 3): min(9, 3+2+2) = 7

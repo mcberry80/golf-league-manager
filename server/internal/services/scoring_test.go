@@ -13,22 +13,22 @@ const handicapTolerance = 0.1
 // TestLeagueScoringNuances validates various nuances of league scoring
 // as specified in the Golf League Rules
 
-// Test net double bogey calculation with playing handicap
-func TestNetDoubleBogeyWithPlayingHandicap(t *testing.T) {
+// Test net double bogey calculation with course handicap
+func TestNetDoubleBogeyWithCourseHandicap(t *testing.T) {
 	tests := []struct {
-		name            string
-		grossScores     []int
-		holePars        []int
-		holeHandicaps   []int
-		playingHandicap int
-		wantAdjusted    []int
+		name           string
+		grossScores    []int
+		holePars       []int
+		holeHandicaps  []int
+		courseHandicap int
+		wantAdjusted   []int
 	}{
 		{
-			name:            "zero handicap - net double bogey is par + 2",
-			grossScores:     []int{8, 7, 9, 7, 8, 6, 9, 7, 8},
-			holePars:        []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
-			holeHandicaps:   []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
-			playingHandicap: 0,
+			name:           "zero handicap - net double bogey is par + 2",
+			grossScores:    []int{8, 7, 9, 7, 8, 6, 9, 7, 8},
+			holePars:       []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+			holeHandicaps:  []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
+			courseHandicap: 0,
 			// Net double bogey = par + 2 + 0 strokes on each hole
 			// Hole 1: min(8, 4+2+0=6) = 6
 			// Hole 2: min(7, 3+2+0=5) = 5
@@ -42,11 +42,11 @@ func TestNetDoubleBogeyWithPlayingHandicap(t *testing.T) {
 			wantAdjusted: []int{6, 5, 7, 6, 6, 5, 7, 6, 6},
 		},
 		{
-			name:            "9 handicap - all holes get 1 stroke",
-			grossScores:     []int{8, 7, 9, 7, 8, 6, 9, 7, 8},
-			holePars:        []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
-			holeHandicaps:   []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
-			playingHandicap: 9,
+			name:           "9 course handicap - all holes get 1 stroke",
+			grossScores:    []int{8, 7, 9, 7, 8, 6, 9, 7, 8},
+			holePars:       []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+			holeHandicaps:  []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
+			courseHandicap: 9,
 			// Net double bogey = par + 2 + 1 stroke on each hole
 			// Hole 1: min(8, 4+2+1=7) = 7
 			// Hole 2: min(7, 3+2+1=6) = 6
@@ -60,11 +60,11 @@ func TestNetDoubleBogeyWithPlayingHandicap(t *testing.T) {
 			wantAdjusted: []int{7, 6, 8, 7, 7, 6, 8, 7, 7},
 		},
 		{
-			name:            "18 handicap - all holes get 2 strokes",
-			grossScores:     []int{10, 9, 12, 9, 10, 8, 12, 9, 10},
-			holePars:        []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
-			holeHandicaps:   []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
-			playingHandicap: 18,
+			name:           "18 course handicap - all holes get 2 strokes",
+			grossScores:    []int{10, 9, 12, 9, 10, 8, 12, 9, 10},
+			holePars:       []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+			holeHandicaps:  []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
+			courseHandicap: 18,
 			// Net double bogey = par + 2 + 2 strokes on each hole
 			// Hole 1: min(10, 4+2+2=8) = 8
 			// Hole 2: min(9, 3+2+2=7) = 7
@@ -78,11 +78,11 @@ func TestNetDoubleBogeyWithPlayingHandicap(t *testing.T) {
 			wantAdjusted: []int{8, 7, 9, 8, 8, 7, 9, 8, 8},
 		},
 		{
-			name:            "5 handicap - only hardest 5 holes get strokes",
-			grossScores:     []int{8, 7, 9, 7, 8, 6, 9, 7, 8},
-			holePars:        []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
-			holeHandicaps:   []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
-			playingHandicap: 5,
+			name:           "5 course handicap - only hardest 5 holes get strokes",
+			grossScores:    []int{8, 7, 9, 7, 8, 6, 9, 7, 8},
+			holePars:       []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+			holeHandicaps:  []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
+			courseHandicap: 5,
 			// Strokes go to holes with handicaps 1,2,3,4,5
 			// Hole 1 (HC 1): 1 stroke, min(8, 4+2+1=7) = 7
 			// Hole 2 (HC 7): 0 strokes, min(7, 3+2+0=5) = 5
@@ -107,7 +107,7 @@ func TestNetDoubleBogeyWithPlayingHandicap(t *testing.T) {
 				HoleHandicaps: tt.holeHandicaps,
 			}
 
-			got := CalculateAdjustedGrossScores(round, course, tt.playingHandicap)
+			got := CalculateAdjustedGrossScores(round, course, tt.courseHandicap)
 
 			for i := range got {
 				if got[i] != tt.wantAdjusted[i] {

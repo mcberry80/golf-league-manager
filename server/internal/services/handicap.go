@@ -31,19 +31,19 @@ func PlayingHandicap(courseHandicap float64, allowance float64) int {
 }
 
 // calculateStrokesForHole calculates the number of strokes a player receives on a specific hole
-// based on their playing handicap and the hole's stroke index.
+// based on their course handicap (rounded to integer) and the hole's stroke index.
 // For a 9-hole round:
-// - Playing handicap 1-9: 1 stroke on holes where stroke index <= handicap
-// - Playing handicap 10-18: 1 stroke on all holes, plus 1 extra on holes where stroke index <= (handicap - 9)
-// - Playing handicap 19-27: 2 strokes on all holes, plus 1 extra on holes where stroke index <= (handicap - 18)
-func calculateStrokesForHole(playingHandicap int, strokeIndex int, numHoles int) int {
-	if playingHandicap <= 0 {
+// - Course handicap 1-9: 1 stroke on holes where stroke index <= handicap
+// - Course handicap 10-18: 1 stroke on all holes, plus 1 extra on holes where stroke index <= (handicap - 9)
+// - Course handicap 19-27: 2 strokes on all holes, plus 1 extra on holes where stroke index <= (handicap - 18)
+func calculateStrokesForHole(courseHandicap int, strokeIndex int, numHoles int) int {
+	if courseHandicap <= 0 {
 		return 0
 	}
 
 	// Calculate base strokes (how many times we've "gone around" the holes)
-	baseStrokes := playingHandicap / numHoles
-	remainingStrokes := playingHandicap % numHoles
+	baseStrokes := courseHandicap / numHoles
+	remainingStrokes := courseHandicap % numHoles
 
 	// Add an extra stroke if this hole's stroke index qualifies
 	if strokeIndex <= remainingStrokes {
@@ -53,12 +53,13 @@ func calculateStrokesForHole(playingHandicap int, strokeIndex int, numHoles int)
 }
 
 // AdjustedGrossScoreNetDoubleBogey calculates adjusted gross score using Net Double Bogey rule
-func AdjustedGrossScoreNetDoubleBogey(grossHoleScore []int, holeData []Hole, playingHandicap int) int {
+// Net Double Bogey = Par + 2 + strokes received based on course handicap
+func AdjustedGrossScoreNetDoubleBogey(grossHoleScore []int, holeData []Hole, courseHandicap int) int {
 	var adjustedGrossScore int
 	numHoles := len(grossHoleScore)
 	
 	for i := 0; i < numHoles; i++ {
-		strokes := calculateStrokesForHole(playingHandicap, holeData[i].StrokeIndex, numHoles)
+		strokes := calculateStrokesForHole(courseHandicap, holeData[i].StrokeIndex, numHoles)
 		netDoubleBogey := holeData[i].Par + 2 + strokes
 		if grossHoleScore[i] > netDoubleBogey {
 			adjustedGrossScore += netDoubleBogey
@@ -155,8 +156,8 @@ func CalculateLeagueHandicap(rounds []models.Round, courses map[string]models.Co
 
 // CalculateAdjustedGrossScores applies the Net Double Bogey rule for all players
 // All players (including new players with provisional handicaps) use net double bogey
-// Net Double Bogey = Par + 2 + strokes received on that hole
-func CalculateAdjustedGrossScores(round models.Round, course models.Course, playingHandicap int) []int {
+// Net Double Bogey = Par + 2 + strokes received on that hole (based on course handicap)
+func CalculateAdjustedGrossScores(round models.Round, course models.Course, courseHandicap int) []int {
 	if len(round.GrossScores) != len(course.HolePars) {
 		return round.GrossScores
 	}
@@ -166,7 +167,7 @@ func CalculateAdjustedGrossScores(round models.Round, course models.Course, play
 
 	// Calculate adjusted scores for each hole using net double bogey rule
 	for i := range round.GrossScores {
-		strokes := calculateStrokesForHole(playingHandicap, course.HoleHandicaps[i], numHoles)
+		strokes := calculateStrokesForHole(courseHandicap, course.HoleHandicaps[i], numHoles)
 		netDoubleBogey := course.HolePars[i] + 2 + strokes
 		if round.GrossScores[i] > netDoubleBogey {
 			adjustedScores[i] = netDoubleBogey
