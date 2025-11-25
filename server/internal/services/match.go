@@ -7,6 +7,12 @@ import (
 	"golf-league-manager/internal/models"
 )
 
+// Constants for match scoring
+const (
+	holesPerNine = 9    // Number of holes in a 9-hole round
+	maxStrokes   = 18   // Maximum strokes that can be allocated (2 per hole)
+)
+
 // AssignStrokes assigns strokes to holes based on playing handicap difference
 // Only the higher-handicap player receives strokes
 // Strokes are allocated in order of hole handicaps (1 → 9)
@@ -30,22 +36,22 @@ func AssignStrokes(playerAID string, playerAPlayingHandicap int, playerBID strin
 		strokesToAllocate = -diff
 	} else {
 		// Equal handicaps, no strokes
-		result[playerAID] = make([]int, 9)
-		result[playerBID] = make([]int, 9)
+		result[playerAID] = make([]int, holesPerNine)
+		result[playerBID] = make([]int, holesPerNine)
 		return result
 	}
 
 	// Initialize stroke arrays
-	strokesA := make([]int, 9)
-	strokesB := make([]int, 9)
+	strokesA := make([]int, holesPerNine)
+	strokesB := make([]int, holesPerNine)
 
 	// Create slice of hole indices sorted by handicap
 	type holeInfo struct {
 		index    int
 		handicap int
 	}
-	holes := make([]holeInfo, 9)
-	for i := 0; i < 9; i++ {
+	holes := make([]holeInfo, holesPerNine)
+	for i := 0; i < holesPerNine; i++ {
 		holes[i] = holeInfo{
 			index:    i,
 			handicap: course.HoleHandicaps[i],
@@ -58,8 +64,8 @@ func AssignStrokes(playerAID string, playerAPlayingHandicap int, playerBID strin
 	})
 
 	// Allocate strokes in order of hole handicaps
-	for strokeNum := 0; strokeNum < strokesToAllocate && strokeNum < 18; strokeNum++ {
-		holeIdx := holes[strokeNum%9].index
+	for strokeNum := 0; strokeNum < strokesToAllocate && strokeNum < maxStrokes; strokeNum++ {
+		holeIdx := holes[strokeNum%holesPerNine].index
 		if receivingPlayerID == playerAID {
 			strokesA[holeIdx]++
 		} else {

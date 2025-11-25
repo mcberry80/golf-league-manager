@@ -7,6 +7,9 @@ import (
 	"golf-league-manager/internal/models"
 )
 
+// Test tolerance for floating point comparisons
+const handicapTolerance = 0.1
+
 // TestLeagueScoringNuances validates various nuances of league scoring
 // as specified in the Golf League Rules
 
@@ -256,7 +259,7 @@ func TestPlayingHandicapRounding(t *testing.T) {
 
 			gotCourse, gotPlaying := CalculateCourseAndPlayingHandicap(tt.leagueHandicap, course)
 
-			if math.Abs(gotCourse-tt.wantCourseHandicap) > 0.1 {
+			if math.Abs(gotCourse-tt.wantCourseHandicap) > handicapTolerance {
 				t.Errorf("CourseHandicap: got %.2f, want %.2f", gotCourse, tt.wantCourseHandicap)
 			}
 
@@ -331,7 +334,7 @@ func TestHandicapCalculationWithProvisionalHandicaps(t *testing.T) {
 				got = CalculateLeagueHandicap(tt.rounds, coursesMap)
 			}
 
-			if math.Abs(got-tt.wantHandicap) > 0.1 {
+			if math.Abs(got-tt.wantHandicap) > handicapTolerance {
 				t.Errorf("%s: got %.1f, want %.1f", tt.description, got, tt.wantHandicap)
 			}
 		})
