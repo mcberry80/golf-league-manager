@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, ReactNode } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useLeague } from '../contexts/LeagueContext'
 import api from '../lib/api'
@@ -28,6 +28,128 @@ interface MatchupDetail {
     result: 'won' | 'lost' | 'tied' | 'pending'
     courseName: string
     date: string
+}
+
+// Reusable Components
+interface StatItemProps {
+    label: string
+    value: string | number
+    color?: string
+}
+
+function StatItem({ label, value, color }: StatItemProps) {
+    return (
+        <div>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{label}</p>
+            <p style={{ fontWeight: '600', color }}>{value}</p>
+        </div>
+    )
+}
+
+interface ExpandableCardProps {
+    isExpanded: boolean
+    onToggle: () => void
+    header: ReactNode
+    rightContent: ReactNode
+    children: ReactNode
+}
+
+function ExpandableCard({ isExpanded, onToggle, header, rightContent, children }: ExpandableCardProps) {
+    return (
+        <div style={{ 
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            overflow: 'hidden'
+        }}>
+            <button
+                onClick={onToggle}
+                style={{
+                    width: '100%',
+                    padding: 'var(--spacing-md)',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    color: 'var(--color-text)'
+                }}
+            >
+                {header}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
+                    {rightContent}
+                    {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                </div>
+            </button>
+            {isExpanded && (
+                <div style={{ 
+                    padding: 'var(--spacing-md)',
+                    background: 'rgba(0, 0, 0, 0.2)',
+                    borderTop: '1px solid var(--color-border)'
+                }}>
+                    {children}
+                </div>
+            )}
+        </div>
+    )
+}
+
+interface ScoreRowProps {
+    label: string
+    scores: number[]
+    total: number
+    color?: string
+    bgColor?: string
+    withBorder?: boolean
+}
+
+function ScoreRow({ label, scores, total, color, bgColor, withBorder = false }: ScoreRowProps) {
+    return (
+        <tr style={{ 
+            borderBottom: withBorder ? '1px solid var(--color-border)' : undefined, 
+            background: bgColor 
+        }}>
+            <td style={{ padding: '0.5rem', color: color || 'var(--color-text-muted)' }}>{label}</td>
+            {scores.map((score, i) => (
+                <td key={i} style={{ padding: '0.5rem', textAlign: 'center', color }}>{score}</td>
+            ))}
+            <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color }}>{total}</td>
+        </tr>
+    )
+}
+
+interface ScorecardTableProps {
+    rows: Array<{
+        label: string
+        scores: number[]
+        total: number
+        color?: string
+        bgColor?: string
+        withBorder?: boolean
+    }>
+}
+
+function ScorecardTable({ rows }: ScorecardTableProps) {
+    return (
+        <div className="table-container" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Hole</th>
+                        {HOLE_NUMBERS.map(i => (
+                            <th key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{i}</th>
+                        ))}
+                        <th style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows.map((row, index) => (
+                        <ScoreRow key={index} {...row} />
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    )
 }
 
 export default function Profile() {
@@ -567,30 +689,22 @@ export default function Profile() {
                                             .map((score) => {
                                                 const course = courses.find(c => c.id === score.courseId)
                                                 const isExpanded = expandedRoundId === score.id
+                                                const scorecardRows = [
+                                                    { label: 'Gross', scores: score.holeScores, total: score.grossScore, withBorder: true },
+                                                    ...(score.matchNetHoleScores ? [{
+                                                        label: 'Net',
+                                                        scores: score.matchNetHoleScores,
+                                                        total: score.matchNetScore ?? score.netScore,
+                                                        color: 'var(--color-primary)',
+                                                        bgColor: 'rgba(16, 185, 129, 0.1)'
+                                                    }] : [])
+                                                ]
                                                 return (
-                                                    <div 
+                                                    <ExpandableCard
                                                         key={score.id}
-                                                        style={{ 
-                                                            border: '1px solid var(--color-border)',
-                                                            borderRadius: 'var(--radius-md)',
-                                                            overflow: 'hidden'
-                                                        }}
-                                                    >
-                                                        {/* Round Header - Clickable */}
-                                                        <button
-                                                            onClick={() => setExpandedRoundId(isExpanded ? null : score.id)}
-                                                            style={{
-                                                                width: '100%',
-                                                                padding: 'var(--spacing-md)',
-                                                                background: 'rgba(255, 255, 255, 0.02)',
-                                                                border: 'none',
-                                                                cursor: 'pointer',
-                                                                display: 'flex',
-                                                                justifyContent: 'space-between',
-                                                                alignItems: 'center',
-                                                                color: 'var(--color-text)'
-                                                            }}
-                                                        >
+                                                        isExpanded={isExpanded}
+                                                        onToggle={() => setExpandedRoundId(isExpanded ? null : score.id)}
+                                                        header={
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
                                                                 <div style={{ textAlign: 'left' }}>
                                                                     <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
@@ -601,6 +715,8 @@ export default function Profile() {
                                                                     </p>
                                                                 </div>
                                                             </div>
+                                                        }
+                                                        rightContent={
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xl)' }}>
                                                                 <div style={{ textAlign: 'center' }}>
                                                                     <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>Gross</p>
@@ -616,87 +732,19 @@ export default function Profile() {
                                                                         {score.handicapDifferential?.toFixed(1) || 'N/A'}
                                                                     </p>
                                                                 </div>
-                                                                {isExpanded ? 
-                                                                    <ChevronUp className="w-5 h-5" /> : 
-                                                                    <ChevronDown className="w-5 h-5" />
-                                                                }
                                                             </div>
-                                                        </button>
-
-                                                        {/* Expanded Hole Scores */}
-                                                        {isExpanded && (
-                                                            <div style={{ 
-                                                                padding: 'var(--spacing-md)',
-                                                                background: 'rgba(0, 0, 0, 0.2)',
-                                                                borderTop: '1px solid var(--color-border)'
-                                                            }}>
-                                                                {/* Handicap Info */}
-                                                                <div style={{ 
-                                                                    marginBottom: 'var(--spacing-md)', 
-                                                                    display: 'flex', 
-                                                                    gap: 'var(--spacing-xl)', 
-                                                                    flexWrap: 'wrap' 
-                                                                }}>
-                                                                    <div>
-                                                                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Handicap Index</p>
-                                                                        <p style={{ fontWeight: '600' }}>{score.handicapIndex?.toFixed(1) || 'N/A'}</p>
-                                                                    </div>
-                                                                    <div>
-                                                                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Playing Handicap</p>
-                                                                        <p style={{ fontWeight: '600' }}>{score.playingHandicap ?? 'N/A'}</p>
-                                                                    </div>
-                                                                    <div>
-                                                                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Strokes Received</p>
-                                                                        <p style={{ fontWeight: '600' }}>{score.strokesReceived}</p>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Hole-by-hole scorecard */}
-                                                                <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
-                                                                    Hole Scores
-                                                                </h4>
-                                                                <div className="table-container" style={{ overflowX: 'auto' }}>
-                                                                    <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
-                                                                        <thead>
-                                                                            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                                                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Hole</th>
-                                                                                {HOLE_NUMBERS.map(i => (
-                                                                                    <th key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{i}</th>
-                                                                                ))}
-                                                                                <th style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>Total</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {/* Gross Scores */}
-                                                                            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                                                <td style={{ padding: '0.5rem', color: 'var(--color-text-muted)' }}>Gross</td>
-                                                                                {score.holeScores.map((holeScore, i) => (
-                                                                                    <td key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{holeScore}</td>
-                                                                                ))}
-                                                                                <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>
-                                                                                    {score.grossScore}
-                                                                                </td>
-                                                                            </tr>
-                                                                            {/* Net Scores (if available) */}
-                                                                            {score.matchNetHoleScores && (
-                                                                                <tr style={{ background: 'rgba(16, 185, 129, 0.1)' }}>
-                                                                                    <td style={{ padding: '0.5rem', color: 'var(--color-primary)' }}>Net</td>
-                                                                                    {score.matchNetHoleScores.map((netScore, i) => (
-                                                                                        <td key={i} style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--color-primary)' }}>
-                                                                                            {netScore}
-                                                                                        </td>
-                                                                                    ))}
-                                                                                    <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--color-primary)' }}>
-                                                                                        {score.matchNetScore ?? score.netScore}
-                                                                                    </td>
-                                                                                </tr>
-                                                                            )}
-                                                                        </tbody>
-                                                                    </table>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                        }
+                                                    >
+                                                        <div style={{ marginBottom: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-xl)', flexWrap: 'wrap' }}>
+                                                            <StatItem label="Handicap Index" value={score.handicapIndex?.toFixed(1) || 'N/A'} />
+                                                            <StatItem label="Playing Handicap" value={score.playingHandicap ?? 'N/A'} />
+                                                            <StatItem label="Strokes Received" value={score.strokesReceived} />
+                                                        </div>
+                                                        <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
+                                                            Hole Scores
+                                                        </h4>
+                                                        <ScorecardTable rows={scorecardRows} />
+                                                    </ExpandableCard>
                                                 )
                                             })}
                                     </div>
@@ -754,158 +802,79 @@ export default function Profile() {
                                     <p style={{ color: 'var(--color-text-muted)' }}>No matches scheduled yet.</p>
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-                                        {matchups.map((matchup) => (
-                                            <div 
-                                                key={matchup.match.id}
-                                                style={{ 
-                                                    border: '1px solid var(--color-border)',
-                                                    borderRadius: 'var(--radius-md)',
-                                                    overflow: 'hidden'
-                                                }}
-                                            >
-                                                {/* Match Header */}
-                                                <button
-                                                    onClick={() => setExpandedMatchId(
-                                                        expandedMatchId === matchup.match.id ? null : matchup.match.id
-                                                    )}
-                                                    style={{
-                                                        width: '100%',
-                                                        padding: 'var(--spacing-md)',
-                                                        background: 'rgba(255, 255, 255, 0.02)',
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        justifyContent: 'space-between',
-                                                        alignItems: 'center',
-                                                        color: 'var(--color-text)'
-                                                    }}
-                                                >
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
-                                                        <span className={`badge ${
-                                                            matchup.result === 'won' ? 'badge-success' :
-                                                            matchup.result === 'lost' ? 'badge-danger' :
-                                                            matchup.result === 'tied' ? 'badge-secondary' :
-                                                            'badge-primary'
-                                                        }`}>
-                                                            {matchup.result.toUpperCase()}
-                                                        </span>
-                                                        <div style={{ textAlign: 'left' }}>
-                                                            <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
-                                                                vs {matchup.opponentName}
-                                                            </p>
-                                                            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                                                {formatDate(matchup.date)} • {matchup.courseName}
-                                                            </p>
+                                        {matchups.map((matchup) => {
+                                            const isExpanded = expandedMatchId === matchup.match.id
+                                            const scorecardRows = matchup.playerScore ? [
+                                                { label: 'Your Gross', scores: matchup.playerScore.holeScores, total: matchup.playerScore.grossScore, withBorder: true },
+                                                { 
+                                                    label: 'Your Net', 
+                                                    scores: matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores, 
+                                                    total: matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore, 
+                                                    color: 'var(--color-primary)', 
+                                                    bgColor: 'rgba(16, 185, 129, 0.1)',
+                                                    withBorder: true
+                                                },
+                                                ...(matchup.opponentScore ? [
+                                                    { label: `${matchup.opponentName} Gross`, scores: matchup.opponentScore.holeScores, total: matchup.opponentScore.grossScore, withBorder: true },
+                                                    { 
+                                                        label: `${matchup.opponentName} Net`, 
+                                                        scores: matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores, 
+                                                        total: matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore, 
+                                                        color: 'var(--color-danger)', 
+                                                        bgColor: 'rgba(239, 68, 68, 0.1)' 
+                                                    }
+                                                ] : [])
+                                            ] : []
+
+                                            return (
+                                                <ExpandableCard
+                                                    key={matchup.match.id}
+                                                    isExpanded={isExpanded}
+                                                    onToggle={() => setExpandedMatchId(isExpanded ? null : matchup.match.id)}
+                                                    header={
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
+                                                            <span className={`badge ${
+                                                                matchup.result === 'won' ? 'badge-success' :
+                                                                matchup.result === 'lost' ? 'badge-danger' :
+                                                                matchup.result === 'tied' ? 'badge-secondary' :
+                                                                'badge-primary'
+                                                            }`}>
+                                                                {matchup.result.toUpperCase()}
+                                                            </span>
+                                                            <div style={{ textAlign: 'left' }}>
+                                                                <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
+                                                                    vs {matchup.opponentName}
+                                                                </p>
+                                                                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                                                    {formatDate(matchup.date)} • {matchup.courseName}
+                                                                </p>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
-                                                        {matchup.playerScore && matchup.opponentScore && (
+                                                    }
+                                                    rightContent={
+                                                        matchup.playerScore && matchup.opponentScore && (
                                                             <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
                                                                 {matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore} - {matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore}
                                                             </span>
-                                                        )}
-                                                        {expandedMatchId === matchup.match.id ? 
-                                                            <ChevronUp className="w-5 h-5" /> : 
-                                                            <ChevronDown className="w-5 h-5" />
-                                                        }
-                                                    </div>
-                                                </button>
-
-                                                {/* Expanded Scorecard */}
-                                                {expandedMatchId === matchup.match.id && matchup.playerScore && (
-                                                    <div style={{ 
-                                                        padding: 'var(--spacing-md)',
-                                                        background: 'rgba(0, 0, 0, 0.2)',
-                                                        borderTop: '1px solid var(--color-border)'
-                                                    }}>
-                                                        <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
-                                                            Scorecard
-                                                        </h4>
-                                                        <div className="table-container" style={{ overflowX: 'auto' }}>
-                                                            <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
-                                                                <thead>
-                                                                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Hole</th>
-                                                                        {HOLE_NUMBERS.map(i => (
-                                                                            <th key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{i}</th>
-                                                                        ))}
-                                                                        <th style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>Total</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {/* Your Gross Score */}
-                                                                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                                        <td style={{ padding: '0.5rem', color: 'var(--color-text-muted)' }}>Your Gross</td>
-                                                                        {matchup.playerScore.holeScores.map((score, i) => (
-                                                                            <td key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{score}</td>
-                                                                        ))}
-                                                                        <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>
-                                                                            {matchup.playerScore.grossScore}
-                                                                        </td>
-                                                                    </tr>
-                                                                    {/* Your Net Score */}
-                                                                    <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'rgba(16, 185, 129, 0.1)' }}>
-                                                                        <td style={{ padding: '0.5rem', color: 'var(--color-primary)' }}>Your Net</td>
-                                                                        {(matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores)?.map((score: number, i: number) => (
-                                                                            <td key={i} style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--color-primary)' }}>
-                                                                                {score}
-                                                                            </td>
-                                                                        ))}
-                                                                        <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--color-primary)' }}>
-                                                                            {matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore}
-                                                                        </td>
-                                                                    </tr>
-                                                                    {/* Opponent Gross */}
-                                                                    {matchup.opponentScore && (
-                                                                        <>
-                                                                            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                                                <td style={{ padding: '0.5rem', color: 'var(--color-text-muted)' }}>
-                                                                                    {matchup.opponentName} Gross
-                                                                                </td>
-                                                                                {matchup.opponentScore.holeScores.map((score, i) => (
-                                                                                    <td key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{score}</td>
-                                                                                ))}
-                                                                                <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>
-                                                                                    {matchup.opponentScore.grossScore}
-                                                                                </td>
-                                                                            </tr>
-                                                                            <tr style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
-                                                                                <td style={{ padding: '0.5rem', color: 'var(--color-danger)' }}>
-                                                                                    {matchup.opponentName} Net
-                                                                                </td>
-                                                                                {(matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores)?.map((score: number, i: number) => (
-                                                                                    <td key={i} style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--color-danger)' }}>
-                                                                                        {score}
-                                                                                    </td>
-                                                                                ))}
-                                                                                <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--color-danger)' }}>
-                                                                                    {matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore}
-                                                                                </td>
-                                                                            </tr>
-                                                                        </>
-                                                                    )}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                        {/* Match Details */}
-                                                        <div style={{ marginTop: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-xl)', flexWrap: 'wrap' }}>
-                                                            <div>
-                                                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Your Handicap</p>
-                                                                <p style={{ fontWeight: '600' }}>{matchup.playerScore.handicapIndex?.toFixed(1)}</p>
+                                                        )
+                                                    }
+                                                >
+                                                    {matchup.playerScore && (
+                                                        <>
+                                                            <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
+                                                                Scorecard
+                                                            </h4>
+                                                            <ScorecardTable rows={scorecardRows} />
+                                                            <div style={{ marginTop: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-xl)', flexWrap: 'wrap' }}>
+                                                                <StatItem label="Your Handicap" value={matchup.playerScore.handicapIndex?.toFixed(1) || 'N/A'} />
+                                                                <StatItem label="Strokes Received" value={matchup.playerScore.strokesReceived} />
+                                                                <StatItem label="Differential" value={matchup.playerScore.handicapDifferential?.toFixed(1) || 'N/A'} />
                                                             </div>
-                                                            <div>
-                                                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Strokes Received</p>
-                                                                <p style={{ fontWeight: '600' }}>{matchup.playerScore.strokesReceived}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Differential</p>
-                                                                <p style={{ fontWeight: '600' }}>{matchup.playerScore.handicapDifferential?.toFixed(1)}</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
+                                                        </>
+                                                    )}
+                                                </ExpandableCard>
+                                            )
+                                        })}
                                     </div>
                                 )}
                             </div>
