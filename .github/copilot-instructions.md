@@ -22,7 +22,7 @@ The Golf League Manager handles:
 ### Frontend (React/TypeScript)
 - **Location**: `/frontend/`
 - **Build Tool**: Vite
-- **Framework**: React 18 with React Router
+- **Framework**: React 18 with react-router-dom v6
 - **Styling**: Tailwind CSS
 - **Authentication**: Clerk React SDK
 
@@ -35,7 +35,7 @@ The Golf League Manager handles:
 - HTTP handlers go in `/server/internal/api/` or `/server/internal/handlers/`
 - Use `context.Context` for request-scoped data and timeouts
 - Error handling: return errors up the stack, use `fmt.Errorf` for wrapping
-- Use structured logging with `log/slog`
+- Use structured logging with `log/slog` (Go 1.21+)
 
 ### TypeScript Frontend
 - Use TypeScript strict mode
