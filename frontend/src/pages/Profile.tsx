@@ -638,7 +638,7 @@ export default function Profile() {
                                                                     flexWrap: 'wrap' 
                                                                 }}>
                                                                     <div>
-                                                                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Handicap Index Applied</p>
+                                                                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Handicap Index</p>
                                                                         <p style={{ fontWeight: '600' }}>{score.handicapIndex?.toFixed(1) || 'N/A'}</p>
                                                                     </div>
                                                                     <div>
