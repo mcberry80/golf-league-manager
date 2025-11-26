@@ -46,6 +46,7 @@ func (s *APIServer) handleCreateMatchDay(w http.ResponseWriter, r *http.Request)
 		SeasonID:  req.SeasonID,
 		Date:      parsedDate,
 		CourseID:  req.CourseID,
+		Status:    "scheduled",
 		CreatedAt: time.Now(),
 	}
 

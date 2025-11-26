@@ -80,7 +80,10 @@ export interface MatchDay {
     seasonId: string;
     date: string;
     courseId: string;
+    status: 'scheduled' | 'completed' | 'locked';
     createdAt: string;
+    hasScores?: boolean;
+    weekNumber?: number;
 }
 
 export interface Match {
@@ -177,6 +180,32 @@ export interface ScoreSubmission {
     playerId: string;
     holeScores: number[];
     playerAbsent?: boolean;
+}
+
+export interface ScoreSubmissionRequest {
+    matchDayId: string;
+    scores: ScoreSubmission[];
+}
+
+export interface ScoreResponse {
+    matchId: string;
+    playerId: string;
+    holeScores: number[];
+    grossScore: number;
+    playerAbsent: boolean;
+}
+
+export interface MatchDayScoresResponse {
+    matchDay: MatchDay;
+    scores: ScoreResponse[];
+}
+
+export interface ScoreEntryResponse {
+    status: string;
+    count: number;
+    updated: boolean;
+    warnings?: string[];
+    message?: string;
 }
 
 export interface CreateScoreRequest {

@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"sort"
 
 	"golf-league-manager/internal/models"
 	"golf-league-manager/internal/services"
@@ -20,37 +21,122 @@ type ScoreSubmission struct {
 	PlayerAbsent bool   `json:"playerAbsent"`
 }
 
-func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Request) {
-	leagueID := r.PathValue("league_id")
-	if leagueID == "" {
-		http.Error(w, "League ID is required", http.StatusBadRequest)
-		return
-	}
+// ScoreResponse is used for returning score data to the client
+type ScoreResponse struct {
+	MatchID      string `json:"matchId"`
+	PlayerID     string `json:"playerId"`
+	HoleScores   []int  `json:"holeScores"`
+	GrossScore   int    `json:"grossScore"`
+	PlayerAbsent bool   `json:"playerAbsent"`
+}
 
-	var req struct {
-		Scores []ScoreSubmission `json:"scores"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+// handleGetMatchDayScores returns existing scores for a match day
+func (s *APIServer) handleGetMatchDayScores(w http.ResponseWriter, r *http.Request) {
+	matchDayID := r.PathValue("id")
+	if matchDayID == "" {
+		respondWithError(w, "Match Day ID is required", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 
-	// We need to group scores by match to process matches after scores are entered
+	// Get the match day
+	matchDay, err := s.firestoreClient.GetMatchDay(ctx, matchDayID)
+	if err != nil {
+		respondWithError(w, fmt.Sprintf("Failed to get match day: %v", err), http.StatusNotFound)
+		return
+	}
+
+	// Get all scores for this match day
+	scores, err := s.firestoreClient.GetMatchDayScores(ctx, matchDayID)
+	if err != nil {
+		respondWithError(w, fmt.Sprintf("Failed to get scores: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert to response format
+	scoreResponses := make([]ScoreResponse, 0, len(scores))
+	for _, score := range scores {
+		scoreResponses = append(scoreResponses, ScoreResponse{
+			MatchID:      score.MatchID,
+			PlayerID:     score.PlayerID,
+			HoleScores:   score.HoleScores,
+			GrossScore:   score.GrossScore,
+			PlayerAbsent: score.PlayerAbsent,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"matchDay": matchDay,
+		"scores":   scoreResponses,
+	})
+}
+
+func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		respondWithError(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		MatchDayID string            `json:"matchDayId"`
+		Scores     []ScoreSubmission `json:"scores"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Validate match day ID is provided
+	if req.MatchDayID == "" {
+		respondWithError(w, "Match Day ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get the current match day
+	currentMatchDay, err := s.firestoreClient.GetMatchDay(ctx, req.MatchDayID)
+	if err != nil {
+		respondWithError(w, fmt.Sprintf("Failed to get match day: %v", err), http.StatusNotFound)
+		return
+	}
+
+	// Check if match day is locked
+	if currentMatchDay.Status == "locked" {
+		respondWithError(w, "This match week is locked and scores cannot be modified", http.StatusForbidden)
+		return
+	}
+
+	// Check if this is an update (match day already has scores)
+	existingScores, _ := s.firestoreClient.GetMatchDayScores(ctx, req.MatchDayID)
+	isUpdate := len(existingScores) > 0
+
+	// Build a map of existing scores by matchId_playerId for updates
+	existingScoreMap := make(map[string]models.Score)
+	for _, score := range existingScores {
+		key := fmt.Sprintf("%s_%s", score.MatchID, score.PlayerID)
+		existingScoreMap[key] = score
+	}
+
+	// Group scores by match for processing
 	scoresByMatch := make(map[string][]ScoreSubmission)
 	for _, sub := range req.Scores {
 		scoresByMatch[sub.MatchID] = append(scoresByMatch[sub.MatchID], sub)
 	}
 
 	processedCount := 0
+	var processingErrors []string
 
 	for _, sub := range req.Scores {
 		// Get Match to get CourseID
 		match, err := s.firestoreClient.GetMatch(ctx, sub.MatchID)
 		if err != nil {
 			log.Printf("Error getting match %s: %v", sub.MatchID, err)
+			processingErrors = append(processingErrors, fmt.Sprintf("Failed to get match %s", sub.MatchID))
 			continue
 		}
 
@@ -58,6 +144,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		course, err := s.firestoreClient.GetCourse(ctx, match.CourseID)
 		if err != nil {
 			log.Printf("Error getting course %s: %v", match.CourseID, err)
+			processingErrors = append(processingErrors, fmt.Sprintf("Failed to get course for match %s", sub.MatchID))
 			continue
 		}
 
@@ -65,6 +152,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		player, err := s.firestoreClient.GetPlayer(ctx, sub.PlayerID)
 		if err != nil {
 			log.Printf("Error getting player %s: %v", sub.PlayerID, err)
+			processingErrors = append(processingErrors, fmt.Sprintf("Failed to get player %s", sub.PlayerID))
 			continue
 		}
 
@@ -82,8 +170,6 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			}
 
 			// Fallback to provisional
-			// We need to find the league member to get provisional handicap
-			// Since we don't have a direct GetMemberByPlayer, we list (optimization: add that method later)
 			members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
 			if err != nil {
 				return 0, err
@@ -99,6 +185,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		leagueHandicapIndex, err = getEffectiveHandicap(sub.PlayerID)
 		if err != nil {
 			log.Printf("Error getting handicap for player %s: %v", sub.PlayerID, err)
+			processingErrors = append(processingErrors, fmt.Sprintf("Failed to get handicap for player %s", sub.PlayerID))
 			continue
 		}
 
@@ -113,34 +200,23 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 
 		// Handle absent player differently
 		if sub.PlayerAbsent {
-			// For absent players:
-			// - Gross score = playing handicap + par + 3
-			// - Hole scores are calculated with strokes distributed evenly
-			// - Adjusted gross scores are not needed (handicap not updated)
-			// - Differential is not used for handicap calculation
 			holeScores = services.CalculateAbsentPlayerScores(playingHandicap, *course)
-			for _, s := range holeScores {
-				totalGross += s
+			for _, sc := range holeScores {
+				totalGross += sc
 			}
-			// For absent players, adjusted scores are the same as gross (not used for handicap)
 			adjustedScores = make([]int, len(holeScores))
 			copy(adjustedScores, holeScores)
 			totalAdjusted = totalGross
-			differential = 0 // Not used for handicap calculation
+			differential = 0
 		} else {
-			// Regular player - use submitted hole scores
 			holeScores = sub.HoleScores
-			for _, s := range holeScores {
-				totalGross += s
+			for _, sc := range holeScores {
+				totalGross += sc
 			}
-
-			// Calculate Adjusted Gross (Net Double Bogey) - based on course handicap (rounded)
 			adjustedScores = services.CalculateAdjustedGrossScores(holeScores, *course, int(math.Round(courseHandicap)))
-			for _, s := range adjustedScores {
-				totalAdjusted += s
+			for _, sc := range adjustedScores {
+				totalAdjusted += sc
 			}
-
-			// Calculate Differential
 			tempScore := models.Score{
 				AdjustedGross: totalAdjusted,
 			}
@@ -163,16 +239,13 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			opponentHandicapIndex, err := getEffectiveHandicap(opponentID)
 			if err != nil {
 				log.Printf("Warning: could not get opponent %s handicap: %v", opponentID, err)
-				// Proceed with 0 strokes if opponent not found (shouldn't happen in valid match)
 			} else {
 				_, opponentPlayingHandicap := services.CalculateCourseAndPlayingHandicap(opponentHandicapIndex, *course)
-
-				// Calculate strokes for the match
 				strokesMap := services.AssignStrokes(sub.PlayerID, playingHandicap, opponentID, opponentPlayingHandicap, *course)
 				matchStrokes = strokesMap[sub.PlayerID]
 			}
 		} else {
-			matchStrokes = make([]int, 9) // No opponent
+			matchStrokes = make([]int, 9)
 		}
 
 		// Calculate Net Hole Scores and Match Net Score
@@ -183,40 +256,69 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			matchNetScore += netHoleScores[i]
 		}
 
-		strokesReceived = playingHandicap // Total strokes received is the playing handicap
+		strokesReceived = playingHandicap
 
-		// Create Score object
-		score := models.Score{
-			ID:                      uuid.New().String(),
-			MatchID:                 sub.MatchID,
-			PlayerID:                sub.PlayerID,
-			LeagueID:                leagueID,
-			Date:                    match.MatchDate,
-			CourseID:                match.CourseID,
-			HoleScores:              holeScores,
-			HoleAdjustedGrossScores: adjustedScores,
-			MatchNetHoleScores:      netHoleScores,
-			GrossScore:              totalGross,
-			NetScore:                totalGross - playingHandicap, // Simple net for display
-			MatchNetScore:           matchNetScore,
-			AdjustedGross:           totalAdjusted,
-			HandicapDifferential:    differential,
-			HandicapIndex:           leagueHandicapIndex,
-			CourseHandicap:          int(math.Round(courseHandicap)),
-			PlayingHandicap:         playingHandicap,
-			StrokesReceived:         strokesReceived,
-			MatchStrokes:            matchStrokes,
-			PlayerAbsent:            sub.PlayerAbsent,
-		}
+		// Check if this is an update to an existing score
+		scoreKey := fmt.Sprintf("%s_%s", sub.MatchID, sub.PlayerID)
+		existingScore, hasExisting := existingScoreMap[scoreKey]
 
-		// Save Score
-		if err := s.firestoreClient.CreateScore(ctx, score); err != nil {
-			log.Printf("Error creating score for player %s: %v", sub.PlayerID, err)
-			continue
+		var score models.Score
+		if hasExisting {
+			// Update existing score
+			score = existingScore
+			score.HoleScores = holeScores
+			score.HoleAdjustedGrossScores = adjustedScores
+			score.MatchNetHoleScores = netHoleScores
+			score.GrossScore = totalGross
+			score.NetScore = totalGross - playingHandicap
+			score.MatchNetScore = matchNetScore
+			score.AdjustedGross = totalAdjusted
+			score.HandicapDifferential = differential
+			score.HandicapIndex = leagueHandicapIndex
+			score.CourseHandicap = int(math.Round(courseHandicap))
+			score.PlayingHandicap = playingHandicap
+			score.StrokesReceived = strokesReceived
+			score.MatchStrokes = matchStrokes
+			score.PlayerAbsent = sub.PlayerAbsent
+
+			if err := s.firestoreClient.UpdateScore(ctx, score); err != nil {
+				log.Printf("Error updating score for player %s: %v", sub.PlayerID, err)
+				processingErrors = append(processingErrors, fmt.Sprintf("Failed to update score for player %s", sub.PlayerID))
+				continue
+			}
+		} else {
+			// Create new score
+			score = models.Score{
+				ID:                      uuid.New().String(),
+				MatchID:                 sub.MatchID,
+				PlayerID:                sub.PlayerID,
+				LeagueID:                leagueID,
+				Date:                    match.MatchDate,
+				CourseID:                match.CourseID,
+				HoleScores:              holeScores,
+				HoleAdjustedGrossScores: adjustedScores,
+				MatchNetHoleScores:      netHoleScores,
+				GrossScore:              totalGross,
+				NetScore:                totalGross - playingHandicap,
+				MatchNetScore:           matchNetScore,
+				AdjustedGross:           totalAdjusted,
+				HandicapDifferential:    differential,
+				HandicapIndex:           leagueHandicapIndex,
+				CourseHandicap:          int(math.Round(courseHandicap)),
+				PlayingHandicap:         playingHandicap,
+				StrokesReceived:         strokesReceived,
+				MatchStrokes:            matchStrokes,
+				PlayerAbsent:            sub.PlayerAbsent,
+			}
+
+			if err := s.firestoreClient.CreateScore(ctx, score); err != nil {
+				log.Printf("Error creating score for player %s: %v", sub.PlayerID, err)
+				processingErrors = append(processingErrors, fmt.Sprintf("Failed to create score for player %s", sub.PlayerID))
+				continue
+			}
 		}
 
 		// Recalculate Handicap - only if player is NOT absent
-		// Absent rounds should not affect handicap calculations
 		if !sub.PlayerAbsent {
 			job := services.NewHandicapRecalculationJob(s.firestoreClient)
 			courses, _ := s.firestoreClient.ListCourses(ctx, leagueID)
@@ -225,7 +327,6 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 				coursesMap[c.ID] = c
 			}
 
-			// Get league member to retrieve provisional handicap (needed for recalculation job)
 			provisionalHandicap := 0.0
 			members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
 			if err == nil {
@@ -248,18 +349,104 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 	// Process Matches (Calculate Points if both players have scores)
 	processor := services.NewMatchCompletionProcessor(s.firestoreClient)
 	for matchID := range scoresByMatch {
-		// Check if we have scores for both players
-		// Actually, ProcessMatch checks if scores exist in DB.
-		// Since we just saved them, we can call ProcessMatch.
 		if err := processor.ProcessMatch(ctx, matchID); err != nil {
 			log.Printf("Error processing match %s: %v", matchID, err)
 		}
 	}
 
+	// If this was a new score entry (not an update), lock previous match days and mark current as completed
+	if !isUpdate {
+		// Mark current match day as completed
+		currentMatchDay.Status = "completed"
+		if err := s.firestoreClient.UpdateMatchDay(ctx, *currentMatchDay); err != nil {
+			log.Printf("Error updating match day status to completed: %v", err)
+		}
+
+		// Lock all previous match days in the same season
+		allMatchDays, err := s.firestoreClient.ListMatchDays(ctx, leagueID)
+		if err == nil {
+			for _, md := range allMatchDays {
+				// Lock match days that are:
+				// 1. In the same season
+				// 2. Before the current match day (older date)
+				// 3. Not already locked
+				if md.SeasonID == currentMatchDay.SeasonID &&
+					md.Date.Before(currentMatchDay.Date) &&
+					md.Status != "locked" {
+					md.Status = "locked"
+					if err := s.firestoreClient.UpdateMatchDay(ctx, md); err != nil {
+						log.Printf("Error locking match day %s: %v", md.ID, err)
+					}
+				}
+			}
+		}
+	}
+
+	// Build response
+	response := map[string]interface{}{
+		"status":  "success",
+		"count":   processedCount,
+		"updated": isUpdate,
+	}
+
+	if len(processingErrors) > 0 {
+		response["warnings"] = processingErrors
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": "success",
-		"count":  processedCount,
+	if processedCount > 0 {
+		w.WriteHeader(http.StatusCreated)
+	} else {
+		w.WriteHeader(http.StatusBadRequest)
+		response["status"] = "error"
+		response["message"] = "No scores were processed"
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+// handleListMatchDaysWithStatus returns match days with their status information
+func (s *APIServer) handleListMatchDaysWithStatus(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	if leagueID == "" {
+		respondWithError(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	matchDays, err := s.firestoreClient.ListMatchDays(ctx, leagueID)
+	if err != nil {
+		respondWithError(w, fmt.Sprintf("Failed to list match days: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Sort by date ascending for proper week number assignment
+	sort.Slice(matchDays, func(i, j int) bool {
+		return matchDays[i].Date.Before(matchDays[j].Date)
 	})
+
+	// Enrich match days with additional info
+	type MatchDayWithInfo struct {
+		models.MatchDay
+		HasScores  bool `json:"hasScores"`
+		WeekNumber int  `json:"weekNumber"`
+	}
+
+	result := make([]MatchDayWithInfo, 0, len(matchDays))
+	for i, md := range matchDays {
+		scores, _ := s.firestoreClient.GetMatchDayScores(ctx, md.ID)
+		result = append(result, MatchDayWithInfo{
+			MatchDay:   md,
+			HasScores:  len(scores) > 0,
+			WeekNumber: i + 1,
+		})
+	}
+
+	// Sort back to descending for display (newest first)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Date.After(result[j].Date)
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }

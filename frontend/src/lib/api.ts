@@ -22,6 +22,8 @@ import type {
     MatchDay,
     CreateMatchDayRequest,
     ScoreSubmission,
+    MatchDayScoresResponse,
+    ScoreEntryResponse,
 } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -231,10 +233,14 @@ class APIClient {
         return this.request<MatchDay>(`/api/leagues/${leagueId}/match-days/${id}`);
     }
 
-    async enterMatchDayScores(leagueId: string, scores: ScoreSubmission[]): Promise<void> {
-        return this.request<void>(`/api/leagues/${leagueId}/match-days/scores`, {
+    async getMatchDayScores(leagueId: string, matchDayId: string): Promise<MatchDayScoresResponse> {
+        return this.request<MatchDayScoresResponse>(`/api/leagues/${leagueId}/match-days/${matchDayId}/scores`);
+    }
+
+    async enterMatchDayScores(leagueId: string, matchDayId: string, scores: ScoreSubmission[]): Promise<ScoreEntryResponse> {
+        return this.request<ScoreEntryResponse>(`/api/leagues/${leagueId}/match-days/scores`, {
             method: 'POST',
-            body: JSON.stringify({ scores }),
+            body: JSON.stringify({ matchDayId, scores }),
         });
     }
 

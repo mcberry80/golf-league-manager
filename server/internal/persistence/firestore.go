@@ -1054,3 +1054,68 @@ func (fc *FirestoreClient) GetSeasonMatches(ctx context.Context, seasonID string
 
 	return matches, nil
 }
+
+// UpdateMatchDay updates an existing match day
+func (fc *FirestoreClient) UpdateMatchDay(ctx context.Context, matchDay models.MatchDay) error {
+	_, err := fc.client.Collection("match_days").Doc(matchDay.ID).Set(ctx, matchDay)
+	if err != nil {
+		return fmt.Errorf("failed to update match day: %w", err)
+	}
+	return nil
+}
+
+// GetMatchDayScores retrieves all scores for all matches in a match day
+func (fc *FirestoreClient) GetMatchDayScores(ctx context.Context, matchDayID string) ([]models.Score, error) {
+	// First get all matches for this match day
+	iter := fc.client.Collection("matches").
+		Where("match_day_id", "==", matchDayID).
+		Documents(ctx)
+	defer iter.Stop()
+
+	matchIDs := make([]string, 0)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate matches for scores: %w", err)
+		}
+
+		var match models.Match
+		if err := doc.DataTo(&match); err != nil {
+			return nil, fmt.Errorf("failed to parse match data for scores: %w", err)
+		}
+		matchIDs = append(matchIDs, match.ID)
+	}
+
+	// Now get all scores for these matches
+	scores := make([]models.Score, 0)
+	for _, matchID := range matchIDs {
+		matchScores, err := fc.GetMatchScores(ctx, matchID)
+		if err != nil {
+			continue // Skip matches without scores
+		}
+		scores = append(scores, matchScores...)
+	}
+
+	return scores, nil
+}
+
+// UpdateScore updates an existing score
+func (fc *FirestoreClient) UpdateScore(ctx context.Context, score models.Score) error {
+	_, err := fc.client.Collection("scores").Doc(score.ID).Set(ctx, score)
+	if err != nil {
+		return fmt.Errorf("failed to update score: %w", err)
+	}
+	return nil
+}
+
+// DeleteScore deletes a score by ID
+func (fc *FirestoreClient) DeleteScore(ctx context.Context, scoreID string) error {
+	_, err := fc.client.Collection("scores").Doc(scoreID).Delete(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete score: %w", err)
+	}
+	return nil
+}
