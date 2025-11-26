@@ -246,10 +246,11 @@ func (s *APIServer) handleAddLeagueMember(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 
 	var req struct {
-		PlayerID string `json:"player_id"`
-		Email    string `json:"email"`
-		Name     string `json:"name"`
-		Role     string `json:"role"` // "admin" or "player"
+		PlayerID            string  `json:"player_id"`
+		Email               string  `json:"email"`
+		Name                string  `json:"name"`
+		Role                string  `json:"role"`                // "admin" or "player"
+		ProvisionalHandicap float64 `json:"provisionalHandicap"` // Starting handicap for the season (Golf League Rules 3.2)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request body: %v", err))
@@ -325,11 +326,12 @@ func (s *APIServer) handleAddLeagueMember(w http.ResponseWriter, r *http.Request
 	}
 
 	member := models.LeagueMember{
-		ID:       uuid.New().String(),
-		LeagueID: leagueID,
-		PlayerID: playerID,
-		Role:     req.Role,
-		JoinedAt: time.Now(),
+		ID:                  uuid.New().String(),
+		LeagueID:            leagueID,
+		PlayerID:            playerID,
+		Role:                req.Role,
+		ProvisionalHandicap: req.ProvisionalHandicap,
+		JoinedAt:            time.Now(),
 	}
 
 	if err := s.firestoreClient.CreateLeagueMember(ctx, member); err != nil {
