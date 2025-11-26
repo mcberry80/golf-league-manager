@@ -1,0 +1,813 @@
+import { useState, useEffect, useCallback } from 'react'
+import { Link, useParams, useNavigate } from 'react-router-dom'
+import { useLeague } from '../contexts/LeagueContext'
+import api from '../lib/api'
+import type { Player, Score, Season, Match, LeagueMemberWithPlayer, Course } from '../types'
+import { ChevronDown, ChevronUp, Trophy, Calendar, Target, TrendingUp, Users } from 'lucide-react'
+
+// Constants
+const HOLE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
+const MAX_HANDICAP_ROUNDS = 20
+const LEAGUE_ID_DISPLAY_LENGTH = 8
+
+// Extended types for profile data
+interface HandicapHistoryEntry {
+    date: string
+    handicapIndex: number
+    roundId?: string
+    isProvisional: boolean
+    seasonId?: string
+    seasonName?: string
+}
+
+interface MatchupDetail {
+    match: Match
+    opponentName: string
+    playerScore?: Score
+    opponentScore?: Score
+    result: 'won' | 'lost' | 'tied' | 'pending'
+    courseName: string
+    date: string
+}
+
+export default function Profile() {
+    const { playerId } = useParams<{ playerId: string }>()
+    const navigate = useNavigate()
+    const { currentLeague, userLeagues, isLoading: leagueLoading } = useLeague()
+    
+    const [currentUser, setCurrentUser] = useState<Player | null>(null)
+    const [player, setPlayer] = useState<Player | null>(null)
+    const [scores, setScores] = useState<Score[]>([])
+    const [seasons, setSeasons] = useState<Season[]>([])
+    const [matches, setMatches] = useState<Match[]>([])
+    const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
+    const [courses, setCourses] = useState<Course[]>([])
+    const [provisionalHandicap, setProvisionalHandicap] = useState<number | null>(null)
+    
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [accessDenied, setAccessDenied] = useState(false)
+    
+    // UI state
+    const [selectedSeasonId, setSelectedSeasonId] = useState<string>('')
+    const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null)
+    const [activeTab, setActiveTab] = useState<'overview' | 'rounds' | 'handicaps' | 'matchups'>('overview')
+
+    // Load current user and verify access
+    useEffect(() => {
+        async function loadUserAndVerifyAccess() {
+            try {
+                const userInfo = await api.getCurrentUser()
+                
+                if (!userInfo.linked || !userInfo.player) {
+                    // User not linked to a player - redirect to link account
+                    navigate('/link-account')
+                    return
+                }
+                
+                setCurrentUser(userInfo.player)
+                
+                // Verify playerId matches current user (only allow viewing own profile)
+                if (playerId && playerId !== userInfo.player.id) {
+                    setAccessDenied(true)
+                    setLoading(false)
+                    return
+                }
+                
+                // If no playerId provided or matches current user, set player
+                setPlayer(userInfo.player)
+            } catch (err) {
+                console.error('Failed to load user:', err)
+                setError('Failed to load user information')
+                setLoading(false)
+            }
+        }
+        
+        if (!leagueLoading) {
+            loadUserAndVerifyAccess()
+        }
+    }, [playerId, leagueLoading, navigate])
+
+    // Load league-specific data when player and league are available
+    const loadLeagueData = useCallback(async () => {
+        if (!player || !currentLeague) {
+            setLoading(false)
+            return
+        }
+
+        try {
+            const [scoresData, seasonsData, matchesData, membersData, coursesData] = await Promise.all([
+                api.getPlayerScores(currentLeague.id, player.id).catch(() => []),
+                api.listSeasons(currentLeague.id).catch(() => []),
+                api.listMatches(currentLeague.id).catch(() => []),
+                api.listLeagueMembers(currentLeague.id).catch(() => []),
+                api.listCourses(currentLeague.id).catch(() => []),
+            ])
+
+            setScores(scoresData)
+            setSeasons(seasonsData)
+            setMatches(matchesData)
+            setMembers(membersData)
+            setCourses(coursesData)
+
+            // Get provisional handicap from league membership
+            const playerMembership = membersData.find(m => m.playerId === player.id)
+            if (playerMembership) {
+                setProvisionalHandicap(playerMembership.provisionalHandicap)
+            }
+
+            // Set default season to active season
+            const activeSeason = seasonsData.find(s => s.active)
+            if (activeSeason) {
+                setSelectedSeasonId(activeSeason.id)
+            } else if (seasonsData.length > 0) {
+                setSelectedSeasonId(seasonsData[0].id)
+            }
+        } catch (err) {
+            console.error('Failed to load league data:', err)
+            setError('Failed to load profile data')
+        } finally {
+            setLoading(false)
+        }
+    }, [player, currentLeague])
+
+    useEffect(() => {
+        if (player && currentLeague) {
+            loadLeagueData()
+        } else if (player && !leagueLoading) {
+            setLoading(false)
+        }
+    }, [player, currentLeague, leagueLoading, loadLeagueData])
+
+    // Get current handicap from most recent score
+    const getCurrentHandicap = (): number | null => {
+        if (scores.length === 0) return provisionalHandicap
+        const sortedScores = [...scores]
+            .filter(s => s.date) // Only include scores with dates
+            .sort((a, b) => 
+                new Date(b.date!).getTime() - new Date(a.date!).getTime()
+            )
+        return sortedScores[0]?.handicapIndex ?? provisionalHandicap
+    }
+
+    // Build handicap history including provisional
+    const getHandicapHistory = (): HandicapHistoryEntry[] => {
+        const history: HandicapHistoryEntry[] = []
+        
+        // Add provisional handicap at start if available
+        if (provisionalHandicap !== null) {
+            const activeSeason = seasons.find(s => s.active) || seasons[0]
+            history.push({
+                date: activeSeason?.startDate || new Date().toISOString(),
+                handicapIndex: provisionalHandicap,
+                isProvisional: true,
+                seasonId: activeSeason?.id,
+                seasonName: activeSeason?.name || 'Season Start'
+            })
+        }
+
+        // Add handicap from each round
+        const filteredScores = selectedSeasonId 
+            ? scores.filter(s => {
+                const match = matches.find(m => m.id === s.matchId)
+                return match?.seasonId === selectedSeasonId
+            })
+            : scores
+
+        filteredScores
+            .filter(s => s.date && s.handicapIndex !== undefined) // Only include scores with dates and handicap
+            .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
+            .forEach(score => {
+                const match = matches.find(m => m.id === score.matchId)
+                const season = match ? seasons.find(s => s.id === match.seasonId) : null
+                
+                history.push({
+                    date: score.date!,
+                    handicapIndex: score.handicapIndex!,
+                    roundId: score.id,
+                    isProvisional: false,
+                    seasonId: season?.id,
+                    seasonName: season?.name
+                })
+            })
+
+        return history
+    }
+
+    // Get player's matchups
+    const getMatchups = (): MatchupDetail[] => {
+        const playerMatches = matches.filter(
+            m => m.playerAId === player?.id || m.playerBId === player?.id
+        )
+
+        const filteredMatches = selectedSeasonId
+            ? playerMatches.filter(m => m.seasonId === selectedSeasonId)
+            : playerMatches
+
+        return filteredMatches.map(match => {
+            const isPlayerA = match.playerAId === player?.id
+            const opponentId = isPlayerA ? match.playerBId : match.playerAId
+            const opponent = members.find(m => m.playerId === opponentId)
+            const course = courses.find(c => c.id === match.courseId)
+            
+            const playerScore = scores.find(s => s.matchId === match.id && s.playerId === player?.id)
+            const opponentScore = scores.find(s => s.matchId === match.id && s.playerId === opponentId)
+
+            let result: 'won' | 'lost' | 'tied' | 'pending' = 'pending'
+            if (playerScore && opponentScore && match.status === 'completed') {
+                const playerNet = playerScore.matchNetScore ?? playerScore.netScore
+                const opponentNet = opponentScore.matchNetScore ?? opponentScore.netScore
+                if (playerNet < opponentNet) {
+                    result = 'won'
+                } else if (playerNet > opponentNet) {
+                    result = 'lost'
+                } else {
+                    result = 'tied'
+                }
+            }
+
+            return {
+                match,
+                opponentName: opponent?.player?.name || 'Unknown',
+                playerScore,
+                opponentScore,
+                result,
+                courseName: course?.name || 'Unknown',
+                date: match.matchDate
+            }
+        }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    }
+
+    // Format date for display
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString)
+        return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+        })
+    }
+
+    // Get match result stats
+    const getMatchStats = () => {
+        const matchups = getMatchups().filter(m => m.result !== 'pending')
+        const won = matchups.filter(m => m.result === 'won').length
+        const lost = matchups.filter(m => m.result === 'lost').length
+        const tied = matchups.filter(m => m.result === 'tied').length
+        return { won, lost, tied, total: matchups.length }
+    }
+
+    // Loading state
+    if (leagueLoading || loading) {
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="spinner"></div>
+            </div>
+        )
+    }
+
+    // Access denied - trying to view another player's profile
+    if (accessDenied) {
+        return (
+            <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
+                <div className="container" style={{ paddingTop: 'var(--spacing-2xl)' }}>
+                    <Link to="/" style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
+                        ← Back to Home
+                    </Link>
+                    <div className="alert alert-error">
+                        <strong>Access Denied:</strong> You can only view your own profile.
+                    </div>
+                    {currentUser && (
+                        <Link 
+                            to={`/profile/${currentUser.id}`} 
+                            className="btn btn-primary" 
+                            style={{ marginTop: 'var(--spacing-lg)' }}
+                        >
+                            View My Profile
+                        </Link>
+                    )}
+                </div>
+            </div>
+        )
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
+                <div className="container" style={{ paddingTop: 'var(--spacing-2xl)' }}>
+                    <Link to="/" style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
+                        ← Back to Home
+                    </Link>
+                    <div className="alert alert-error">{error}</div>
+                </div>
+            </div>
+        )
+    }
+
+    // Not linked state
+    if (!player) {
+        return (
+            <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
+                <div className="container" style={{ paddingTop: 'var(--spacing-2xl)' }}>
+                    <div className="alert alert-warning">
+                        <strong>Not Linked:</strong> Please link your account to a player profile first.
+                    </div>
+                    <Link to="/link-account" className="btn btn-primary" style={{ marginTop: 'var(--spacing-lg)' }}>
+                        Link Account
+                    </Link>
+                </div>
+            </div>
+        )
+    }
+
+    const currentHandicap = getCurrentHandicap()
+    const matchStats = getMatchStats()
+    const handicapHistory = getHandicapHistory()
+    const matchups = getMatchups()
+    const filteredScores = selectedSeasonId
+        ? scores.filter(s => {
+            const match = matches.find(m => m.id === s.matchId)
+            return match?.seasonId === selectedSeasonId
+        })
+        : scores
+
+    return (
+        <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
+            <div className="container animate-fade-in" style={{ paddingTop: 'var(--spacing-2xl)', paddingBottom: 'var(--spacing-2xl)' }}>
+                <Link to="/" style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: 'var(--spacing-md)', display: 'inline-block' }}>
+                    ← Back to Home
+                </Link>
+
+                {/* Header */}
+                <div style={{ marginBottom: 'var(--spacing-xl)' }}>
+                    <h1>My Profile</h1>
+                    {currentLeague && <p className="text-gray-400 mt-1">{currentLeague.name}</p>}
+                </div>
+
+                {/* Player Info Card */}
+                <div className="card-glass" style={{ marginBottom: 'var(--spacing-xl)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--spacing-lg)' }}>
+                        <div>
+                            <h2 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text)' }}>{player.name}</h2>
+                            <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-lg)' }}>
+                                <div>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: 'var(--spacing-xs)' }}>Email</p>
+                                    <p style={{ color: 'var(--color-text)' }}>{player.email}</p>
+                                </div>
+                                <div>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: 'var(--spacing-xs)' }}>Status</p>
+                                    <span className={`badge ${player.active ? 'badge-success' : 'badge-danger'}`}>
+                                        {player.active ? 'Active' : 'Inactive'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Quick Stats */}
+                        {currentLeague && currentHandicap !== null && (
+                            <div style={{ 
+                                display: 'flex', 
+                                gap: 'var(--spacing-xl)',
+                                padding: 'var(--spacing-md)',
+                                background: 'rgba(16, 185, 129, 0.1)',
+                                borderRadius: 'var(--radius-lg)'
+                            }}>
+                                <div style={{ textAlign: 'center' }}>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Handicap</p>
+                                    <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>
+                                        {currentHandicap.toFixed(1)}
+                                    </p>
+                                </div>
+                                <div style={{ textAlign: 'center' }}>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Rounds</p>
+                                    <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--color-text)' }}>
+                                        {filteredScores.length}
+                                    </p>
+                                </div>
+                                <div style={{ textAlign: 'center' }}>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', marginBottom: '0.25rem' }}>W-L-T</p>
+                                    <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--color-text)' }}>
+                                        {matchStats.won}-{matchStats.lost}-{matchStats.tied}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Leagues Enrolled */}
+                {userLeagues.length > 0 && (
+                    <div className="card-glass" style={{ marginBottom: 'var(--spacing-xl)' }}>
+                        <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Users className="w-5 h-5" /> Leagues Enrolled
+                        </h3>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
+                            {userLeagues.map(membership => (
+                                <div 
+                                    key={membership.leagueId}
+                                    style={{ 
+                                        padding: 'var(--spacing-sm) var(--spacing-md)',
+                                        background: membership.leagueId === currentLeague?.id 
+                                            ? 'rgba(16, 185, 129, 0.2)' 
+                                            : 'rgba(255, 255, 255, 0.05)',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: membership.leagueId === currentLeague?.id 
+                                            ? '1px solid var(--color-accent)' 
+                                            : '1px solid var(--color-border)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem'
+                                    }}
+                                >
+                                    <Trophy className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                                    <span style={{ color: 'var(--color-text)' }}>
+                                        League {membership.leagueId.slice(0, LEAGUE_ID_DISPLAY_LENGTH)}...
+                                    </span>
+                                    <span className={`badge ${membership.role === 'admin' ? 'badge-primary' : 'badge-secondary'}`} style={{ fontSize: '0.65rem' }}>
+                                        {membership.role}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {!currentLeague ? (
+                    <div className="alert alert-info">
+                        <strong>No League Selected:</strong> Select a league from the home page to view your handicap history, rounds, and match results.
+                    </div>
+                ) : (
+                    <>
+                        {/* Season Selector */}
+                        {seasons.length > 0 && (
+                            <div style={{ marginBottom: 'var(--spacing-xl)' }}>
+                                <label style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', marginBottom: 'var(--spacing-xs)', display: 'block' }}>
+                                    Filter by Season
+                                </label>
+                                <select
+                                    className="form-input"
+                                    value={selectedSeasonId}
+                                    onChange={(e) => setSelectedSeasonId(e.target.value)}
+                                    style={{ maxWidth: '300px' }}
+                                >
+                                    <option value="">All Seasons</option>
+                                    {seasons.map(season => (
+                                        <option key={season.id} value={season.id}>
+                                            {season.name} {season.active ? '(Current)' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Tabs */}
+                        <div style={{ marginBottom: 'var(--spacing-lg)', borderBottom: '1px solid var(--color-border)' }}>
+                            <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+                                {[
+                                    { id: 'overview', label: 'Overview', icon: Target },
+                                    { id: 'rounds', label: 'Round History', icon: Calendar },
+                                    { id: 'handicaps', label: 'Handicap History', icon: TrendingUp },
+                                    { id: 'matchups', label: 'Matchups', icon: Trophy },
+                                ].map(tab => {
+                                    const Icon = tab.icon
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                                            style={{
+                                                padding: 'var(--spacing-md) var(--spacing-lg)',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                borderBottom: activeTab === tab.id ? '2px solid var(--color-primary)' : '2px solid transparent',
+                                                color: activeTab === tab.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem',
+                                                fontWeight: activeTab === tab.id ? '600' : '400',
+                                                transition: 'all 0.2s ease'
+                                            }}
+                                        >
+                                            <Icon className="w-4 h-4" />
+                                            {tab.label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Overview Tab */}
+                        {activeTab === 'overview' && (
+                            <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-xl)' }}>
+                                {/* Current Handicap Card */}
+                                <div className="card-glass">
+                                    <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Current Handicap</h3>
+                                    {currentHandicap !== null ? (
+                                        <div>
+                                            <p style={{ fontSize: '3rem', fontWeight: 'bold', color: 'var(--color-primary)', marginBottom: 'var(--spacing-sm)' }}>
+                                                {currentHandicap.toFixed(1)}
+                                            </p>
+                                            {provisionalHandicap !== null && scores.length === 0 && (
+                                                <span className="badge badge-warning">Provisional</span>
+                                            )}
+                                            {scores.length > 0 && (
+                                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+                                                    Based on {Math.min(scores.length, MAX_HANDICAP_ROUNDS)} round{scores.length !== 1 ? 's' : ''}
+                                                </p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <p style={{ color: 'var(--color-text-muted)' }}>No handicap established yet</p>
+                                    )}
+                                </div>
+
+                                {/* Match Record Card */}
+                                <div className="card-glass">
+                                    <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Match Record</h3>
+                                    {matchStats.total > 0 ? (
+                                        <div>
+                                            <div style={{ display: 'flex', gap: 'var(--spacing-xl)', marginBottom: 'var(--spacing-md)' }}>
+                                                <div>
+                                                    <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-accent)' }}>{matchStats.won}</p>
+                                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Wins</p>
+                                                </div>
+                                                <div>
+                                                    <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-danger)' }}>{matchStats.lost}</p>
+                                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Losses</p>
+                                                </div>
+                                                <div>
+                                                    <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-text-secondary)' }}>{matchStats.tied}</p>
+                                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Ties</p>
+                                                </div>
+                                            </div>
+                                            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+                                                Win Rate: {matchStats.total > 0 ? ((matchStats.won / matchStats.total) * 100).toFixed(0) : 0}%
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <p style={{ color: 'var(--color-text-muted)' }}>No completed matches yet</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Rounds Tab */}
+                        {activeTab === 'rounds' && (
+                            <div className="card-glass">
+                                <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Round History</h3>
+                                {filteredScores.length === 0 ? (
+                                    <p style={{ color: 'var(--color-text-muted)' }}>No rounds recorded yet.</p>
+                                ) : (
+                                    <div className="table-container">
+                                        <table className="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Course</th>
+                                                    <th>Gross</th>
+                                                    <th>Adjusted</th>
+                                                    <th>Net</th>
+                                                    <th>Differential</th>
+                                                    <th>Handicap After</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {[...filteredScores]
+                                                    .filter(s => s.date) // Only scores with dates
+                                                    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
+                                                    .map((score) => {
+                                                        const course = courses.find(c => c.id === score.courseId)
+                                                        return (
+                                                            <tr key={score.id}>
+                                                                <td>{formatDate(score.date!)}</td>
+                                                                <td>{course?.name || 'Unknown'}</td>
+                                                                <td>{score.grossScore}</td>
+                                                                <td>{score.adjustedGross}</td>
+                                                                <td>{score.netScore}</td>
+                                                                <td style={{ color: 'var(--color-primary)' }}>
+                                                                    {score.handicapDifferential?.toFixed(1) || 'N/A'}
+                                                                </td>
+                                                                <td>{score.handicapIndex?.toFixed(1) || 'N/A'}</td>
+                                                            </tr>
+                                                        )
+                                                    })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Handicap History Tab */}
+                        {activeTab === 'handicaps' && (
+                            <div className="card-glass">
+                                <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Handicap History</h3>
+                                {handicapHistory.length === 0 ? (
+                                    <p style={{ color: 'var(--color-text-muted)' }}>No handicap history available.</p>
+                                ) : (
+                                    <div className="table-container">
+                                        <table className="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Season</th>
+                                                    <th>Handicap Index</th>
+                                                    <th>Type</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {handicapHistory.map((entry, index) => (
+                                                    <tr key={index}>
+                                                        <td>{formatDate(entry.date)}</td>
+                                                        <td>{entry.seasonName || 'N/A'}</td>
+                                                        <td style={{ 
+                                                            fontWeight: 'bold', 
+                                                            color: entry.isProvisional ? 'var(--color-warning)' : 'var(--color-primary)' 
+                                                        }}>
+                                                            {entry.handicapIndex.toFixed(1)}
+                                                        </td>
+                                                        <td>
+                                                            <span className={`badge ${entry.isProvisional ? 'badge-warning' : 'badge-primary'}`}>
+                                                                {entry.isProvisional ? 'Provisional' : 'Calculated'}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Matchups Tab */}
+                        {activeTab === 'matchups' && (
+                            <div className="card-glass">
+                                <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Match History</h3>
+                                {matchups.length === 0 ? (
+                                    <p style={{ color: 'var(--color-text-muted)' }}>No matches scheduled yet.</p>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                                        {matchups.map((matchup) => (
+                                            <div 
+                                                key={matchup.match.id}
+                                                style={{ 
+                                                    border: '1px solid var(--color-border)',
+                                                    borderRadius: 'var(--radius-md)',
+                                                    overflow: 'hidden'
+                                                }}
+                                            >
+                                                {/* Match Header */}
+                                                <button
+                                                    onClick={() => setExpandedMatchId(
+                                                        expandedMatchId === matchup.match.id ? null : matchup.match.id
+                                                    )}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: 'var(--spacing-md)',
+                                                        background: 'rgba(255, 255, 255, 0.02)',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center',
+                                                        color: 'var(--color-text)'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
+                                                        <span className={`badge ${
+                                                            matchup.result === 'won' ? 'badge-success' :
+                                                            matchup.result === 'lost' ? 'badge-danger' :
+                                                            matchup.result === 'tied' ? 'badge-secondary' :
+                                                            'badge-primary'
+                                                        }`}>
+                                                            {matchup.result.toUpperCase()}
+                                                        </span>
+                                                        <div style={{ textAlign: 'left' }}>
+                                                            <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
+                                                                vs {matchup.opponentName}
+                                                            </p>
+                                                            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                                                {formatDate(matchup.date)} • {matchup.courseName}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
+                                                        {matchup.playerScore && matchup.opponentScore && (
+                                                            <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                                                                {matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore} - {matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore}
+                                                            </span>
+                                                        )}
+                                                        {expandedMatchId === matchup.match.id ? 
+                                                            <ChevronUp className="w-5 h-5" /> : 
+                                                            <ChevronDown className="w-5 h-5" />
+                                                        }
+                                                    </div>
+                                                </button>
+
+                                                {/* Expanded Scorecard */}
+                                                {expandedMatchId === matchup.match.id && matchup.playerScore && (
+                                                    <div style={{ 
+                                                        padding: 'var(--spacing-md)',
+                                                        background: 'rgba(0, 0, 0, 0.2)',
+                                                        borderTop: '1px solid var(--color-border)'
+                                                    }}>
+                                                        <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
+                                                            Scorecard
+                                                        </h4>
+                                                        <div className="table-container" style={{ overflowX: 'auto' }}>
+                                                            <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                                                                <thead>
+                                                                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Hole</th>
+                                                                        {HOLE_NUMBERS.map(i => (
+                                                                            <th key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{i}</th>
+                                                                        ))}
+                                                                        <th style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>Total</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {/* Your Gross Score */}
+                                                                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                        <td style={{ padding: '0.5rem', color: 'var(--color-text-muted)' }}>Your Gross</td>
+                                                                        {matchup.playerScore.holeScores.map((score, i) => (
+                                                                            <td key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{score}</td>
+                                                                        ))}
+                                                                        <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>
+                                                                            {matchup.playerScore.grossScore}
+                                                                        </td>
+                                                                    </tr>
+                                                                    {/* Your Net Score */}
+                                                                    <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'rgba(16, 185, 129, 0.1)' }}>
+                                                                        <td style={{ padding: '0.5rem', color: 'var(--color-primary)' }}>Your Net</td>
+                                                                        {(matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores)?.map((score: number, i: number) => (
+                                                                            <td key={i} style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--color-primary)' }}>
+                                                                                {score}
+                                                                            </td>
+                                                                        ))}
+                                                                        <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--color-primary)' }}>
+                                                                            {matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore}
+                                                                        </td>
+                                                                    </tr>
+                                                                    {/* Opponent Gross */}
+                                                                    {matchup.opponentScore && (
+                                                                        <>
+                                                                            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                <td style={{ padding: '0.5rem', color: 'var(--color-text-muted)' }}>
+                                                                                    {matchup.opponentName} Gross
+                                                                                </td>
+                                                                                {matchup.opponentScore.holeScores.map((score, i) => (
+                                                                                    <td key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{score}</td>
+                                                                                ))}
+                                                                                <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>
+                                                                                    {matchup.opponentScore.grossScore}
+                                                                                </td>
+                                                                            </tr>
+                                                                            <tr style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
+                                                                                <td style={{ padding: '0.5rem', color: 'var(--color-danger)' }}>
+                                                                                    {matchup.opponentName} Net
+                                                                                </td>
+                                                                                {(matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores)?.map((score: number, i: number) => (
+                                                                                    <td key={i} style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--color-danger)' }}>
+                                                                                        {score}
+                                                                                    </td>
+                                                                                ))}
+                                                                                <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--color-danger)' }}>
+                                                                                    {matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore}
+                                                                                </td>
+                                                                            </tr>
+                                                                        </>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                        {/* Match Details */}
+                                                        <div style={{ marginTop: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-xl)', flexWrap: 'wrap' }}>
+                                                            <div>
+                                                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Your Handicap</p>
+                                                                <p style={{ fontWeight: '600' }}>{matchup.playerScore.handicapIndex?.toFixed(1)}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Strokes Received</p>
+                                                                <p style={{ fontWeight: '600' }}>{matchup.playerScore.strokesReceived}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Differential</p>
+                                                                <p style={{ fontWeight: '600' }}>{matchup.playerScore.handicapDifferential?.toFixed(1)}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </div>
+    )
+}

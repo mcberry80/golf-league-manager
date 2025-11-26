@@ -1,11 +1,30 @@
+import { useState, useEffect } from 'react'
 import { SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLeague } from '../contexts/LeagueContext'
 import { Trophy } from 'lucide-react'
+import api from '../lib/api'
+import type { Player } from '../types'
 
 export default function Home() {
     const { currentLeague, isLoading } = useLeague();
     const navigate = useNavigate();
+    const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
+
+    // Load current user's player info
+    useEffect(() => {
+        async function loadCurrentPlayer() {
+            try {
+                const userInfo = await api.getCurrentUser();
+                if (userInfo.linked && userInfo.player) {
+                    setCurrentPlayer(userInfo.player);
+                }
+            } catch {
+                // User not linked yet, that's okay
+            }
+        }
+        loadCurrentPlayer();
+    }, []);
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
@@ -101,7 +120,7 @@ export default function Home() {
                                 </p>
                             </Link>
 
-                            <Link to="/players" className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <Link to={currentPlayer ? `/profile/${currentPlayer.id}` : '/link-account'} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                                 <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>👤</div>
                                 <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>My Profile</h3>
                                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>

@@ -9,7 +9,7 @@ import './index.css'
 import Home from './pages/Home.tsx'
 import Admin from './pages/Admin.tsx'
 import LinkAccount from './pages/LinkAccount.tsx'
-import Players from './pages/Players.tsx'
+import Profile from './pages/Profile.tsx'
 import Standings from './pages/Standings.tsx'
 
 // Import admin pages
@@ -44,7 +44,7 @@ const router = createBrowserRouter([
             { path: "/leagues/:leagueId/admin/matches", element: <MatchScheduling /> },
             { path: "/leagues/:leagueId/admin/scores", element: <ScoreEntry /> },
             { path: "/link-account", element: <LinkAccount /> },
-            { path: "/players", element: <Players /> },
+            { path: "/profile/:playerId", element: <Profile /> },
             { path: "/leagues/:leagueId/standings", element: <Standings /> },
         ],
     },

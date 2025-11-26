@@ -275,6 +275,10 @@ class APIClient {
         return this.request<Round[]>(`/api/leagues/${leagueId}/players/${playerId}/rounds`);
     }
 
+    async getPlayerScores(leagueId: string, playerId: string): Promise<Score[]> {
+        return this.request<Score[]>(`/api/leagues/${leagueId}/players/${playerId}/scores`);
+    }
+
     // Handicap endpoints
     async getPlayerHandicap(leagueId: string, playerId: string): Promise<HandicapRecord> {
         return this.request<HandicapRecord>(`/api/leagues/${leagueId}/players/${playerId}/handicap`);
