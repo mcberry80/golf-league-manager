@@ -205,7 +205,7 @@ func TestHandleAbsence(t *testing.T) {
 	tests := []struct {
 		name            string
 		absentPlayer    models.HandicapRecord
-		lastFiveRounds  []models.Round
+		lastFiveScores  []models.Score
 		wantMinHandicap float64
 		wantMaxHandicap float64
 	}{
@@ -214,8 +214,8 @@ func TestHandleAbsence(t *testing.T) {
 			absentPlayer: models.HandicapRecord{
 				LeagueHandicapIndex: 10.0,
 			},
-			lastFiveRounds: []models.Round{
-				{CourseID: "c1", Date: baseTime, TotalAdjusted: 45}, // diff = 9
+			lastFiveScores: []models.Score{
+				{CourseID: "c1", Date: baseTime, AdjustedGross: 45}, // diff = 9
 			},
 			wantMinHandicap: 12.0,
 			wantMaxHandicap: 12.0,
@@ -225,10 +225,10 @@ func TestHandleAbsence(t *testing.T) {
 			absentPlayer: models.HandicapRecord{
 				LeagueHandicapIndex: 10.0,
 			},
-			lastFiveRounds: []models.Round{
-				{CourseID: "c1", Date: baseTime, TotalAdjusted: 50},                     // diff = 14
-				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), TotalAdjusted: 51}, // diff = 15
-				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), TotalAdjusted: 52}, // diff = 16
+			lastFiveScores: []models.Score{
+				{CourseID: "c1", Date: baseTime, AdjustedGross: 50},                     // diff = 14
+				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), AdjustedGross: 51}, // diff = 15
+				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), AdjustedGross: 52}, // diff = 16
 			},
 			wantMinHandicap: 14.0, // Max of (10+2=12) and ((16+15+14)/3 = 15). But capped at 10+4=14
 			wantMaxHandicap: 14.0,
@@ -238,10 +238,10 @@ func TestHandleAbsence(t *testing.T) {
 			absentPlayer: models.HandicapRecord{
 				LeagueHandicapIndex: 5.0,
 			},
-			lastFiveRounds: []models.Round{
-				{CourseID: "c1", Date: baseTime, TotalAdjusted: 55},                     // diff = 19
-				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), TotalAdjusted: 56}, // diff = 20
-				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), TotalAdjusted: 57}, // diff = 21
+			lastFiveScores: []models.Score{
+				{CourseID: "c1", Date: baseTime, AdjustedGross: 55},                     // diff = 19
+				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), AdjustedGross: 56}, // diff = 20
+				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), AdjustedGross: 57}, // diff = 21
 			},
 			wantMinHandicap: 9.0,
 			wantMaxHandicap: 9.0, // capped at 5 + 4 = 9
@@ -250,7 +250,7 @@ func TestHandleAbsence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := HandleAbsence(tt.absentPlayer, tt.lastFiveRounds, courses)
+			got := HandleAbsence(tt.absentPlayer, tt.lastFiveScores, courses)
 			if got < tt.wantMinHandicap || got > tt.wantMaxHandicap {
 				t.Errorf("HandleAbsence() = %v, want between %v and %v", got, tt.wantMinHandicap, tt.wantMaxHandicap)
 			}

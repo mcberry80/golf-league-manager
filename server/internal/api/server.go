@@ -110,7 +110,6 @@ func (s *APIServer) registerRoutes() {
 
 	s.mux.Handle("POST /api/leagues/{league_id}/scores", chainMiddleware(http.HandlerFunc(s.handleEnterScore), authMiddleware))
 	s.mux.Handle("POST /api/leagues/{league_id}/scores/batch", chainMiddleware(http.HandlerFunc(s.handleEnterScoreBatch), authMiddleware))
-	s.mux.Handle("POST /api/leagues/{league_id}/rounds", chainMiddleware(http.HandlerFunc(s.handleCreateRound), authMiddleware))
 	
 	s.mux.Handle("GET /api/leagues/{league_id}/standings", chainMiddleware(http.HandlerFunc(s.handleGetStandings), authMiddleware))
 	
@@ -120,7 +119,7 @@ func (s *APIServer) registerRoutes() {
 	
 	// League member endpoints - require authentication and league membership
 	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/handicap", chainMiddleware(http.HandlerFunc(s.handleGetPlayerHandicap), authMiddleware))
-	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/rounds", chainMiddleware(http.HandlerFunc(s.handleGetPlayerRounds), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetPlayerScores), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/matches/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetMatchScores), authMiddleware))
 	
 	// Job endpoints - require authentication and league admin role
@@ -704,75 +703,6 @@ func (s *APIServer) handleEnterScoreBatch(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(map[string]string{"status": "success", "count": fmt.Sprintf("%d", len(req.Scores))})
 }
 
-func (s *APIServer) handleCreateRound(w http.ResponseWriter, r *http.Request) {
-	leagueID := r.PathValue("league_id")
-	if leagueID == "" {
-		http.Error(w, "League ID is required", http.StatusBadRequest)
-		return
-	}
-
-	var round models.Round
-	if err := json.NewDecoder(r.Body).Decode(&round); err != nil {
-		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	round.ID = uuid.New().String()
-	round.LeagueID = leagueID
-
-	ctx := r.Context()
-
-	// Process the round to calculate adjusted scores
-	processor := services.NewMatchCompletionProcessor(s.firestoreClient)
-	if err := s.firestoreClient.CreateRound(ctx, round); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create round: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	if err := processor.ProcessRound(ctx, round.ID); err != nil {
-		log.Printf("Warning: Failed to process round: %v", err)
-	}
-
-	// Immediately recalculate the player's handicap after the round is entered
-	job := services.NewHandicapRecalculationJob(s.firestoreClient)
-	player, err := s.firestoreClient.GetPlayer(ctx, round.PlayerID)
-	if err != nil {
-		log.Printf("Warning: Failed to get player for handicap update: %v", err)
-	} else {
-		courses, err := s.firestoreClient.ListCourses(ctx, leagueID)
-		if err != nil {
-			log.Printf("Warning: Failed to get courses for handicap update: %v", err)
-		} else {
-			coursesMap := make(map[string]models.Course)
-			for _, course := range courses {
-				coursesMap[course.ID] = course
-			}
-
-			// Get league members to retrieve provisional handicap
-			members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
-			provisionalHandicap := 0.0
-			if err == nil {
-				for _, m := range members {
-					if m.PlayerID == round.PlayerID {
-						provisionalHandicap = m.ProvisionalHandicap
-						break
-					}
-				}
-			}
-
-			// Recalculate handicap immediately for this player
-			if err := job.RecalculatePlayerHandicap(ctx, leagueID, *player, provisionalHandicap, coursesMap); err != nil {
-				log.Printf("Warning: Failed to recalculate handicap: %v", err)
-			} else {
-				log.Printf("Successfully recalculated handicap for player %s after round entry", player.Name)
-			}
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(round)
-}
 
 // models.Player query handlers
 
@@ -790,12 +720,11 @@ func (s *APIServer) handleGetPlayerHandicap(w http.ResponseWriter, r *http.Reque
 		http.Error(w, fmt.Sprintf("Failed to get handicap: %v", err), http.StatusNotFound)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(handicap)
 }
 
-func (s *APIServer) handleGetPlayerRounds(w http.ResponseWriter, r *http.Request) {
+func (s *APIServer) handleGetPlayerScores(w http.ResponseWriter, r *http.Request) {
 	leagueID := r.PathValue("league_id")
 	playerID := r.PathValue("id")
 	if leagueID == "" || playerID == "" {
@@ -804,14 +733,14 @@ func (s *APIServer) handleGetPlayerRounds(w http.ResponseWriter, r *http.Request
 	}
 
 	ctx := r.Context()
-	rounds, err := s.firestoreClient.GetPlayerRounds(ctx, leagueID, playerID, 20)
+	scores, err := s.firestoreClient.GetPlayerScores(ctx, leagueID, playerID, 20) // Limit to last 20 scores
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get rounds: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to get scores: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(rounds)
+	json.NewEncoder(w).Encode(scores)
 }
 
 func (s *APIServer) handleGetMatchScores(w http.ResponseWriter, r *http.Request) {

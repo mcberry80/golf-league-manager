@@ -11,14 +11,14 @@ import (
 func TestCalculateDifferential(t *testing.T) {
 	tests := []struct {
 		name   string
-		round  models.Round
+		score  models.Score
 		course models.Course
 		want   float64
 	}{
 		{
 			name: "basic differential calculation",
-			round: models.Round{
-				TotalAdjusted: 45,
+			score: models.Score{
+				AdjustedGross: 45,
 			},
 			course: models.Course{
 				CourseRating: 35.0,
@@ -28,8 +28,8 @@ func TestCalculateDifferential(t *testing.T) {
 		},
 		{
 			name: "differential with slope",
-			round: models.Round{
-				TotalAdjusted: 50,
+			score: models.Score{
+				AdjustedGross: 50,
 			},
 			course: models.Course{
 				CourseRating: 36.0,
@@ -41,7 +41,7 @@ func TestCalculateDifferential(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CalculateDifferential(tt.round, tt.course)
+			got := CalculateDifferential(tt.score, tt.course)
 			if got != tt.want {
 				t.Errorf("CalculateDifferential() = %v, want %v", got, tt.want)
 			}
@@ -54,18 +54,18 @@ func TestCalculateLeagueHandicap(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		rounds  []models.Round
+		scores  []models.Score
 		courses map[string]models.Course
 		want    float64
 	}{
 		{
-			name: "handicap with 5 rounds - drop 2 highest",
-			rounds: []models.Round{
-				{CourseID: "c1", Date: baseTime, TotalAdjusted: 45},
-				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), TotalAdjusted: 47},
-				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), TotalAdjusted: 50},
-				{CourseID: "c1", Date: baseTime.Add(72 * time.Hour), TotalAdjusted: 43},
-				{CourseID: "c1", Date: baseTime.Add(96 * time.Hour), TotalAdjusted: 46},
+			name: "handicap with 5 scores - drop 2 highest",
+			scores: []models.Score{
+				{CourseID: "c1", Date: baseTime, AdjustedGross: 45},
+				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), AdjustedGross: 47},
+				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), AdjustedGross: 50},
+				{CourseID: "c1", Date: baseTime.Add(72 * time.Hour), AdjustedGross: 43},
+				{CourseID: "c1", Date: baseTime.Add(96 * time.Hour), AdjustedGross: 46},
 			},
 			courses: map[string]models.Course{
 				"c1": {CourseRating: 36.0, SlopeRating: 113},
@@ -74,11 +74,11 @@ func TestCalculateLeagueHandicap(t *testing.T) {
 			// sorted: 7, 9, 10, 11, 14. Best 3: 7, 9, 10. Avg = 26/3 = 8.666... rounded to 8.7
 		},
 		{
-			name: "handicap with fewer than 5 rounds",
-			rounds: []models.Round{
-				{CourseID: "c1", Date: baseTime, TotalAdjusted: 45},
-				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), TotalAdjusted: 48},
-				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), TotalAdjusted: 42},
+			name: "handicap with fewer than 5 scores",
+			scores: []models.Score{
+				{CourseID: "c1", Date: baseTime, AdjustedGross: 45},
+				{CourseID: "c1", Date: baseTime.Add(24 * time.Hour), AdjustedGross: 48},
+				{CourseID: "c1", Date: baseTime.Add(48 * time.Hour), AdjustedGross: 42},
 			},
 			courses: map[string]models.Course{
 				"c1": {CourseRating: 36.0, SlopeRating: 113},
@@ -86,8 +86,8 @@ func TestCalculateLeagueHandicap(t *testing.T) {
 			want: 9.0, // (9+12+6)/3 = 9, sorted: 6,9,12. Best 3: all = 27/3 = 9.0
 		},
 		{
-			name:    "no rounds returns 0",
-			rounds:  []models.Round{},
+			name:    "no scores returns 0",
+			scores:  []models.Score{},
 			courses: map[string]models.Course{},
 			want:    0.0,
 		},
@@ -95,7 +95,7 @@ func TestCalculateLeagueHandicap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CalculateLeagueHandicap(tt.rounds, tt.courses)
+			got := CalculateLeagueHandicap(tt.scores, tt.courses)
 			if got != tt.want {
 				t.Errorf("CalculateLeagueHandicap() = %v, want %v", got, tt.want)
 			}
@@ -108,12 +108,10 @@ func TestCalculateAdjustedGrossScores_WithCourseHandicap(t *testing.T) {
 		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
 		HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
 	}
-	round := models.Round{
-		GrossScores: []int{7, 5, 8, 6, 6, 5, 9, 6, 6},
-	}
+	grossScores := []int{7, 5, 8, 6, 6, 5, 9, 6, 6}
 	courseHandicap := 9
 
-	got := CalculateAdjustedGrossScores(round, course, courseHandicap)
+	got := CalculateAdjustedGrossScores(grossScores, course, courseHandicap)
 
 	// With course handicap of 9, each hole gets 1 stroke
 	// Expected: min(gross, par+2+1) for each hole
@@ -140,13 +138,11 @@ func TestCalculateAdjustedGrossScores_HighCourseHandicapPlayer(t *testing.T) {
 		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
 		HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
 	}
-	round := models.Round{
-		GrossScores: []int{10, 9, 12, 8, 8, 9, 11, 8, 8},
-	}
+	grossScores := []int{10, 9, 12, 8, 8, 9, 11, 8, 8}
 	// High course handicap player (18) - each hole gets 2 strokes
 	courseHandicap := 18
 
-	got := CalculateAdjustedGrossScores(round, course, courseHandicap)
+	got := CalculateAdjustedGrossScores(grossScores, course, courseHandicap)
 
 	// With course handicap of 18, each hole gets 2 strokes
 	// Expected: min(gross, par+2+2) for each hole

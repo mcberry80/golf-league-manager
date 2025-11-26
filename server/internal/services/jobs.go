@@ -87,61 +87,77 @@ func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Conte
 // RecalculatePlayerHandicap recalculates and updates a single player's handicap
 // This is the exported version that can be called externally
 func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Context, leagueID string, player models.Player, provisionalHandicap float64, coursesMap map[string]models.Course) error {
-	// Get the last 5 rounds for the player
-	rounds, err := job.firestoreClient.GetPlayerRounds(ctx, leagueID, player.ID, 5)
+	// Get the last 5 scores for the player
+	scores, err := job.firestoreClient.GetPlayerScores(ctx, leagueID, player.ID, 5)
 	if err != nil {
-		return fmt.Errorf("failed to get player rounds: %w", err)
+		return fmt.Errorf("failed to get player scores: %w", err)
 	}
 
-	roundCount := len(rounds)
+	scoreCount := len(scores)
 	var leagueHandicap float64
 
-	// Calculate league handicap based on rounds played (Golf League Rules 3.2)
+	// Calculate league handicap based on scores played (Golf League Rules 3.2)
 	switch {
-	case roundCount == 0:
+	case scoreCount == 0:
 		// Use provisional handicap
 		leagueHandicap = provisionalHandicap
-		log.Printf("Player %s (%s): Using provisional handicap %.1f (0 rounds)", player.Name, player.ID, provisionalHandicap)
+		log.Printf("Player %s (%s): Using provisional handicap %.1f (0 scores)", player.Name, player.ID, provisionalHandicap)
 
-	case roundCount == 1:
+	case scoreCount == 1:
 		// ((2 × provisional) + diff₁) / 3
-		course := coursesMap[rounds[0].CourseID]
-		diff1 := CalculateDifferential(rounds[0], course)
+		course := coursesMap[scores[0].CourseID]
+		// Use stored differential if available
+		diff1 := scores[0].HandicapDifferential
+		if diff1 == 0 {
+			diff1 = CalculateDifferential(scores[0], course)
+		}
 		leagueHandicap = ((2 * provisionalHandicap) + diff1) / 3
-		log.Printf("Player %s (%s): 1 round - ((2 × %.1f) + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, diff1, leagueHandicap)
+		log.Printf("Player %s (%s): 1 score - ((2 × %.1f) + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, diff1, leagueHandicap)
 
-	case roundCount == 2:
+	case scoreCount == 2:
 		// (provisional + diff₁ + diff₂) / 3
-		course1 := coursesMap[rounds[0].CourseID]
-		course2 := coursesMap[rounds[1].CourseID]
-		diff1 := CalculateDifferential(rounds[0], course1)
-		diff2 := CalculateDifferential(rounds[1], course2)
+		course1 := coursesMap[scores[0].CourseID]
+		course2 := coursesMap[scores[1].CourseID]
+		
+		diff1 := scores[0].HandicapDifferential
+		if diff1 == 0 {
+			diff1 = CalculateDifferential(scores[0], course1)
+		}
+		
+		diff2 := scores[1].HandicapDifferential
+		if diff2 == 0 {
+			diff2 = CalculateDifferential(scores[1], course2)
+		}
+		
 		leagueHandicap = (provisionalHandicap + diff1 + diff2) / 3
-		log.Printf("Player %s (%s): 2 rounds - (%.1f + %.1f + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, diff1, diff2, leagueHandicap)
+		log.Printf("Player %s (%s): 2 scores - (%.1f + %.1f + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, diff1, diff2, leagueHandicap)
 
-	case roundCount >= 3 && roundCount <= 4:
+	case scoreCount >= 3 && scoreCount <= 4:
 		// Average all differentials (no drops)
 		sum := 0.0
-		for _, r := range rounds {
-			course := coursesMap[r.CourseID]
-			diff := CalculateDifferential(r, course)
+		for _, s := range scores {
+			course := coursesMap[s.CourseID]
+			diff := s.HandicapDifferential
+			if diff == 0 {
+				diff = CalculateDifferential(s, course)
+			}
 			sum += diff
 		}
-		leagueHandicap = sum / float64(roundCount)
-		log.Printf("Player %s (%s): %d rounds - average all differentials = %.1f", player.Name, player.ID, roundCount, leagueHandicap)
+		leagueHandicap = sum / float64(scoreCount)
+		log.Printf("Player %s (%s): %d scores - average all differentials = %.1f", player.Name, player.ID, scoreCount, leagueHandicap)
 
-	default: // 5+ rounds
+	default: // 5+ scores
 		// Drop 2 worst, average best 3 (existing logic)
-		leagueHandicap = CalculateLeagueHandicap(rounds, coursesMap)
-		log.Printf("Player %s (%s): %d rounds - drop 2 worst, average best 3 = %.1f", player.Name, player.ID, roundCount, leagueHandicap)
+		leagueHandicap = CalculateLeagueHandicap(scores, coursesMap)
+		log.Printf("Player %s (%s): %d scores - drop 2 worst, average best 3 = %.1f", player.Name, player.ID, scoreCount, leagueHandicap)
 	}
 
 	// Round to nearest 0.1
 	leagueHandicap = math.Round(leagueHandicap*10) / 10
 
-	// Update player's established status (5 or more rounds)
+	// Update player's established status (5 or more scores)
 	wasEstablished := player.Established
-	player.Established = roundCount >= 5
+	player.Established = scoreCount >= 5
 
 	if wasEstablished != player.Established {
 		if err := job.firestoreClient.UpdatePlayer(ctx, player); err != nil {
@@ -150,7 +166,7 @@ func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Conte
 	}
 
 	// Create new handicap record (only stores league handicap index)
-	// Course handicap and playing handicap are calculated per-round and stored in Round model
+	// Course handicap and playing handicap are calculated per-score and stored in Score model
 	handicapRecord := models.HandicapRecord{
 		ID:                  uuid.New().String(),
 		PlayerID:            player.ID,
@@ -251,63 +267,4 @@ func (proc *MatchCompletionProcessor) ProcessMatch(ctx context.Context, matchID 
 	return nil
 }
 
-// ProcessRound processes a completed round and calculates adjusted scores
-// Also stores the league handicap index, course handicap, and playing handicap at time of play
-func (proc *MatchCompletionProcessor) ProcessRound(ctx context.Context, roundID string) error {
-	// Get the round
-	round, err := proc.firestoreClient.GetRound(ctx, roundID)
-	if err != nil {
-		return fmt.Errorf("failed to get round: %w", err)
-	}
-
-	// Get the course
-	course, err := proc.firestoreClient.GetCourse(ctx, round.CourseID)
-	if err != nil {
-		return fmt.Errorf("failed to get course: %w", err)
-	}
-
-	// Get player's current handicap record for adjusted score calculation
-	var leagueHandicapIndex float64
-	var courseHandicap float64
-	var playingHandicap int
-
-	handicap, err := proc.firestoreClient.GetPlayerHandicap(ctx, round.LeagueID, round.PlayerID)
-	if err == nil && handicap != nil {
-		leagueHandicapIndex = handicap.LeagueHandicapIndex
-		// Calculate course and playing handicap for this specific course
-		courseHandicap, playingHandicap = CalculateCourseAndPlayingHandicap(leagueHandicapIndex, *course)
-	}
-
-	// Store handicap information at time of play in the round
-	round.LeagueHandicapIndex = leagueHandicapIndex
-	round.CourseHandicap = courseHandicap
-	round.PlayingHandicap = playingHandicap
-
-	// Calculate adjusted gross scores using net double bogey rule (based on course handicap)
-	adjustedScores := CalculateAdjustedGrossScores(*round, *course, int(math.Round(courseHandicap)))
-
-	// Update round with adjusted scores
-	round.AdjustedGrossScores = adjustedScores
-
-	totalGross := 0
-	totalAdjusted := 0
-	for i := range round.GrossScores {
-		totalGross += round.GrossScores[i]
-		totalAdjusted += adjustedScores[i]
-	}
-	round.TotalGross = totalGross
-	round.TotalAdjusted = totalAdjusted
-
-	// Calculate the differential for this round
-	round.HandicapDifferential = ScoreDifferential(totalAdjusted, course.CourseRating, course.SlopeRating)
-
-	// Save updated round
-	if err := proc.firestoreClient.CreateRound(ctx, *round); err != nil {
-		return fmt.Errorf("failed to update round: %w", err)
-	}
-
-	log.Printf("Processed round %s for player %s: gross=%d, adjusted=%d, playing handicap=%d, differential=%.1f",
-		roundID, round.PlayerID, totalGross, totalAdjusted, playingHandicap, round.HandicapDifferential)
-
-	return nil
-}
+// ProcessRound is deprecated and removed - logic moved to score submission handler

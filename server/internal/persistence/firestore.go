@@ -568,35 +568,35 @@ func (fc *FirestoreClient) GetPlayerByClerkID(ctx context.Context, clerkUserID s
 	return &player, nil
 }
 
-// models.Round operations
+// models.Score operations
 
-// CreateRound creates a new round in Firestore
-func (fc *FirestoreClient) CreateRound(ctx context.Context, round models.Round) error {
-	_, err := fc.client.Collection("rounds").Doc(round.ID).Set(ctx, round)
+// CreateScore creates a new score in Firestore
+func (fc *FirestoreClient) CreateScore(ctx context.Context, score models.Score) error {
+	_, err := fc.client.Collection("scores").Doc(score.ID).Set(ctx, score)
 	if err != nil {
-		return fmt.Errorf("failed to create round: %w", err)
+		return fmt.Errorf("failed to create score: %w", err)
 	}
 	return nil
 }
 
-// GetRound retrieves a round by ID
-func (fc *FirestoreClient) GetRound(ctx context.Context, roundID string) (*models.Round, error) {
-	doc, err := fc.client.Collection("rounds").Doc(roundID).Get(ctx)
+// GetScore retrieves a score by ID
+func (fc *FirestoreClient) GetScore(ctx context.Context, scoreID string) (*models.Score, error) {
+	doc, err := fc.client.Collection("scores").Doc(scoreID).Get(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get round: %w", err)
+		return nil, fmt.Errorf("failed to get score: %w", err)
 	}
 
-	var round models.Round
-	if err := doc.DataTo(&round); err != nil {
-		return nil, fmt.Errorf("failed to parse round data: %w", err)
+	var score models.Score
+	if err := doc.DataTo(&score); err != nil {
+		return nil, fmt.Errorf("failed to parse score data: %w", err)
 	}
 
-	return &round, nil
+	return &score, nil
 }
 
-// GetPlayerRounds retrieves the last N rounds for a player in a specific league, ordered by date descending
-func (fc *FirestoreClient) GetPlayerRounds(ctx context.Context, leagueID, playerID string, limit int) ([]models.Round, error) {
-	iter := fc.client.Collection("rounds").
+// GetPlayerScores retrieves the last N scores for a player in a specific league, ordered by date descending
+func (fc *FirestoreClient) GetPlayerScores(ctx context.Context, leagueID, playerID string, limit int) ([]models.Score, error) {
+	iter := fc.client.Collection("scores").
 		Where("league_id", "==", leagueID).
 		Where("player_id", "==", playerID).
 		OrderBy("date", firestore.Desc).
@@ -604,24 +604,24 @@ func (fc *FirestoreClient) GetPlayerRounds(ctx context.Context, leagueID, player
 		Documents(ctx)
 	defer iter.Stop()
 
-	rounds := make([]models.Round, 0)
+	scores := make([]models.Score, 0)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to iterate rounds: %w", err)
+			return nil, fmt.Errorf("failed to iterate scores: %w", err)
 		}
 
-		var round models.Round
-		if err := doc.DataTo(&round); err != nil {
-			return nil, fmt.Errorf("failed to parse round data: %w", err)
+		var score models.Score
+		if err := doc.DataTo(&score); err != nil {
+			return nil, fmt.Errorf("failed to parse score data: %w", err)
 		}
-		rounds = append(rounds, round)
+		scores = append(scores, score)
 	}
 
-	return rounds, nil
+	return scores, nil
 }
 
 // models.Course operations
@@ -784,16 +784,6 @@ func (fc *FirestoreClient) ListMatches(ctx context.Context, leagueID, status str
 	return matches, nil
 }
 
-// models.Score operations
-
-// CreateScore creates a new score in Firestore
-func (fc *FirestoreClient) CreateScore(ctx context.Context, score models.Score) error {
-	_, err := fc.client.Collection("scores").Doc(score.ID).Set(ctx, score)
-	if err != nil {
-		return fmt.Errorf("failed to create score: %w", err)
-	}
-	return nil
-}
 
 // GetMatchScores retrieves all scores for a match
 func (fc *FirestoreClient) GetMatchScores(ctx context.Context, matchID string) ([]models.Score, error) {

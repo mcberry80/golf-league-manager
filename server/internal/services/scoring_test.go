@@ -99,15 +99,12 @@ func TestNetDoubleBogeyWithCourseHandicap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			round := models.Round{
-				GrossScores: tt.grossScores,
-			}
 			course := models.Course{
 				HolePars:      tt.holePars,
 				HoleHandicaps: tt.holeHandicaps,
 			}
 
-			got := CalculateAdjustedGrossScores(round, course, tt.courseHandicap)
+			got := CalculateAdjustedGrossScores(tt.grossScores, course, tt.courseHandicap)
 
 			for i := range got {
 				if got[i] != tt.wantAdjusted[i] {
@@ -281,38 +278,38 @@ func TestHandicapCalculationWithProvisionalHandicaps(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		rounds          []models.Round
+		scores          []models.Score
 		provisionalHC   float64
 		wantHandicap    float64
 		description     string
 	}{
 		{
-			name:            "0 rounds - use provisional",
-			rounds:          []models.Round{},
+			name:            "0 scores - use provisional",
+			scores:          []models.Score{},
 			provisionalHC:   12.0,
 			wantHandicap:    12.0, // Uses provisional directly
-			description:     "With 0 rounds, handicap should equal provisional",
+			description:     "With 0 scores, handicap should equal provisional",
 		},
 		{
-			name: "1 round - weighted average with provisional",
-			rounds: []models.Round{
-				{CourseID: "c1", TotalAdjusted: 45}, // Differential = 9
+			name: "1 score - weighted average with provisional",
+			scores: []models.Score{
+				{CourseID: "c1", AdjustedGross: 45}, // Differential = 9
 			},
 			provisionalHC: 12.0,
 			// ((2 * 12.0) + 9) / 3 = 33 / 3 = 11.0
 			wantHandicap: 11.0,
-			description:  "With 1 round, handicap = ((2 * provisional) + diff) / 3",
+			description:  "With 1 score, handicap = ((2 * provisional) + diff) / 3",
 		},
 		{
-			name: "2 rounds - average with provisional",
-			rounds: []models.Round{
-				{CourseID: "c1", TotalAdjusted: 45}, // Differential = 9
-				{CourseID: "c1", TotalAdjusted: 48}, // Differential = 12
+			name: "2 scores - average with provisional",
+			scores: []models.Score{
+				{CourseID: "c1", AdjustedGross: 45}, // Differential = 9
+				{CourseID: "c1", AdjustedGross: 48}, // Differential = 12
 			},
 			provisionalHC: 12.0,
 			// (12.0 + 9 + 12) / 3 = 33 / 3 = 11.0
 			wantHandicap: 11.0,
-			description:  "With 2 rounds, handicap = (provisional + diff1 + diff2) / 3",
+			description:  "With 2 scores, handicap = (provisional + diff1 + diff2) / 3",
 		},
 	}
 
@@ -320,18 +317,18 @@ func TestHandicapCalculationWithProvisionalHandicaps(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got float64
 
-			switch len(tt.rounds) {
+			switch len(tt.scores) {
 			case 0:
 				got = tt.provisionalHC
 			case 1:
-				diff1 := ScoreDifferential(tt.rounds[0].TotalAdjusted, course.CourseRating, course.SlopeRating)
+				diff1 := ScoreDifferential(tt.scores[0].AdjustedGross, course.CourseRating, course.SlopeRating)
 				got = math.Round(((2*tt.provisionalHC)+diff1)/3*10) / 10
 			case 2:
-				diff1 := ScoreDifferential(tt.rounds[0].TotalAdjusted, course.CourseRating, course.SlopeRating)
-				diff2 := ScoreDifferential(tt.rounds[1].TotalAdjusted, course.CourseRating, course.SlopeRating)
+				diff1 := ScoreDifferential(tt.scores[0].AdjustedGross, course.CourseRating, course.SlopeRating)
+				diff2 := ScoreDifferential(tt.scores[1].AdjustedGross, course.CourseRating, course.SlopeRating)
 				got = math.Round((tt.provisionalHC+diff1+diff2)/3*10) / 10
 			default:
-				got = CalculateLeagueHandicap(tt.rounds, coursesMap)
+				got = CalculateLeagueHandicap(tt.scores, coursesMap)
 			}
 
 			if math.Abs(got-tt.wantHandicap) > handicapTolerance {

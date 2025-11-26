@@ -72,12 +72,37 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		var courseHandicap float64
 		var playingHandicap int
 		
-		handicapRecord, err := s.firestoreClient.GetPlayerHandicap(ctx, leagueID, sub.PlayerID)
-		if err == nil && handicapRecord != nil {
-			leagueHandicapIndex = handicapRecord.LeagueHandicapIndex
-			// Calculate course and playing handicap for this specific course
-			courseHandicap, playingHandicap = services.CalculateCourseAndPlayingHandicap(leagueHandicapIndex, *course)
+		// Helper to get effective handicap
+		getEffectiveHandicap := func(pID string) (float64, error) {
+			// Try to get established handicap
+			hr, err := s.firestoreClient.GetPlayerHandicap(ctx, leagueID, pID)
+			if err == nil && hr != nil {
+				return hr.LeagueHandicapIndex, nil
+			}
+			
+			// Fallback to provisional
+			// We need to find the league member to get provisional handicap
+			// Since we don't have a direct GetMemberByPlayer, we list (optimization: add that method later)
+			members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
+			if err != nil {
+				return 0, err
+			}
+			for _, m := range members {
+				if m.PlayerID == pID {
+					return m.ProvisionalHandicap, nil
+				}
+			}
+			return 0, fmt.Errorf("member not found")
 		}
+
+		leagueHandicapIndex, err = getEffectiveHandicap(sub.PlayerID)
+		if err != nil {
+			log.Printf("Error getting handicap for player %s: %v", sub.PlayerID, err)
+			continue
+		}
+
+		// Calculate course and playing handicap for this specific course
+		courseHandicap, playingHandicap = services.CalculateCourseAndPlayingHandicap(leagueHandicapIndex, *course)
 
 		// Calculate Stats
 		totalGross := 0
@@ -85,60 +110,86 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			totalGross += s
 		}
 
-		// Create Round object for calculations
-		round := models.Round{
-			ID:                  uuid.New().String(),
-			PlayerID:            sub.PlayerID,
-			LeagueID:            leagueID,
-			Date:                match.MatchDate, // Use match date
-			CourseID:            match.CourseID,
-			GrossScores:         sub.HoleScores,
-			TotalGross:          totalGross,
-			LeagueHandicapIndex: leagueHandicapIndex,
-			CourseHandicap:      courseHandicap,
-			PlayingHandicap:     playingHandicap,
-		}
-
 		// Calculate Adjusted Gross (Net Double Bogey) - based on course handicap (rounded)
-		adjustedScores := services.CalculateAdjustedGrossScores(round, *course, int(math.Round(courseHandicap)))
+		adjustedScores := services.CalculateAdjustedGrossScores(sub.HoleScores, *course, int(math.Round(courseHandicap)))
 		totalAdjusted := 0
 		for _, s := range adjustedScores {
 			totalAdjusted += s
 		}
-		round.AdjustedGrossScores = adjustedScores
-		round.TotalAdjusted = totalAdjusted
 
 		// Calculate Differential
-		differential := services.CalculateDifferential(round, *course)
-		round.HandicapDifferential = differential // Store in round for history
+		// We need a temporary Score object or just pass values. 
+		// CalculateDifferential takes a Score object now.
+		tempScore := models.Score{
+			AdjustedGross: totalAdjusted,
+		}
+		differential := services.CalculateDifferential(tempScore, *course)
 
-		// Calculate Net Score (Total Gross - Playing Handicap)
-		// Note: This is a simplified net score. Match play uses strokes per hole.
-		// But for the Score record, we store total net.
-		netScore := totalGross - playingHandicap
+		// Determine Opponent and Calculate Match Strokes
+		var opponentID string
+		if match.PlayerAID == sub.PlayerID {
+			opponentID = match.PlayerBID
+		} else {
+			opponentID = match.PlayerAID
+		}
+
+		var matchStrokes []int
+		var netHoleScores []int
+		var strokesReceived int
+
+		if opponentID != "" {
+			opponentHandicapIndex, err := getEffectiveHandicap(opponentID)
+			if err != nil {
+				log.Printf("Warning: could not get opponent %s handicap: %v", opponentID, err)
+				// Proceed with 0 strokes if opponent not found (shouldn't happen in valid match)
+			} else {
+				_, opponentPlayingHandicap := services.CalculateCourseAndPlayingHandicap(opponentHandicapIndex, *course)
+				
+				// Calculate strokes for the match
+				strokesMap := services.AssignStrokes(sub.PlayerID, playingHandicap, opponentID, opponentPlayingHandicap, *course)
+				matchStrokes = strokesMap[sub.PlayerID]
+			}
+		} else {
+			matchStrokes = make([]int, 9) // No opponent
+		}
+
+		// Calculate Net Hole Scores and Match Net Score
+		netHoleScores = make([]int, len(sub.HoleScores))
+		matchNetScore := 0
+		for i, gross := range sub.HoleScores {
+			netHoleScores[i] = gross - matchStrokes[i]
+			matchNetScore += netHoleScores[i]
+		}
+		
+		strokesReceived = playingHandicap // Total strokes received is the playing handicap
 
 		// Create Score object
 		score := models.Score{
-			ID:                   uuid.New().String(),
-			MatchID:              sub.MatchID,
-			PlayerID:             sub.PlayerID,
-			HoleScores:           sub.HoleScores,
-			GrossScore:           totalGross,
-			NetScore:             netScore,
-			AdjustedGross:        totalAdjusted,
-			HandicapDifferential: differential,
-			StrokesReceived:      playingHandicap, // Store playing handicap here
+			ID:                      uuid.New().String(),
+			MatchID:                 sub.MatchID,
+			PlayerID:                sub.PlayerID,
+			LeagueID:                leagueID,
+			Date:                    match.MatchDate,
+			CourseID:                match.CourseID,
+			HoleScores:              sub.HoleScores,
+			HoleAdjustedGrossScores: adjustedScores,
+			MatchNetHoleScores:      netHoleScores,
+			GrossScore:              totalGross,
+			NetScore:                totalGross - playingHandicap, // Simple net for display
+			MatchNetScore:           matchNetScore,
+			AdjustedGross:           totalAdjusted,
+			HandicapDifferential:    differential,
+			HandicapIndex:           leagueHandicapIndex,
+			CourseHandicap:          int(math.Round(courseHandicap)),
+			PlayingHandicap:         playingHandicap,
+			StrokesReceived:         strokesReceived,
+			MatchStrokes:            matchStrokes,
+			PlayerAbsent:            false, // Assuming present if submitting score
 		}
 
 		// Save Score
 		if err := s.firestoreClient.CreateScore(ctx, score); err != nil {
 			log.Printf("Error creating score for player %s: %v", sub.PlayerID, err)
-			continue
-		}
-
-		// Save Round (for handicap history)
-		if err := s.firestoreClient.CreateRound(ctx, round); err != nil {
-			log.Printf("Error creating round for player %s: %v", sub.PlayerID, err)
 			continue
 		}
 
@@ -150,9 +201,11 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			coursesMap[c.ID] = c
 		}
 		
-		// Get league member to retrieve provisional handicap
-		members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
+		// Get league member to retrieve provisional handicap (needed for recalculation job)
+		// We already have logic for this in getEffectiveHandicap but the job needs it passed explicitly
+		// The job uses it if < 5 rounds.
 		provisionalHandicap := 0.0
+		members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
 		if err == nil {
 			for _, m := range members {
 				if m.PlayerID == sub.PlayerID {

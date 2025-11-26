@@ -126,21 +126,25 @@ func CalculateMatchPoints(scoreA, scoreB models.Score, strokesA, strokesB []int)
 // HandleAbsence calculates handicap adjustment for absent player
 // absent_handicap = max(posted_handicap + 2, average_of_worst_3_from_last_5)
 // cap increase at posted_handicap + 4
-func HandleAbsence(absentPlayer models.HandicapRecord, lastFiveRounds []models.Round, courses map[string]models.Course) float64 {
+func HandleAbsence(absentPlayer models.HandicapRecord, lastFiveScores []models.Score, courses map[string]models.Course) float64 {
 	postedHandicap := absentPlayer.LeagueHandicapIndex
 
 	// Calculate base adjustment
 	baseAdjustment := postedHandicap + 2
 
-	// If we have at least 3 rounds, calculate average of worst 3
-	if len(lastFiveRounds) >= 3 {
-		differentials := make([]float64, 0, len(lastFiveRounds))
-		for _, round := range lastFiveRounds {
-			course, ok := courses[round.CourseID]
+	// If we have at least 3 scores, calculate average of worst 3
+	if len(lastFiveScores) >= 3 {
+		differentials := make([]float64, 0, len(lastFiveScores))
+		for _, score := range lastFiveScores {
+			course, ok := courses[score.CourseID]
 			if !ok {
 				continue
 			}
-			diff := CalculateDifferential(round, course)
+			// Use stored differential if available
+			diff := score.HandicapDifferential
+			if diff == 0 {
+				diff = CalculateDifferential(score, course)
+			}
 			differentials = append(differentials, diff)
 		}
 

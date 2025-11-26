@@ -32,22 +32,8 @@ type Player struct {
 	CreatedAt   time.Time `firestore:"created_at" json:"createdAt"`
 }
 
-// Round represents a single golf round played by a player
-type Round struct {
-	ID                   string    `firestore:"id" json:"id"`
-	PlayerID             string    `firestore:"player_id" json:"playerId"`
-	LeagueID             string    `firestore:"league_id" json:"leagueId"` // Scoped to league
-	Date                 time.Time `firestore:"date" json:"date"`
-	CourseID             string    `firestore:"course_id" json:"courseId"`
-	GrossScores          []int     `firestore:"gross_scores" json:"grossScores"`                   // 9 holes
-	AdjustedGrossScores  []int     `firestore:"adjusted_gross_scores" json:"adjustedGrossScores"`  // 9 holes
-	TotalGross           int       `firestore:"total_gross" json:"totalGross"`
-	TotalAdjusted        int       `firestore:"total_adjusted" json:"totalAdjusted"`
-	HandicapDifferential float64   `firestore:"handicap_differential" json:"handicapDifferential"` // Calculated differential for this round
-	LeagueHandicapIndex  float64   `firestore:"league_handicap_index" json:"leagueHandicapIndex"`  // League handicap index at time of play
-	CourseHandicap       float64   `firestore:"course_handicap" json:"courseHandicap"`             // Calculated course handicap for this round
-	PlayingHandicap      int       `firestore:"playing_handicap" json:"playingHandicap"`           // Playing handicap (rounded) for this round
-}
+// Round struct removed - merged into Score
+
 
 // Course represents a golf course (scoped to a league)
 type Course struct {
@@ -107,16 +93,26 @@ type Match struct {
 	Status     string    `firestore:"status" json:"status"` // scheduled|completed
 }
 
-// Score represents a player's scorecard for a match
+// Score represents a player's scorecard for a match and serves as the handicap record
 type Score struct {
-	ID                   string  `firestore:"id" json:"id"`
-	MatchID              string  `firestore:"match_id" json:"matchId"`
-	PlayerID             string  `firestore:"player_id" json:"playerId"`
-	HoleScores           []int   `firestore:"hole_scores" json:"holeScores"`       // Array of 9 scores
-	GrossScore           int     `firestore:"gross_score" json:"grossScore"`       // Total Gross
-	NetScore             int     `firestore:"net_score" json:"netScore"`           // Total Net
-	AdjustedGross        int     `firestore:"adjusted_gross" json:"adjustedGross"` // ESC adjusted
-	HandicapDifferential float64 `firestore:"handicap_differential" json:"handicapDifferential"`
-	StrokesReceived      int     `firestore:"strokes_received" json:"strokesReceived"`
-	PlayerAbsent         bool    `firestore:"player_absent" json:"playerAbsent"`
+	ID                      string    `firestore:"id" json:"id"`
+	MatchID                 string    `firestore:"match_id" json:"matchId"`
+	PlayerID                string    `firestore:"player_id" json:"playerId"`
+	LeagueID                string    `firestore:"league_id" json:"leagueId"`                 // Added for easier querying
+	Date                    time.Time `firestore:"date" json:"date"`                          // Added for easier querying
+	CourseID                string    `firestore:"course_id" json:"courseId"`                 // Added for easier querying
+	HoleScores              []int     `firestore:"hole_scores" json:"holeScores"`             // Gross scores
+	HoleAdjustedGrossScores []int     `firestore:"hole_adjusted_gross_scores" json:"holeAdjustedGrossScores"` // Net Double Bogey adjusted
+	MatchNetHoleScores      []int     `firestore:"match_net_hole_scores" json:"matchNetHoleScores"` // Gross - Match Strokes (per hole)
+	GrossScore              int       `firestore:"gross_score" json:"grossScore"`             // Total Gross
+	NetScore                int       `firestore:"net_score" json:"netScore"`                 // Total Net (Gross - Playing Handicap) - kept for display/simple net
+	MatchNetScore           int       `firestore:"match_net_score" json:"matchNetScore"`      // Total Match Net (Sum of NetHoleScores)
+	AdjustedGross           int       `firestore:"adjusted_gross" json:"adjustedGross"`       // Total Adjusted Gross
+	HandicapDifferential    float64   `firestore:"handicap_differential" json:"handicapDifferential"`
+	HandicapIndex           float64   `firestore:"handicap_index" json:"handicapIndex"`       // Index used for this round
+	CourseHandicap          int       `firestore:"course_handicap" json:"courseHandicap"`     // Rounded course handicap
+	PlayingHandicap         int       `firestore:"playing_handicap" json:"playingHandicap"`   // Rounded playing handicap
+	StrokesReceived         int       `firestore:"strokes_received" json:"strokesReceived"`   // Total strokes received (Playing Handicap)
+	MatchStrokes            []int     `firestore:"match_strokes" json:"matchStrokes"`         // Strokes received per hole for the match
+	PlayerAbsent            bool      `firestore:"player_absent" json:"playerAbsent"`
 }

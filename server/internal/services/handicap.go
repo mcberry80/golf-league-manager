@@ -124,28 +124,33 @@ func Handicap(differentials []Differential, numScoresUsed int, numScoresConsider
 
 // CalculateDifferential calculates the score differential for a round
 // Formula: ((adjusted_gross - course_rating) * 113) / slope_rating
-func CalculateDifferential(round models.Round, course models.Course) float64 {
-	return ScoreDifferential(round.TotalAdjusted, course.CourseRating, course.SlopeRating)
+func CalculateDifferential(score models.Score, course models.Course) float64 {
+	return ScoreDifferential(score.AdjustedGross, course.CourseRating, course.SlopeRating)
 }
 
-// CalculateLeagueHandicap calculates the league handicap from the last 5 rounds
+// CalculateLeagueHandicap calculates the league handicap from the last 5 scores
 // Uses the best 3 of the last 5 differentials, rounded to 0.1
-func CalculateLeagueHandicap(rounds []models.Round, courses map[string]models.Course) float64 {
-	if len(rounds) == 0 {
+func CalculateLeagueHandicap(scores []models.Score, courses map[string]models.Course) float64 {
+	if len(scores) == 0 {
 		return 0.0
 	}
 
-	// Calculate differentials for each round
-	differentials := make([]Differential, 0, len(rounds))
-	for _, round := range rounds {
-		course, ok := courses[round.CourseID]
+	// Calculate differentials for each score
+	differentials := make([]Differential, 0, len(scores))
+	for _, score := range scores {
+		course, ok := courses[score.CourseID]
 		if !ok {
 			continue
 		}
-		diff := CalculateDifferential(round, course)
+		// Use stored differential if available, otherwise calculate it
+		diff := score.HandicapDifferential
+		if diff == 0 {
+			diff = CalculateDifferential(score, course)
+		}
+		
 		differentials = append(differentials, Differential{
 			Value:     diff,
-			Timestamp: round.Date,
+			Timestamp: score.Date,
 		})
 	}
 
@@ -157,22 +162,22 @@ func CalculateLeagueHandicap(rounds []models.Round, courses map[string]models.Co
 // CalculateAdjustedGrossScores applies the Net Double Bogey rule for all players
 // All players (including new players with provisional handicaps) use net double bogey
 // Net Double Bogey = Par + 2 + strokes received on that hole (based on course handicap)
-func CalculateAdjustedGrossScores(round models.Round, course models.Course, courseHandicap int) []int {
-	if len(round.GrossScores) != len(course.HolePars) {
-		return round.GrossScores
+func CalculateAdjustedGrossScores(grossScores []int, course models.Course, courseHandicap int) []int {
+	if len(grossScores) != len(course.HolePars) {
+		return grossScores
 	}
 
-	numHoles := len(round.GrossScores)
+	numHoles := len(grossScores)
 	adjustedScores := make([]int, numHoles)
 
 	// Calculate adjusted scores for each hole using net double bogey rule
-	for i := range round.GrossScores {
+	for i := range grossScores {
 		strokes := calculateStrokesForHole(courseHandicap, course.HoleHandicaps[i], numHoles)
 		netDoubleBogey := course.HolePars[i] + 2 + strokes
-		if round.GrossScores[i] > netDoubleBogey {
+		if grossScores[i] > netDoubleBogey {
 			adjustedScores[i] = netDoubleBogey
 		} else {
-			adjustedScores[i] = round.GrossScores[i]
+			adjustedScores[i] = grossScores[i]
 		}
 	}
 

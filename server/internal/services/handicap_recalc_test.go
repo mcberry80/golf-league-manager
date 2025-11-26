@@ -28,37 +28,37 @@ func TestImmediateHandicapRecalculation(t *testing.T) {
 		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
 	}
 
-	// Create rounds for the player
-	rounds := []models.Round{
+	// Create scores for the player
+	scores := []models.Score{
 		{
-			ID:                  "round-1",
-			PlayerID:            player.ID,
-			Date:                time.Now().AddDate(0, 0, -4),
-			CourseID:            course.ID,
-			GrossScores:         []int{5, 4, 6, 5, 5, 4, 6, 5, 5},
-			AdjustedGrossScores: []int{5, 4, 6, 5, 5, 4, 6, 5, 5},
-			TotalGross:          45,
-			TotalAdjusted:       45,
+			ID:                      "score-1",
+			PlayerID:                player.ID,
+			Date:                    time.Now().AddDate(0, 0, -4),
+			CourseID:                course.ID,
+			HoleScores:              []int{5, 4, 6, 5, 5, 4, 6, 5, 5},
+			HoleAdjustedGrossScores: []int{5, 4, 6, 5, 5, 4, 6, 5, 5},
+			GrossScore:              45,
+			AdjustedGross:           45,
 		},
 		{
-			ID:                  "round-2",
-			PlayerID:            player.ID,
-			Date:                time.Now().AddDate(0, 0, -3),
-			CourseID:            course.ID,
-			GrossScores:         []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
-			AdjustedGrossScores: []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
-			TotalGross:          36,
-			TotalAdjusted:       36,
+			ID:                      "score-2",
+			PlayerID:                player.ID,
+			Date:                    time.Now().AddDate(0, 0, -3),
+			CourseID:                course.ID,
+			HoleScores:              []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+			HoleAdjustedGrossScores: []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+			GrossScore:              36,
+			AdjustedGross:           36,
 		},
 		{
-			ID:                  "round-3",
-			PlayerID:            player.ID,
-			Date:                time.Now().AddDate(0, 0, -2),
-			CourseID:            course.ID,
-			GrossScores:         []int{5, 4, 6, 5, 5, 3, 6, 5, 4},
-			AdjustedGrossScores: []int{5, 4, 6, 5, 5, 3, 6, 5, 4},
-			TotalGross:          43,
-			TotalAdjusted:       43,
+			ID:                      "score-3",
+			PlayerID:                player.ID,
+			Date:                    time.Now().AddDate(0, 0, -2),
+			CourseID:                course.ID,
+			HoleScores:              []int{5, 4, 6, 5, 5, 3, 6, 5, 4},
+			HoleAdjustedGrossScores: []int{5, 4, 6, 5, 5, 3, 6, 5, 4},
+			GrossScore:              43,
+			AdjustedGross:           43,
 		},
 	}
 
@@ -66,8 +66,8 @@ func TestImmediateHandicapRecalculation(t *testing.T) {
 		course.ID: course,
 	}
 
-	// Test handicap calculation with 3 rounds (player not yet established)
-	handicap := CalculateLeagueHandicap(rounds, coursesMap)
+	// Test handicap calculation with 3 scores (player not yet established)
+	handicap := CalculateLeagueHandicap(scores, coursesMap)
 
 	if handicap < 0 {
 		t.Errorf("Handicap should be non-negative, got %.1f", handicap)
@@ -76,7 +76,7 @@ func TestImmediateHandicapRecalculation(t *testing.T) {
 	t.Logf("Calculated league handicap: %.1f", handicap)
 
 	// Verify that handicap calculation is deterministic
-	handicap2 := CalculateLeagueHandicap(rounds, coursesMap)
+	handicap2 := CalculateLeagueHandicap(scores, coursesMap)
 	if handicap != handicap2 {
 		t.Errorf("Handicap calculation should be deterministic: %.1f != %.1f", handicap, handicap2)
 	}
@@ -102,27 +102,27 @@ func TestHandicapRecalculationAfterRoundEntry(t *testing.T) {
 		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
 	}
 
-	// Simulate initial rounds
-	initialRounds := []models.Round{
+	// Simulate initial scores
+	initialScores := []models.Score{
 		{
-			ID:                  "round-1",
-			PlayerID:            player.ID,
-			Date:                time.Now().AddDate(0, 0, -3),
-			CourseID:            course.ID,
-			GrossScores:         []int{5, 4, 6, 5, 5, 4, 6, 5, 5},
-			AdjustedGrossScores: []int{5, 4, 6, 5, 5, 4, 6, 5, 5},
-			TotalGross:          45,
-			TotalAdjusted:       45,
+			ID:                      "score-1",
+			PlayerID:                player.ID,
+			Date:                    time.Now().AddDate(0, 0, -3),
+			CourseID:                course.ID,
+			HoleScores:              []int{5, 4, 6, 5, 5, 4, 6, 5, 5},
+			HoleAdjustedGrossScores: []int{5, 4, 6, 5, 5, 4, 6, 5, 5},
+			GrossScore:              45,
+			AdjustedGross:           45,
 		},
 		{
-			ID:                  "round-2",
-			PlayerID:            player.ID,
-			Date:                time.Now().AddDate(0, 0, -2),
-			CourseID:            course.ID,
-			GrossScores:         []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
-			AdjustedGrossScores: []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
-			TotalGross:          36,
-			TotalAdjusted:       36,
+			ID:                      "score-2",
+			PlayerID:                player.ID,
+			Date:                    time.Now().AddDate(0, 0, -2),
+			CourseID:                course.ID,
+			HoleScores:              []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+			HoleAdjustedGrossScores: []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+			GrossScore:              36,
+			AdjustedGross:           36,
 		},
 	}
 
@@ -131,24 +131,24 @@ func TestHandicapRecalculationAfterRoundEntry(t *testing.T) {
 	}
 
 	// Calculate initial handicap
-	initialHandicap := CalculateLeagueHandicap(initialRounds, coursesMap)
+	initialHandicap := CalculateLeagueHandicap(initialScores, coursesMap)
 
-	// Add a new round
-	newRound := models.Round{
-		ID:                  "round-3",
-		PlayerID:            player.ID,
-		Date:                time.Now(),
-		CourseID:            course.ID,
-		GrossScores:         []int{6, 5, 7, 6, 6, 5, 7, 6, 5},
-		AdjustedGrossScores: []int{6, 5, 7, 6, 6, 5, 7, 6, 5},
-		TotalGross:          53,
-		TotalAdjusted:       53,
+	// Add a new score
+	newScore := models.Score{
+		ID:                      "score-3",
+		PlayerID:                player.ID,
+		Date:                    time.Now(),
+		CourseID:                course.ID,
+		HoleScores:              []int{6, 5, 7, 6, 6, 5, 7, 6, 5},
+		HoleAdjustedGrossScores: []int{6, 5, 7, 6, 6, 5, 7, 6, 5},
+		GrossScore:              53,
+		AdjustedGross:           53,
 	}
 
-	allRounds := append(initialRounds, newRound)
+	allScores := append(initialScores, newScore)
 
-	// Recalculate handicap immediately after new round
-	updatedHandicap := CalculateLeagueHandicap(allRounds, coursesMap)
+	// Recalculate handicap immediately after new score
+	updatedHandicap := CalculateLeagueHandicap(allScores, coursesMap)
 
 	// Verify that handicap changed after new round
 	if initialHandicap == updatedHandicap {
