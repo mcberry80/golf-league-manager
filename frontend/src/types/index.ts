@@ -176,6 +176,7 @@ export interface ScoreSubmission {
     matchId: string;
     playerId: string;
     holeScores: number[];
+    playerAbsent?: boolean;
 }
 
 export interface CreateScoreRequest {

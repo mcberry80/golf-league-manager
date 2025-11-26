@@ -172,3 +172,63 @@ func HandleAbsence(absentPlayer models.HandicapRecord, lastFiveScores []models.S
 
 	return math.Round(baseAdjustment*10) / 10
 }
+
+// CalculateAbsentPlayerScores calculates the hole scores for an absent player.
+// According to the rules:
+// - Total gross score = playing handicap + par + 3
+// - Total applied strokes above par = playing handicap + 3
+// - Strokes are distributed evenly across holes, with extra strokes on hardest holes
+// - Each hole score = par + applied strokes for that hole
+func CalculateAbsentPlayerScores(playingHandicap int, course models.Course) []int {
+	numHoles := len(course.HolePars)
+	if numHoles == 0 {
+		numHoles = holesPerRound
+	}
+
+	// Total strokes above par to apply = playing handicap + 3
+	totalStrokesAbovePar := playingHandicap + 3
+
+	// Distribute strokes evenly, with extras going to holes based on hole handicap
+	holeScores := make([]int, numHoles)
+	appliedStrokes := make([]int, numHoles)
+
+	// Base strokes per hole
+	baseStrokes := totalStrokesAbovePar / numHoles
+	remainingStrokes := totalStrokesAbovePar % numHoles
+
+	// Initialize each hole with base strokes
+	for i := 0; i < numHoles; i++ {
+		appliedStrokes[i] = baseStrokes
+	}
+
+	// Sort holes by handicap to allocate remaining strokes
+	// Create a slice of hole indices sorted by handicap (1 is hardest)
+	type holeInfo struct {
+		index    int
+		handicap int
+	}
+	holes := make([]holeInfo, numHoles)
+	for i := 0; i < numHoles; i++ {
+		holes[i] = holeInfo{
+			index:    i,
+			handicap: course.HoleHandicaps[i],
+		}
+	}
+
+	// Sort by handicap (1 is hardest)
+	sort.Slice(holes, func(i, j int) bool {
+		return holes[i].handicap < holes[j].handicap
+	})
+
+	// Allocate remaining strokes to hardest holes
+	for i := 0; i < remainingStrokes; i++ {
+		appliedStrokes[holes[i].index]++
+	}
+
+	// Calculate final hole scores: par + applied strokes
+	for i := 0; i < numHoles; i++ {
+		holeScores[i] = course.HolePars[i] + appliedStrokes[i]
+	}
+
+	return holeScores
+}

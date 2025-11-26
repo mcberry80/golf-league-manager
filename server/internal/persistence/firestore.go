@@ -624,6 +624,52 @@ func (fc *FirestoreClient) GetPlayerScores(ctx context.Context, leagueID, player
 	return scores, nil
 }
 
+// GetPlayerScoresForHandicap retrieves the last N non-absent scores for a player in a specific league
+// This is used for handicap calculations where absent rounds should not be considered
+func (fc *FirestoreClient) GetPlayerScoresForHandicap(ctx context.Context, leagueID, playerID string, limit int) ([]models.Score, error) {
+	// We need to fetch more scores than the limit to account for absent rounds that will be filtered out
+	// Using 3x the limit should be sufficient in most cases
+	fetchLimit := limit * 3
+
+	iter := fc.client.Collection("scores").
+		Where("league_id", "==", leagueID).
+		Where("player_id", "==", playerID).
+		OrderBy("date", firestore.Desc).
+		Limit(fetchLimit).
+		Documents(ctx)
+	defer iter.Stop()
+
+	scores := make([]models.Score, 0, limit)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate scores: %w", err)
+		}
+
+		var score models.Score
+		if err := doc.DataTo(&score); err != nil {
+			return nil, fmt.Errorf("failed to parse score data: %w", err)
+		}
+
+		// Skip absent rounds for handicap calculations
+		if score.PlayerAbsent {
+			continue
+		}
+
+		scores = append(scores, score)
+
+		// Stop once we have enough scores
+		if len(scores) >= limit {
+			break
+		}
+	}
+
+	return scores, nil
+}
+
 // models.Course operations
 
 // CreateCourse creates a new course in Firestore

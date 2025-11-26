@@ -449,3 +449,135 @@ func TestStrokeAllocationOrder(t *testing.T) {
 		}
 	}
 }
+
+// Test absent player score calculation
+func TestCalculateAbsentPlayerScores(t *testing.T) {
+	tests := []struct {
+		name            string
+		playingHandicap int
+		course          models.Course
+		wantScores      []int
+		wantTotalGross  int
+		description     string
+	}{
+		{
+			name:            "10 strokes above par distributed evenly with 1 extra on hardest hole",
+			playingHandicap: 7, // 7 + 3 = 10 strokes above par
+			course: models.Course{
+				Par:           36,
+				HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+				HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8}, // HC 1 is at index 0
+			},
+			// 10 strokes / 9 holes = 1 stroke per hole + 1 extra stroke on hardest hole (HC 1)
+			// Hole 1 (HC 1): par 4 + 2 = 6
+			// Holes 2-9: par + 1 each
+			wantScores:     []int{6, 4, 6, 5, 5, 4, 6, 5, 5}, // Total = 46
+			wantTotalGross: 46,                               // Par 36 + 10 = 46
+			description:    "Playing handicap 7 + 3 = 10 strokes above par",
+		},
+		{
+			name:            "12 strokes above par - 1 per hole + 3 extras on hardest 3 holes",
+			playingHandicap: 9, // 9 + 3 = 12 strokes above par
+			course: models.Course{
+				Par:           36,
+				HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+				HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8}, // HC 1,2,3 at indices 0,4,2
+			},
+			// 12 strokes / 9 holes = 1 stroke per hole + 3 extra on hardest holes (HC 1,2,3)
+			// Hole 1 (HC 1): par 4 + 2 = 6
+			// Hole 5 (HC 2): par 4 + 2 = 6
+			// Hole 3 (HC 3): par 5 + 2 = 7
+			// All other holes: par + 1
+			wantScores:     []int{6, 4, 7, 5, 6, 4, 6, 5, 5}, // Total = 48
+			wantTotalGross: 48,                               // Par 36 + 12 = 48
+			description:    "Playing handicap 9 + 3 = 12 strokes above par",
+		},
+		{
+			name:            "18 strokes above par - 2 per hole",
+			playingHandicap: 15, // 15 + 3 = 18 strokes above par
+			course: models.Course{
+				Par:           36,
+				HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+				HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
+			},
+			// 18 strokes / 9 holes = 2 strokes per hole exactly
+			wantScores:     []int{6, 5, 7, 6, 6, 5, 7, 6, 6}, // Total = 54
+			wantTotalGross: 54,                               // Par 36 + 18 = 54
+			description:    "Playing handicap 15 + 3 = 18 strokes above par, evenly distributed",
+		},
+		{
+			name:            "3 strokes above par - no base strokes, 3 on hardest holes",
+			playingHandicap: 0, // 0 + 3 = 3 strokes above par
+			course: models.Course{
+				Par:           36,
+				HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+				HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8}, // HC 1,2,3 at indices 0,4,2
+			},
+			// 3 strokes / 9 holes = 0 base strokes + 3 extra on hardest holes
+			// Hole 1 (HC 1): par 4 + 1 = 5
+			// Hole 5 (HC 2): par 4 + 1 = 5
+			// Hole 3 (HC 3): par 5 + 1 = 6
+			// All other holes: just par
+			wantScores:     []int{5, 3, 6, 4, 5, 3, 5, 4, 4}, // Total = 39
+			wantTotalGross: 39,                               // Par 36 + 3 = 39
+			description:    "Playing handicap 0 + 3 = 3 strokes above par",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotScores := CalculateAbsentPlayerScores(tt.playingHandicap, tt.course)
+
+			// Calculate total gross
+			gotTotal := 0
+			for _, s := range gotScores {
+				gotTotal += s
+			}
+
+			if gotTotal != tt.wantTotalGross {
+				t.Errorf("%s: total gross = %d, want %d", tt.description, gotTotal, tt.wantTotalGross)
+			}
+
+			// Verify expected total = playing handicap + par + 3
+			expectedTotal := tt.playingHandicap + tt.course.Par + 3
+			if gotTotal != expectedTotal {
+				t.Errorf("Total should be playing handicap (%d) + par (%d) + 3 = %d, got %d",
+					tt.playingHandicap, tt.course.Par, expectedTotal, gotTotal)
+			}
+
+			// Verify individual hole scores
+			for i := range gotScores {
+				if gotScores[i] != tt.wantScores[i] {
+					t.Errorf("Hole %d: got %d, want %d", i+1, gotScores[i], tt.wantScores[i])
+				}
+			}
+		})
+	}
+}
+
+// Test that absent player scores follow the formula: playing handicap + par + 3
+func TestAbsentPlayerScoreFormula(t *testing.T) {
+	course := models.Course{
+		Par:           36,
+		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+		HoleHandicaps: []int{1, 2, 3, 4, 5, 6, 7, 8, 9},
+	}
+
+	playingHandicaps := []int{0, 5, 10, 15, 20, 25}
+
+	for _, ph := range playingHandicaps {
+		scores := CalculateAbsentPlayerScores(ph, course)
+
+		totalGross := 0
+		for _, s := range scores {
+			totalGross += s
+		}
+
+		expected := ph + course.Par + 3
+
+		if totalGross != expected {
+			t.Errorf("Playing handicap %d: got total %d, want %d (handicap + par + 3)",
+				ph, totalGross, expected)
+		}
+	}
+}
