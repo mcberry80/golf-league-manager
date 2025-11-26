@@ -133,8 +133,8 @@ func TestMatchScoringWithStrokeDifference(t *testing.T) {
 	}{
 		{
 			name:                   "higher handicap player competes with strokes",
-			playerAPlayingHandicap: 15, // Higher handicap player
-			playerBPlayingHandicap: 10, // Lower handicap player
+			playerAPlayingHandicap: 15,                               // Higher handicap player
+			playerBPlayingHandicap: 10,                               // Lower handicap player
 			playerAGrossScores:     []int{5, 4, 6, 5, 5, 4, 6, 5, 5}, // Total: 45
 			playerBGrossScores:     []int{4, 4, 5, 4, 4, 4, 5, 4, 4}, // Total: 38
 			// Player A gets 5 strokes on hardest holes (indices 0,1,2,3,4 with HC 1,2,3,4,5)
@@ -169,8 +169,8 @@ func TestMatchScoringWithStrokeDifference(t *testing.T) {
 		},
 		{
 			name:                   "large handicap difference - 9 strokes",
-			playerAPlayingHandicap: 19, // High handicap
-			playerBPlayingHandicap: 10, // Low handicap
+			playerAPlayingHandicap: 19,                               // High handicap
+			playerBPlayingHandicap: 10,                               // Low handicap
 			playerAGrossScores:     []int{6, 5, 7, 6, 6, 5, 7, 6, 6}, // Total: 54
 			playerBGrossScores:     []int{5, 4, 6, 5, 5, 4, 6, 5, 5}, // Total: 45
 			// Player A gets 9 strokes - 1 on each hole
@@ -209,40 +209,40 @@ func TestMatchScoringWithStrokeDifference(t *testing.T) {
 // Test playing handicap rounding
 func TestPlayingHandicapRounding(t *testing.T) {
 	tests := []struct {
-		name               string
-		leagueHandicap     float64
-		slopeRating        int
-		courseRating       float64
-		par                int
-		wantCourseHandicap float64
+		name                string
+		leagueHandicap      float64
+		slopeRating         int
+		courseRating        float64
+		par                 int
+		wantCourseHandicap  float64
 		wantPlayingHandicap int
 	}{
 		{
-			name:               "round down - course handicap 10.4 * 0.95 = 9.88 → 10",
-			leagueHandicap:     10.0,
-			slopeRating:        113,
-			courseRating:       36.0,
-			par:                36,
-			wantCourseHandicap: 10.0,
+			name:                "round down - course handicap 10.4 * 0.95 = 9.88 → 10",
+			leagueHandicap:      10.0,
+			slopeRating:         113,
+			courseRating:        36.0,
+			par:                 36,
+			wantCourseHandicap:  10.0,
 			wantPlayingHandicap: 10, // 10.0 * 0.95 = 9.5 → rounds to 10
 		},
 		{
-			name:               "round up - course handicap 15.0 * 0.95 = 14.25 → 14",
-			leagueHandicap:     15.0,
-			slopeRating:        113,
-			courseRating:       36.0,
-			par:                36,
-			wantCourseHandicap: 15.0,
+			name:                "round up - course handicap 15.0 * 0.95 = 14.25 → 14",
+			leagueHandicap:      15.0,
+			slopeRating:         113,
+			courseRating:        36.0,
+			par:                 36,
+			wantCourseHandicap:  15.0,
 			wantPlayingHandicap: 14, // 15.0 * 0.95 = 14.25 → rounds to 14
 		},
 		{
-			name:               "exact half - 10.5 * 0.95 = 9.975 → 10",
-			leagueHandicap:     10.0,
-			slopeRating:        120,
-			courseRating:       36.5,
-			par:                36,
-			wantCourseHandicap: 11.12, // (10 * 120 / 113) + (36.5 - 36) = 10.62 + 0.5 = 11.12
-			wantPlayingHandicap: 11,   // 11.12 * 0.95 = 10.56 → rounds to 11
+			name:                "exact half - 10.5 * 0.95 = 9.975 → 10",
+			leagueHandicap:      10.0,
+			slopeRating:         120,
+			courseRating:        36.5,
+			par:                 36,
+			wantCourseHandicap:  11.12, // (10 * 120 / 113) + (36.5 - 36) = 10.62 + 0.5 = 11.12
+			wantPlayingHandicap: 11,    // 11.12 * 0.95 = 10.56 → rounds to 11
 		},
 	}
 
@@ -277,18 +277,18 @@ func TestHandicapCalculationWithProvisionalHandicaps(t *testing.T) {
 	coursesMap := map[string]models.Course{"c1": course}
 
 	tests := []struct {
-		name            string
-		scores          []models.Score
-		provisionalHC   float64
-		wantHandicap    float64
-		description     string
+		name          string
+		scores        []models.Score
+		provisionalHC float64
+		wantHandicap  float64
+		description   string
 	}{
 		{
-			name:            "0 scores - use provisional",
-			scores:          []models.Score{},
-			provisionalHC:   12.0,
-			wantHandicap:    12.0, // Uses provisional directly
-			description:     "With 0 scores, handicap should equal provisional",
+			name:          "0 scores - use provisional",
+			scores:        []models.Score{},
+			provisionalHC: 12.0,
+			wantHandicap:  12.0, // Uses provisional directly
+			description:   "With 0 scores, handicap should equal provisional",
 		},
 		{
 			name: "1 score - weighted average with provisional",

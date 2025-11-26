@@ -28,7 +28,7 @@ func main() {
 		// Use hardcoded default (not sensitive)
 		projectID = "elite-league-manager"
 	}
-	
+
 	// Try to load secrets from Secret Manager
 	// This will automatically load CLERK_SECRET_KEY from Secret Manager
 	if err := secrets.TryLoadEnvironmentFromSecrets(ctx, projectID); err != nil {

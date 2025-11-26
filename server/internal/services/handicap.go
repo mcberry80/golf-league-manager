@@ -57,7 +57,7 @@ func calculateStrokesForHole(courseHandicap int, strokeIndex int, numHoles int) 
 func AdjustedGrossScoreNetDoubleBogey(grossHoleScore []int, holeData []Hole, courseHandicap int) int {
 	var adjustedGrossScore int
 	numHoles := len(grossHoleScore)
-	
+
 	for i := 0; i < numHoles; i++ {
 		strokes := calculateStrokesForHole(courseHandicap, holeData[i].StrokeIndex, numHoles)
 		netDoubleBogey := holeData[i].Par + 2 + strokes
@@ -147,7 +147,7 @@ func CalculateLeagueHandicap(scores []models.Score, courses map[string]models.Co
 		if diff == 0 {
 			diff = CalculateDifferential(score, course)
 		}
-		
+
 		differentials = append(differentials, Differential{
 			Value:     diff,
 			Timestamp: score.Date,

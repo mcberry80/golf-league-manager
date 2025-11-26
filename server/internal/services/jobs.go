@@ -118,17 +118,17 @@ func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Conte
 		// (provisional + diff₁ + diff₂) / 3
 		course1 := coursesMap[scores[0].CourseID]
 		course2 := coursesMap[scores[1].CourseID]
-		
+
 		diff1 := scores[0].HandicapDifferential
 		if diff1 == 0 {
 			diff1 = CalculateDifferential(scores[0], course1)
 		}
-		
+
 		diff2 := scores[1].HandicapDifferential
 		if diff2 == 0 {
 			diff2 = CalculateDifferential(scores[1], course2)
 		}
-		
+
 		leagueHandicap = (provisionalHandicap + diff1 + diff2) / 3
 		log.Printf("Player %s (%s): 2 scores - (%.1f + %.1f + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, diff1, diff2, leagueHandicap)
 

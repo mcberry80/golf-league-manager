@@ -66,10 +66,10 @@ func TestHandicapRefactor_VerificationCase(t *testing.T) {
 	// Hole 8 (Par 4, Hcp 8): 1 stroke. Net DB = 4 + 2 + 1 = 7. Gross 5. Adj 5.
 	// Hole 9 (Par 4, Hcp 2): 2 strokes. Net DB = 4 + 2 + 2 = 8. Gross 4. Adj 4.
 	// Expected: 4, 7, 5, 7, 4, 9, 4, 5, 4
-	
+
 	adjustedScores := CalculateAdjustedGrossScores(grossScores, course, int(math.Round(courseHandicap)))
 	expectedAdjustedScores := []int{4, 7, 5, 7, 4, 9, 4, 5, 4}
-	
+
 	for i, score := range adjustedScores {
 		if score != expectedAdjustedScores[i] {
 			t.Errorf("Hole %d: Expected Adjusted Score %d, got %d", i+1, expectedAdjustedScores[i], score)
@@ -80,21 +80,21 @@ func TestHandicapRefactor_VerificationCase(t *testing.T) {
 	// Total Adjusted = 4+7+5+7+4+9+4+5+4 = 49
 	// Formula: (AdjustedGross - CourseRating) * 113 / SlopeRating
 	// (49 - 34.7) * 113 / 131 = 14.3 * 113 / 131 = 1615.9 / 131 = 12.335 -> 12.3
-	
+
 	totalAdjusted := 0
 	for _, s := range adjustedScores {
 		totalAdjusted += s
 	}
-	
+
 	score := models.Score{
 		AdjustedGross: totalAdjusted,
 	}
 	differential := CalculateDifferential(score, course)
-	
+
 	// Round to 1 decimal for comparison
 	differentialRounded := math.Round(differential*10) / 10
 	expectedDifferential := 12.3
-	
+
 	if differentialRounded != expectedDifferential {
 		t.Errorf("Expected Differential %.1f, got %.1f (raw %.4f)", expectedDifferential, differentialRounded, differential)
 	}
@@ -103,16 +103,16 @@ func TestHandicapRefactor_VerificationCase(t *testing.T) {
 	// 1 round played.
 	// Formula for 1 round: ((2 * provisional) + diff) / 3
 	// ((2 * 11.7) + 12.335) / 3 = (23.4 + 12.335) / 3 = 35.735 / 3 = 11.911 -> 11.9
-	
+
 	// We need to simulate the job logic here or call a helper if available.
 	// The job logic is inside HandicapRecalculationJob.RecalculatePlayerHandicap.
 	// But that requires Firestore mocks.
 	// We can just verify the calculation logic here since we verified the inputs (differential).
-	
+
 	updatedHandicap := ((2 * provisionalHandicap) + differential) / 3
 	updatedHandicapRounded := math.Round(updatedHandicap*10) / 10
 	expectedUpdatedHandicap := 11.9
-	
+
 	if updatedHandicapRounded != expectedUpdatedHandicap {
 		t.Errorf("Expected Updated Handicap %.1f, got %.1f (raw %.4f)", expectedUpdatedHandicap, updatedHandicapRounded, updatedHandicap)
 	}

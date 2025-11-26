@@ -45,7 +45,7 @@ func LeagueAdminMiddleware(fc interface {
 			type PlayerIDGetter interface {
 				GetID() string
 			}
-			
+
 			var playerID string
 			if p, ok := playerInterface.(PlayerIDGetter); ok {
 				playerID = p.GetID()
@@ -117,7 +117,7 @@ func LeagueMemberMiddleware(fc interface {
 			type PlayerIDGetter interface {
 				GetID() string
 			}
-			
+
 			var playerID string
 			if p, ok := playerInterface.(PlayerIDGetter); ok {
 				playerID = p.GetID()

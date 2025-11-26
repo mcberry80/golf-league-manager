@@ -36,7 +36,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 	}
 
 	ctx := r.Context()
-	
+
 	// We need to group scores by match to process matches after scores are entered
 	scoresByMatch := make(map[string][]ScoreSubmission)
 	for _, sub := range req.Scores {
@@ -44,7 +44,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 	}
 
 	processedCount := 0
-	
+
 	for _, sub := range req.Scores {
 		// Get Match to get CourseID
 		match, err := s.firestoreClient.GetMatch(ctx, sub.MatchID)
@@ -71,7 +71,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		var leagueHandicapIndex float64
 		var courseHandicap float64
 		var playingHandicap int
-		
+
 		// Helper to get effective handicap
 		getEffectiveHandicap := func(pID string) (float64, error) {
 			// Try to get established handicap
@@ -79,7 +79,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			if err == nil && hr != nil {
 				return hr.LeagueHandicapIndex, nil
 			}
-			
+
 			// Fallback to provisional
 			// We need to find the league member to get provisional handicap
 			// Since we don't have a direct GetMemberByPlayer, we list (optimization: add that method later)
@@ -118,7 +118,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		}
 
 		// Calculate Differential
-		// We need a temporary Score object or just pass values. 
+		// We need a temporary Score object or just pass values.
 		// CalculateDifferential takes a Score object now.
 		tempScore := models.Score{
 			AdjustedGross: totalAdjusted,
@@ -144,7 +144,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 				// Proceed with 0 strokes if opponent not found (shouldn't happen in valid match)
 			} else {
 				_, opponentPlayingHandicap := services.CalculateCourseAndPlayingHandicap(opponentHandicapIndex, *course)
-				
+
 				// Calculate strokes for the match
 				strokesMap := services.AssignStrokes(sub.PlayerID, playingHandicap, opponentID, opponentPlayingHandicap, *course)
 				matchStrokes = strokesMap[sub.PlayerID]
@@ -160,7 +160,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			netHoleScores[i] = gross - matchStrokes[i]
 			matchNetScore += netHoleScores[i]
 		}
-		
+
 		strokesReceived = playingHandicap // Total strokes received is the playing handicap
 
 		// Create Score object
@@ -200,7 +200,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		for _, c := range courses {
 			coursesMap[c.ID] = c
 		}
-		
+
 		// Get league member to retrieve provisional handicap (needed for recalculation job)
 		// We already have logic for this in getEffectiveHandicap but the job needs it passed explicitly
 		// The job uses it if < 5 rounds.
@@ -214,7 +214,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 				}
 			}
 		}
-		
+
 		if err := job.RecalculatePlayerHandicap(ctx, leagueID, *player, provisionalHandicap, coursesMap); err != nil {
 			log.Printf("Error recalculating handicap for player %s: %v", sub.PlayerID, err)
 		}

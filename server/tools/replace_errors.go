@@ -15,7 +15,7 @@ func main() {
 	}
 
 	filename := os.Args[1]
-	
+
 	// Read file
 	file, err := os.Open(filename)
 	if err != nil {
@@ -37,7 +37,7 @@ func main() {
 
 	// Replace http.Error with s.respondWithError
 	re := regexp.MustCompile(`http\.Error\(w,\s*(.+?),\s*(http\.Status\w+)\)`)
-	
+
 	for i, line := range lines {
 		if strings.Contains(line, "http.Error(w,") {
 			lines[i] = re.ReplaceAllString(line, `s.respondWithError(w, $2, $1)`)
