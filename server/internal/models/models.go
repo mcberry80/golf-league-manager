@@ -75,6 +75,7 @@ type MatchDay struct {
 	SeasonID  string    `firestore:"season_id" json:"seasonId"`
 	Date      time.Time `firestore:"date" json:"date"`
 	CourseID  string    `firestore:"course_id" json:"courseId"`
+	Status    string    `firestore:"status" json:"status"` // scheduled|completed|locked
 	CreatedAt time.Time `firestore:"created_at" json:"createdAt"`
 }
 
