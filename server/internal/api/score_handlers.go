@@ -14,9 +14,10 @@ import (
 )
 
 type ScoreSubmission struct {
-	MatchID    string `json:"matchId"`
-	PlayerID   string `json:"playerId"`
-	HoleScores []int  `json:"holeScores"`
+	MatchID      string `json:"matchId"`
+	PlayerID     string `json:"playerId"`
+	HoleScores   []int  `json:"holeScores"`
+	PlayerAbsent bool   `json:"playerAbsent"`
 }
 
 func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Request) {
@@ -104,26 +105,47 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		// Calculate course and playing handicap for this specific course
 		courseHandicap, playingHandicap = services.CalculateCourseAndPlayingHandicap(leagueHandicapIndex, *course)
 
-		// Calculate Stats
-		totalGross := 0
-		for _, s := range sub.HoleScores {
-			totalGross += s
-		}
+		var holeScores []int
+		var totalGross int
+		var adjustedScores []int
+		var totalAdjusted int
+		var differential float64
 
-		// Calculate Adjusted Gross (Net Double Bogey) - based on course handicap (rounded)
-		adjustedScores := services.CalculateAdjustedGrossScores(sub.HoleScores, *course, int(math.Round(courseHandicap)))
-		totalAdjusted := 0
-		for _, s := range adjustedScores {
-			totalAdjusted += s
-		}
+		// Handle absent player differently
+		if sub.PlayerAbsent {
+			// For absent players:
+			// - Gross score = playing handicap + par + 3
+			// - Hole scores are calculated with strokes distributed evenly
+			// - Adjusted gross scores are not needed (handicap not updated)
+			// - Differential is not used for handicap calculation
+			holeScores = services.CalculateAbsentPlayerScores(playingHandicap, *course)
+			for _, s := range holeScores {
+				totalGross += s
+			}
+			// For absent players, adjusted scores are the same as gross (not used for handicap)
+			adjustedScores = make([]int, len(holeScores))
+			copy(adjustedScores, holeScores)
+			totalAdjusted = totalGross
+			differential = 0 // Not used for handicap calculation
+		} else {
+			// Regular player - use submitted hole scores
+			holeScores = sub.HoleScores
+			for _, s := range holeScores {
+				totalGross += s
+			}
 
-		// Calculate Differential
-		// We need a temporary Score object or just pass values.
-		// CalculateDifferential takes a Score object now.
-		tempScore := models.Score{
-			AdjustedGross: totalAdjusted,
+			// Calculate Adjusted Gross (Net Double Bogey) - based on course handicap (rounded)
+			adjustedScores = services.CalculateAdjustedGrossScores(holeScores, *course, int(math.Round(courseHandicap)))
+			for _, s := range adjustedScores {
+				totalAdjusted += s
+			}
+
+			// Calculate Differential
+			tempScore := models.Score{
+				AdjustedGross: totalAdjusted,
+			}
+			differential = services.CalculateDifferential(tempScore, *course)
 		}
-		differential := services.CalculateDifferential(tempScore, *course)
 
 		// Determine Opponent and Calculate Match Strokes
 		var opponentID string
@@ -154,9 +176,9 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		}
 
 		// Calculate Net Hole Scores and Match Net Score
-		netHoleScores = make([]int, len(sub.HoleScores))
+		netHoleScores = make([]int, len(holeScores))
 		matchNetScore := 0
-		for i, gross := range sub.HoleScores {
+		for i, gross := range holeScores {
 			netHoleScores[i] = gross - matchStrokes[i]
 			matchNetScore += netHoleScores[i]
 		}
@@ -171,7 +193,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			LeagueID:                leagueID,
 			Date:                    match.MatchDate,
 			CourseID:                match.CourseID,
-			HoleScores:              sub.HoleScores,
+			HoleScores:              holeScores,
 			HoleAdjustedGrossScores: adjustedScores,
 			MatchNetHoleScores:      netHoleScores,
 			GrossScore:              totalGross,
@@ -184,7 +206,7 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			PlayingHandicap:         playingHandicap,
 			StrokesReceived:         strokesReceived,
 			MatchStrokes:            matchStrokes,
-			PlayerAbsent:            false, // Assuming present if submitting score
+			PlayerAbsent:            sub.PlayerAbsent,
 		}
 
 		// Save Score
@@ -193,30 +215,31 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 			continue
 		}
 
-		// Recalculate Handicap
-		job := services.NewHandicapRecalculationJob(s.firestoreClient)
-		courses, _ := s.firestoreClient.ListCourses(ctx, leagueID)
-		coursesMap := make(map[string]models.Course)
-		for _, c := range courses {
-			coursesMap[c.ID] = c
-		}
+		// Recalculate Handicap - only if player is NOT absent
+		// Absent rounds should not affect handicap calculations
+		if !sub.PlayerAbsent {
+			job := services.NewHandicapRecalculationJob(s.firestoreClient)
+			courses, _ := s.firestoreClient.ListCourses(ctx, leagueID)
+			coursesMap := make(map[string]models.Course)
+			for _, c := range courses {
+				coursesMap[c.ID] = c
+			}
 
-		// Get league member to retrieve provisional handicap (needed for recalculation job)
-		// We already have logic for this in getEffectiveHandicap but the job needs it passed explicitly
-		// The job uses it if < 5 rounds.
-		provisionalHandicap := 0.0
-		members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
-		if err == nil {
-			for _, m := range members {
-				if m.PlayerID == sub.PlayerID {
-					provisionalHandicap = m.ProvisionalHandicap
-					break
+			// Get league member to retrieve provisional handicap (needed for recalculation job)
+			provisionalHandicap := 0.0
+			members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
+			if err == nil {
+				for _, m := range members {
+					if m.PlayerID == sub.PlayerID {
+						provisionalHandicap = m.ProvisionalHandicap
+						break
+					}
 				}
 			}
-		}
 
-		if err := job.RecalculatePlayerHandicap(ctx, leagueID, *player, provisionalHandicap, coursesMap); err != nil {
-			log.Printf("Error recalculating handicap for player %s: %v", sub.PlayerID, err)
+			if err := job.RecalculatePlayerHandicap(ctx, leagueID, *player, provisionalHandicap, coursesMap); err != nil {
+				log.Printf("Error recalculating handicap for player %s: %v", sub.PlayerID, err)
+			}
 		}
 
 		processedCount++

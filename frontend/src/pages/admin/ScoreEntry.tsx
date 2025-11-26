@@ -18,6 +18,8 @@ export default function ScoreEntry() {
 
     // Scores state: matchId_playerId -> number[]
     const [scores, setScores] = useState<Record<string, number[]>>({})
+    // Absent state: matchId_playerId -> boolean
+    const [absentPlayers, setAbsentPlayers] = useState<Record<string, boolean>>({})
     const [submitting, setSubmitting] = useState(false)
 
     const loadData = useCallback(async () => {
@@ -68,11 +70,15 @@ export default function ScoreEntry() {
             const defaultScores = course?.holePars || Array(9).fill(4)
 
             const initialScores: Record<string, number[]> = {}
+            const initialAbsent: Record<string, boolean> = {}
             dayMatches.forEach(match => {
                 initialScores[`${match.id}_${match.playerAId}`] = [...defaultScores]
                 initialScores[`${match.id}_${match.playerBId}`] = [...defaultScores]
+                initialAbsent[`${match.id}_${match.playerAId}`] = false
+                initialAbsent[`${match.id}_${match.playerBId}`] = false
             })
             setScores(initialScores)
+            setAbsentPlayers(initialAbsent)
         }
     }
 
@@ -82,6 +88,11 @@ export default function ScoreEntry() {
         const newScores = [...currentScores]
         newScores[holeIndex] = value
         setScores(prev => ({ ...prev, [key]: newScores }))
+    }
+
+    function handleAbsentChange(matchId: string, playerId: string, isAbsent: boolean) {
+        const key = `${matchId}_${playerId}`
+        setAbsentPlayers(prev => ({ ...prev, [key]: isAbsent }))
     }
 
     async function handleSubmit(e: React.FormEvent) {
@@ -94,17 +105,22 @@ export default function ScoreEntry() {
             const scoreSubmissions = []
 
             for (const match of dayMatches) {
+                const keyA = `${match.id}_${match.playerAId}`
+                const keyB = `${match.id}_${match.playerBId}`
+
                 // Player A
                 scoreSubmissions.push({
                     matchId: match.id,
                     playerId: match.playerAId,
-                    holeScores: scores[`${match.id}_${match.playerAId}`]
+                    holeScores: scores[keyA],
+                    playerAbsent: absentPlayers[keyA] || false
                 })
                 // Player B
                 scoreSubmissions.push({
                     matchId: match.id,
                     playerId: match.playerBId,
-                    holeScores: scores[`${match.id}_${match.playerBId}`]
+                    holeScores: scores[keyB],
+                    playerAbsent: absentPlayers[keyB] || false
                 })
             }
 
@@ -134,6 +150,97 @@ export default function ScoreEntry() {
         const month = date.getUTCMonth() + 1
         const day = date.getUTCDate()
         return `${month}/${day}/${year}`
+    }
+
+    // Render player row with absent checkbox and score inputs
+    const renderPlayerRow = (matchId: string, playerId: string) => {
+        const key = `${matchId}_${playerId}`
+        const isAbsent = absentPlayers[key] || false
+        const playerScores = scores[key] || Array(9).fill(0)
+
+        return (
+            <tr key={key}>
+                <td style={{ padding: '0.5rem', fontWeight: '600' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <label 
+                            style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '0.25rem',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                color: isAbsent ? 'var(--color-warning)' : 'var(--color-text-muted)'
+                            }}
+                            title="Mark player as absent"
+                        >
+                            <input
+                                type="checkbox"
+                                checked={isAbsent}
+                                onChange={(e) => handleAbsentChange(matchId, playerId, e.target.checked)}
+                                style={{ 
+                                    cursor: 'pointer',
+                                    accentColor: 'var(--color-warning)'
+                                }}
+                            />
+                            <span style={{ fontSize: '0.65rem' }}>Absent</span>
+                        </label>
+                        <span style={{ 
+                            textDecoration: isAbsent ? 'line-through' : 'none',
+                            opacity: isAbsent ? 0.7 : 1
+                        }}>
+                            {getPlayerName(playerId)}
+                        </span>
+                        {isAbsent && (
+                            <span 
+                                style={{ 
+                                    fontSize: '0.65rem', 
+                                    backgroundColor: 'var(--color-warning)',
+                                    color: '#000',
+                                    padding: '0.1rem 0.3rem',
+                                    borderRadius: '3px',
+                                    fontWeight: '500'
+                                }}
+                            >
+                                ABSENT
+                            </span>
+                        )}
+                    </div>
+                </td>
+                {playerScores.map((score, i) => (
+                    <td key={i} style={{ padding: '0.25rem', textAlign: 'center' }}>
+                        <input
+                            type="number"
+                            className="form-input"
+                            value={score}
+                            onChange={(e) => handleScoreChange(matchId, playerId, i, parseInt(e.target.value) || 0)}
+                            min="0"
+                            max="15"
+                            disabled={isAbsent}
+                            style={{ 
+                                width: '40px', 
+                                padding: '0.25rem', 
+                                textAlign: 'center',
+                                opacity: isAbsent ? 0.5 : 1,
+                                backgroundColor: isAbsent ? 'var(--color-bg-tertiary)' : undefined
+                            }}
+                            title={isAbsent ? 'Score will be calculated automatically for absent players' : ''}
+                        />
+                    </td>
+                ))}
+                <td style={{ 
+                    padding: '0.5rem', 
+                    textAlign: 'center', 
+                    fontWeight: '700', 
+                    color: isAbsent ? 'var(--color-warning)' : 'var(--color-primary)'
+                }}>
+                    {isAbsent ? (
+                        <span title="Score will be calculated based on playing handicap + par + 3">Auto</span>
+                    ) : (
+                        playerScores.reduce((a, b) => a + b, 0)
+                    )}
+                </td>
+            </tr>
+        )
     }
 
     if (leagueLoading || loading) {
@@ -195,6 +302,29 @@ export default function ScoreEntry() {
 
                 {selectedMatchDay && (
                     <form onSubmit={handleSubmit}>
+                        {/* Absent player info box */}
+                        <div className="card-glass" style={{ 
+                            marginBottom: 'var(--spacing-lg)', 
+                            padding: 'var(--spacing-md)',
+                            backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                            borderLeft: '3px solid var(--color-warning)'
+                        }}>
+                            <h4 style={{ color: 'var(--color-warning)', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+                                ℹ️ Absent Player Rules
+                            </h4>
+                            <ul style={{ 
+                                fontSize: '0.8rem', 
+                                color: 'var(--color-text-muted)', 
+                                marginLeft: '1rem',
+                                lineHeight: '1.6'
+                            }}>
+                                <li>Absent player scores are calculated as: <strong>Playing Handicap + Par + 3</strong></li>
+                                <li>Strokes are distributed evenly across holes, with extras on hardest holes</li>
+                                <li>Absent rounds do <strong>not</strong> affect handicap calculations</li>
+                                <li>Net scores for match play are calculated normally based on strokes received</li>
+                            </ul>
+                        </div>
+
                         <div className="card-glass" style={{ marginBottom: 'var(--spacing-xl)', overflow: 'auto' }}>
                             <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>
                                 Scores for {formatDateOnly(selectedMatchDay.date)}
@@ -210,7 +340,7 @@ export default function ScoreEntry() {
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                                                    <th style={{ padding: '0.5rem', textAlign: 'left', width: '150px' }}>Player</th>
+                                                    <th style={{ padding: '0.5rem', textAlign: 'left', width: '200px' }}>Player</th>
                                                     {[...Array(9)].map((_, i) => (
                                                         <th key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{i + 1}</th>
                                                     ))}
@@ -225,46 +355,8 @@ export default function ScoreEntry() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {/* Player A */}
-                                                <tr>
-                                                    <td style={{ padding: '0.5rem', fontWeight: '600' }}>{getPlayerName(match.playerAId)}</td>
-                                                    {(scores[`${match.id}_${match.playerAId}`] || Array(9).fill(0)).map((score, i) => (
-                                                        <td key={i} style={{ padding: '0.25rem', textAlign: 'center' }}>
-                                                            <input
-                                                                type="number"
-                                                                className="form-input"
-                                                                value={score}
-                                                                onChange={(e) => handleScoreChange(match.id, match.playerAId, i, parseInt(e.target.value) || 0)}
-                                                                min="0"
-                                                                max="15"
-                                                                style={{ width: '40px', padding: '0.25rem', textAlign: 'center' }}
-                                                            />
-                                                        </td>
-                                                    ))}
-                                                    <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: '700', color: 'var(--color-primary)' }}>
-                                                        {(scores[`${match.id}_${match.playerAId}`] || []).reduce((a, b) => a + b, 0)}
-                                                    </td>
-                                                </tr>
-                                                {/* Player B */}
-                                                <tr>
-                                                    <td style={{ padding: '0.5rem', fontWeight: '600' }}>{getPlayerName(match.playerBId)}</td>
-                                                    {(scores[`${match.id}_${match.playerBId}`] || Array(9).fill(0)).map((score, i) => (
-                                                        <td key={i} style={{ padding: '0.25rem', textAlign: 'center' }}>
-                                                            <input
-                                                                type="number"
-                                                                className="form-input"
-                                                                value={score}
-                                                                onChange={(e) => handleScoreChange(match.id, match.playerBId, i, parseInt(e.target.value) || 0)}
-                                                                min="0"
-                                                                max="15"
-                                                                style={{ width: '40px', padding: '0.25rem', textAlign: 'center' }}
-                                                            />
-                                                        </td>
-                                                    ))}
-                                                    <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: '700', color: 'var(--color-primary)' }}>
-                                                        {(scores[`${match.id}_${match.playerBId}`] || []).reduce((a, b) => a + b, 0)}
-                                                    </td>
-                                                </tr>
+                                                {renderPlayerRow(match.id, match.playerAId)}
+                                                {renderPlayerRow(match.id, match.playerBId)}
                                             </tbody>
                                         </table>
                                     </div>

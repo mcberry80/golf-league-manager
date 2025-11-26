@@ -87,8 +87,9 @@ func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Conte
 // RecalculatePlayerHandicap recalculates and updates a single player's handicap
 // This is the exported version that can be called externally
 func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Context, leagueID string, player models.Player, provisionalHandicap float64, coursesMap map[string]models.Course) error {
-	// Get the last 5 scores for the player
-	scores, err := job.firestoreClient.GetPlayerScores(ctx, leagueID, player.ID, 5)
+	// Get the last 5 non-absent scores for the player
+	// Absent rounds are not considered in handicap calculations
+	scores, err := job.firestoreClient.GetPlayerScoresForHandicap(ctx, leagueID, player.ID, 5)
 	if err != nil {
 		return fmt.Errorf("failed to get player scores: %w", err)
 	}
