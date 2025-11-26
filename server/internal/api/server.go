@@ -733,6 +733,34 @@ func (s *APIServer) handleGetPlayerScores(w http.ResponseWriter, r *http.Request
 	}
 
 	ctx := r.Context()
+
+	// Get authenticated user ID from context
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get requesting player from Clerk user ID
+	requestingPlayer, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
+	if err != nil {
+		http.Error(w, "Player not found for authenticated user", http.StatusNotFound)
+		return
+	}
+
+	// Security check: user can only access their own scores OR must be a league admin
+	if requestingPlayer.ID != playerID {
+		isAdmin, err := s.firestoreClient.IsLeagueAdmin(ctx, leagueID, requestingPlayer.ID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to check admin status: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if !isAdmin {
+			http.Error(w, "Access denied: can only view own scores", http.StatusForbidden)
+			return
+		}
+	}
+
 	scores, err := s.firestoreClient.GetPlayerScores(ctx, leagueID, playerID, 20) // Limit to last 20 scores
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get scores: %v", err), http.StatusInternalServerError)
