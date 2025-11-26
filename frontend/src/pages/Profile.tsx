@@ -5,6 +5,11 @@ import api from '../lib/api'
 import type { Player, Score, Season, Match, LeagueMemberWithPlayer, Course } from '../types'
 import { ChevronDown, ChevronUp, Trophy, Calendar, Target, TrendingUp, Users } from 'lucide-react'
 
+// Constants
+const HOLE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
+const MAX_HANDICAP_ROUNDS = 20
+const LEAGUE_ID_DISPLAY_LENGTH = 8
+
 // Extended types for profile data
 interface HandicapHistoryEntry {
     date: string
@@ -417,7 +422,7 @@ export default function Profile() {
                                 >
                                     <Trophy className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                                     <span style={{ color: 'var(--color-text)' }}>
-                                        League {membership.leagueId.slice(0, 8)}...
+                                        League {membership.leagueId.slice(0, LEAGUE_ID_DISPLAY_LENGTH)}...
                                     </span>
                                     <span className={`badge ${membership.role === 'admin' ? 'badge-primary' : 'badge-secondary'}`} style={{ fontSize: '0.65rem' }}>
                                         {membership.role}
@@ -508,7 +513,7 @@ export default function Profile() {
                                             )}
                                             {scores.length > 0 && (
                                                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                                                    Based on {Math.min(scores.length, 20)} round{scores.length !== 1 ? 's' : ''}
+                                                    Based on {Math.min(scores.length, MAX_HANDICAP_ROUNDS)} round{scores.length !== 1 ? 's' : ''}
                                                 </p>
                                             )}
                                         </div>
@@ -716,7 +721,7 @@ export default function Profile() {
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                         <th style={{ padding: '0.5rem', textAlign: 'left' }}>Hole</th>
-                                                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
+                                                                        {HOLE_NUMBERS.map(i => (
                                                                             <th key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{i}</th>
                                                                         ))}
                                                                         <th style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>Total</th>
