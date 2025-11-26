@@ -70,7 +70,6 @@ func AuthMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
-
 // Helper function to create a middleware chain
 func chainMiddleware(handler http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
 	// Apply middlewares in reverse order so they execute in the order provided

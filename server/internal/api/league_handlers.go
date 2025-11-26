@@ -289,7 +289,7 @@ func (s *APIServer) handleAddLeagueMember(w http.ResponseWriter, r *http.Request
 			if name == "" {
 				name = req.Email
 			}
-			
+
 			newPlayer := models.Player{
 				ID:          uuid.New().String(),
 				Name:        name,
@@ -385,7 +385,7 @@ func (s *APIServer) handleListLeagueMembers(w http.ResponseWriter, r *http.Reque
 func (s *APIServer) handleUpdateLeagueMemberRole(w http.ResponseWriter, r *http.Request) {
 	leagueID := r.PathValue("id")
 	playerID := r.PathValue("player_id")
-	
+
 	if leagueID == "" || playerID == "" {
 		s.respondWithError(w, http.StatusBadRequest, "League ID and Player ID are required")
 		return
@@ -435,7 +435,7 @@ func (s *APIServer) handleUpdateLeagueMemberRole(w http.ResponseWriter, r *http.
 func (s *APIServer) handleRemoveLeagueMember(w http.ResponseWriter, r *http.Request) {
 	leagueID := r.PathValue("id")
 	playerID := r.PathValue("player_id")
-	
+
 	if leagueID == "" || playerID == "" {
 		s.respondWithError(w, http.StatusBadRequest, "League ID and Player ID are required")
 		return
@@ -470,4 +470,3 @@ func (s *APIServer) handleRemoveLeagueMember(w http.ResponseWriter, r *http.Requ
 
 	w.WriteHeader(http.StatusNoContent)
 }
-

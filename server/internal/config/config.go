@@ -33,12 +33,12 @@ type Config struct {
 // Returns an error if required configuration is missing or invalid.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:        getEnvOrDefault("PORT", "8080"),
-		ProjectID:   getEnvOrDefault("GCP_PROJECT_ID", "elite-league-manager"),
+		Port:           getEnvOrDefault("PORT", "8080"),
+		ProjectID:      getEnvOrDefault("GCP_PROJECT_ID", "elite-league-manager"),
 		ClerkSecretKey: os.Getenv("CLERK_SECRET_KEY"),
-		Environment: getEnvOrDefault("ENVIRONMENT", "production"),
-		LogLevel:    getEnvOrDefault("LOG_LEVEL", "INFO"),
-		CORSOrigins: getEnvList("CORS_ORIGINS", []string{"*"}),
+		Environment:    getEnvOrDefault("ENVIRONMENT", "production"),
+		LogLevel:       getEnvOrDefault("LOG_LEVEL", "INFO"),
+		CORSOrigins:    getEnvList("CORS_ORIGINS", []string{"*"}),
 	}
 
 	// Validate required fields
@@ -64,12 +64,12 @@ func Load() (*Config, error) {
 // MaskSensitive returns a copy of the config with sensitive values masked for logging
 func (c *Config) MaskSensitive() map[string]interface{} {
 	return map[string]interface{}{
-		"port":          c.Port,
-		"project_id":    c.ProjectID,
-		"clerk_secret":  maskString(c.ClerkSecretKey),
-		"environment":   c.Environment,
-		"log_level":     c.LogLevel,
-		"cors_origins":  c.CORSOrigins,
+		"port":         c.Port,
+		"project_id":   c.ProjectID,
+		"clerk_secret": maskString(c.ClerkSecretKey),
+		"environment":  c.Environment,
+		"log_level":    c.LogLevel,
+		"cors_origins": c.CORSOrigins,
 	}
 }
 

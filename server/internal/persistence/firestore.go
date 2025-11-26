@@ -51,7 +51,7 @@ func (fc *FirestoreClient) HealthCheck(ctx context.Context) error {
 	// Try to read from a collection to verify connectivity
 	iter := fc.client.Collection("health_check").Limit(1).Documents(ctx)
 	defer iter.Stop()
-	
+
 	_, err := iter.Next()
 	if err != nil && err != iterator.Done {
 		// Check if it's a real error (not just empty collection)
@@ -784,7 +784,6 @@ func (fc *FirestoreClient) ListMatches(ctx context.Context, leagueID, status str
 	return matches, nil
 }
 
-
 // GetMatchScores retrieves all scores for a match
 func (fc *FirestoreClient) GetMatchScores(ctx context.Context, matchID string) ([]models.Score, error) {
 	iter := fc.client.Collection("scores").
@@ -865,6 +864,7 @@ func (fc *FirestoreClient) ListMatchDays(ctx context.Context, leagueID string) (
 
 	return matchDays, nil
 }
+
 // GetPlayerMatchScores retrieves all scores for a specific player in a match
 func (fc *FirestoreClient) GetPlayerMatchScores(ctx context.Context, matchID, playerID string) ([]models.Score, error) {
 	iter := fc.client.Collection("scores").
