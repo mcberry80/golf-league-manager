@@ -1,0 +1,99 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-deploy.yml'
+  workflow_dispatch:
+
+env:
+  GCP_REGION: us-central1
+  SERVICE_NAME: golf-league-frontend
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCR
+        run: |
+          gcloud auth configure-docker
+
+      - name: Get backend URL
+        id: backend-url
+        run: |
+          BACKEND_URL=$(gcloud run services describe golf-league-backend \
+            --region ${{ env.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --format='value(status.url)' 2>/dev/null || echo "")
+          
+          if [ -z "$BACKEND_URL" ]; then
+            echo "Warning: Backend service not found. Using placeholder."
+            BACKEND_URL="https://backend-not-deployed-yet"
+          fi
+          
+          echo "backend_url=$BACKEND_URL" >> $GITHUB_OUTPUT
+          echo "Backend URL: $BACKEND_URL"
+
+      - name: Create production environment file
+        working-directory: ./frontend
+        run: |
+          cat > .env.production << EOF
+          VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          VITE_API_URL=${{ steps.backend-url.outputs.backend_url }}
+          EOF
+
+      - name: Build and push Docker image
+        working-directory: ./frontend
+        run: |
+          gcloud builds submit \
+            --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }} \
+            --project=${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }} \
+            --platform managed \
+            --region ${{ env.GCP_REGION }} \
+            --allow-unauthenticated \
+            --project=${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Get service URL
+        id: get-url
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --format='value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Frontend deployed to: $URL"
+
+      - name: Deployment summary
+        run: |
+          echo "### 🎨 Frontend Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service**: ${{ env.SERVICE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region**: ${{ env.GCP_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL**: ${{ steps.get-url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **Remember to update Clerk settings** with this URL for redirects!" >> $GITHUB_STEP_SUMMARY

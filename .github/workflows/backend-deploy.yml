@@ -1,0 +1,113 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/**'
+      - '.github/workflows/backend-deploy.yml'
+  workflow_dispatch:
+
+env:
+  GCP_REGION: us-central1
+  SERVICE_NAME: golf-league-backend
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache-dependency-path: server/go.sum
+
+      - name: Run tests
+        working-directory: ./server
+        run: |
+          go test -v ./...
+
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCR
+        run: |
+          gcloud auth configure-docker
+
+      - name: Ensure secrets in Secret Manager
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+        run: |
+          # Create or update clerk-secret-key
+          if gcloud secrets describe clerk-secret-key --project=${{ secrets.GCP_PROJECT_ID }} 2>/dev/null; then
+            echo "$CLERK_SECRET_KEY" | gcloud secrets versions add clerk-secret-key --data-file=- --project=${{ secrets.GCP_PROJECT_ID }}
+          else
+            echo "$CLERK_SECRET_KEY" | gcloud secrets create clerk-secret-key --data-file=- --project=${{ secrets.GCP_PROJECT_ID }}
+          fi
+          
+          # Create or update gcp-project-id
+          if gcloud secrets describe gcp-project-id --project=${{ secrets.GCP_PROJECT_ID }} 2>/dev/null; then
+            echo "${{ secrets.GCP_PROJECT_ID }}" | gcloud secrets versions add gcp-project-id --data-file=- --project=${{ secrets.GCP_PROJECT_ID }}
+          else
+            echo "${{ secrets.GCP_PROJECT_ID }}" | gcloud secrets create gcp-project-id --data-file=- --project=${{ secrets.GCP_PROJECT_ID }}
+          fi
+
+      - name: Build and push Docker image
+        working-directory: ./server
+        run: |
+          gcloud builds submit \
+            --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }} \
+            --project=${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }} \
+            --platform managed \
+            --region ${{ env.GCP_REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars "ENVIRONMENT=production,GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }}" \
+            --project=${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Get service URL
+        id: get-url
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --format='value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Backend deployed to: $URL"
+
+      - name: Deployment summary
+        run: |
+          echo "### 🚀 Backend Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service**: ${{ env.SERVICE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region**: ${{ env.GCP_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL**: ${{ steps.get-url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
