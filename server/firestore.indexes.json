@@ -1,7 +1,7 @@
 {
     "indexes": [
         {
-            "collectionGroup": "seasons",
+            "collectionGroup": "handicaps",
             "queryScope": "COLLECTION",
             "fields": [
                 {
@@ -9,7 +9,25 @@
                     "order": "ASCENDING"
                 },
                 {
-                    "fieldPath": "start_date",
+                    "fieldPath": "player_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "updated_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "match_days",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "league_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "date",
                     "order": "DESCENDING"
                 }
             ]
@@ -33,7 +51,39 @@
             ]
         },
         {
-            "collectionGroup": "matches",
+            "collectionGroup": "scores",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "match_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "player_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "hole_number",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "scores",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "playerId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "matchdayNumber",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "scores",
             "queryScope": "COLLECTION",
             "fields": [
                 {
@@ -41,8 +91,26 @@
                     "order": "ASCENDING"
                 },
                 {
-                    "fieldPath": "status",
+                    "fieldPath": "player_id",
                     "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "date",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "seasons",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "league_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "start_date",
+                    "order": "DESCENDING"
                 }
             ]
         }
