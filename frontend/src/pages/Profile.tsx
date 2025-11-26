@@ -51,6 +51,7 @@ export default function Profile() {
     // UI state
     const [selectedSeasonId, setSelectedSeasonId] = useState<string>('')
     const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null)
+    const [expandedRoundId, setExpandedRoundId] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'overview' | 'rounds' | 'handicaps' | 'matchups'>('overview')
 
     // Load current user and verify access
@@ -559,41 +560,145 @@ export default function Profile() {
                                 {filteredScores.length === 0 ? (
                                     <p style={{ color: 'var(--color-text-muted)' }}>No rounds recorded yet.</p>
                                 ) : (
-                                    <div className="table-container">
-                                        <table className="table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Date</th>
-                                                    <th>Course</th>
-                                                    <th>Gross</th>
-                                                    <th>Adjusted</th>
-                                                    <th>Net</th>
-                                                    <th>Differential</th>
-                                                    <th>Handicap After</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {[...filteredScores]
-                                                    .filter(s => s.date) // Only scores with dates
-                                                    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
-                                                    .map((score) => {
-                                                        const course = courses.find(c => c.id === score.courseId)
-                                                        return (
-                                                            <tr key={score.id}>
-                                                                <td>{formatDate(score.date!)}</td>
-                                                                <td>{course?.name || 'Unknown'}</td>
-                                                                <td>{score.grossScore}</td>
-                                                                <td>{score.adjustedGross}</td>
-                                                                <td>{score.netScore}</td>
-                                                                <td style={{ color: 'var(--color-primary)' }}>
-                                                                    {score.handicapDifferential?.toFixed(1) || 'N/A'}
-                                                                </td>
-                                                                <td>{score.handicapIndex?.toFixed(1) || 'N/A'}</td>
-                                                            </tr>
-                                                        )
-                                                    })}
-                                            </tbody>
-                                        </table>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                                        {[...filteredScores]
+                                            .filter(s => s.date)
+                                            .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
+                                            .map((score) => {
+                                                const course = courses.find(c => c.id === score.courseId)
+                                                const isExpanded = expandedRoundId === score.id
+                                                return (
+                                                    <div 
+                                                        key={score.id}
+                                                        style={{ 
+                                                            border: '1px solid var(--color-border)',
+                                                            borderRadius: 'var(--radius-md)',
+                                                            overflow: 'hidden'
+                                                        }}
+                                                    >
+                                                        {/* Round Header - Clickable */}
+                                                        <button
+                                                            onClick={() => setExpandedRoundId(isExpanded ? null : score.id)}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: 'var(--spacing-md)',
+                                                                background: 'rgba(255, 255, 255, 0.02)',
+                                                                border: 'none',
+                                                                cursor: 'pointer',
+                                                                display: 'flex',
+                                                                justifyContent: 'space-between',
+                                                                alignItems: 'center',
+                                                                color: 'var(--color-text)'
+                                                            }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
+                                                                <div style={{ textAlign: 'left' }}>
+                                                                    <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
+                                                                        {formatDate(score.date!)}
+                                                                    </p>
+                                                                    <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                                                        {course?.name || 'Unknown'}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xl)' }}>
+                                                                <div style={{ textAlign: 'center' }}>
+                                                                    <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>Gross</p>
+                                                                    <p style={{ fontWeight: 'bold' }}>{score.grossScore}</p>
+                                                                </div>
+                                                                <div style={{ textAlign: 'center' }}>
+                                                                    <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>Net</p>
+                                                                    <p style={{ fontWeight: 'bold' }}>{score.netScore}</p>
+                                                                </div>
+                                                                <div style={{ textAlign: 'center' }}>
+                                                                    <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>Differential</p>
+                                                                    <p style={{ fontWeight: 'bold', color: 'var(--color-primary)' }}>
+                                                                        {score.handicapDifferential?.toFixed(1) || 'N/A'}
+                                                                    </p>
+                                                                </div>
+                                                                {isExpanded ? 
+                                                                    <ChevronUp className="w-5 h-5" /> : 
+                                                                    <ChevronDown className="w-5 h-5" />
+                                                                }
+                                                            </div>
+                                                        </button>
+
+                                                        {/* Expanded Hole Scores */}
+                                                        {isExpanded && (
+                                                            <div style={{ 
+                                                                padding: 'var(--spacing-md)',
+                                                                background: 'rgba(0, 0, 0, 0.2)',
+                                                                borderTop: '1px solid var(--color-border)'
+                                                            }}>
+                                                                {/* Handicap Info */}
+                                                                <div style={{ 
+                                                                    marginBottom: 'var(--spacing-md)', 
+                                                                    display: 'flex', 
+                                                                    gap: 'var(--spacing-xl)', 
+                                                                    flexWrap: 'wrap' 
+                                                                }}>
+                                                                    <div>
+                                                                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Handicap Index Applied</p>
+                                                                        <p style={{ fontWeight: '600' }}>{score.handicapIndex?.toFixed(1) || 'N/A'}</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Playing Handicap</p>
+                                                                        <p style={{ fontWeight: '600' }}>{score.playingHandicap ?? 'N/A'}</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>Strokes Received</p>
+                                                                        <p style={{ fontWeight: '600' }}>{score.strokesReceived}</p>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Hole-by-hole scorecard */}
+                                                                <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
+                                                                    Hole Scores
+                                                                </h4>
+                                                                <div className="table-container" style={{ overflowX: 'auto' }}>
+                                                                    <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                                                                        <thead>
+                                                                            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Hole</th>
+                                                                                {HOLE_NUMBERS.map(i => (
+                                                                                    <th key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{i}</th>
+                                                                                ))}
+                                                                                <th style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>Total</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {/* Gross Scores */}
+                                                                            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                <td style={{ padding: '0.5rem', color: 'var(--color-text-muted)' }}>Gross</td>
+                                                                                {score.holeScores.map((holeScore, i) => (
+                                                                                    <td key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{holeScore}</td>
+                                                                                ))}
+                                                                                <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>
+                                                                                    {score.grossScore}
+                                                                                </td>
+                                                                            </tr>
+                                                                            {/* Net Scores (if available) */}
+                                                                            {score.matchNetHoleScores && (
+                                                                                <tr style={{ background: 'rgba(16, 185, 129, 0.1)' }}>
+                                                                                    <td style={{ padding: '0.5rem', color: 'var(--color-primary)' }}>Net</td>
+                                                                                    {score.matchNetHoleScores.map((netScore, i) => (
+                                                                                        <td key={i} style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--color-primary)' }}>
+                                                                                            {netScore}
+                                                                                        </td>
+                                                                                    ))}
+                                                                                    <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--color-primary)' }}>
+                                                                                        {score.matchNetScore ?? score.netScore}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            )}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
                                     </div>
                                 )}
                             </div>
