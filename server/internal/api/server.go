@@ -751,7 +751,11 @@ func (s *APIServer) handleGetPlayerScores(w http.ResponseWriter, r *http.Request
 	// Security check: user can only access their own scores OR must be a league admin
 	if requestingPlayer.ID != playerID {
 		isAdmin, err := s.firestoreClient.IsLeagueAdmin(ctx, leagueID, requestingPlayer.ID)
-		if err != nil || !isAdmin {
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to check admin status: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if !isAdmin {
 			http.Error(w, "Access denied: can only view own scores", http.StatusForbidden)
 			return
 		}
