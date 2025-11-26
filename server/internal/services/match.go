@@ -197,7 +197,7 @@ func CalculateAbsentPlayerScores(playingHandicap int, course models.Course) []in
 	remainingStrokes := totalStrokesAbovePar % numHoles
 
 	// Initialize each hole with base strokes
-	for i := range numHoles {
+	for i := 0; i < numHoles; i++ {
 		appliedStrokes[i] = baseStrokes
 	}
 
@@ -226,7 +226,7 @@ func CalculateAbsentPlayerScores(playingHandicap int, course models.Course) []in
 	}
 
 	// Calculate final hole scores: par + applied strokes
-	for i := range numHoles {
+	for i := 0; i < numHoles; i++ {
 		holeScores[i] = course.HolePars[i] + appliedStrokes[i]
 	}
 
