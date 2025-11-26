@@ -36,7 +36,7 @@ func NewAPIServer(fc *persistence.FirestoreClient, clerkSecretKey string, corsOr
 		mux:             http.NewServeMux(),
 	}
 	server.registerRoutes()
-	
+
 	// Apply global middleware stack
 	var handler http.Handler = server.mux
 	handler = middleware.Recovery()(handler)
@@ -44,7 +44,7 @@ func NewAPIServer(fc *persistence.FirestoreClient, clerkSecretKey string, corsOr
 	handler = middleware.RequestID()(handler)
 	handler = middleware.CORS(corsOrigins)(handler)
 	handler = middleware.RateLimit()(handler)
-	
+
 	server.handler = handler
 	return server, nil
 }
@@ -65,43 +65,43 @@ func (s *APIServer) respondWithError(w http.ResponseWriter, code int, message st
 func (s *APIServer) registerRoutes() {
 	// Create middleware
 	authMiddleware := AuthMiddleware()
-	
+
 	// League endpoints - require authentication
 	s.mux.Handle("POST /api/leagues", chainMiddleware(http.HandlerFunc(s.handleCreateLeague), authMiddleware))
 	s.mux.Handle("GET /api/leagues", chainMiddleware(http.HandlerFunc(s.handleListLeagues), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{id}", chainMiddleware(http.HandlerFunc(s.handleGetLeague), authMiddleware))
 	s.mux.Handle("PUT /api/leagues/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateLeague), authMiddleware))
-	
+
 	// League member endpoints - require authentication
 	s.mux.Handle("POST /api/leagues/{id}/members", chainMiddleware(http.HandlerFunc(s.handleAddLeagueMember), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{id}/members", chainMiddleware(http.HandlerFunc(s.handleListLeagueMembers), authMiddleware))
 	s.mux.Handle("PUT /api/leagues/{id}/members/{player_id}", chainMiddleware(http.HandlerFunc(s.handleUpdateLeagueMemberRole), authMiddleware))
 	s.mux.Handle("DELETE /api/leagues/{id}/members/{player_id}", chainMiddleware(http.HandlerFunc(s.handleRemoveLeagueMember), authMiddleware))
-	
+
 	// League-scoped admin endpoints - require authentication and league admin role
 	// These will be updated to use league-specific authorization
 	s.mux.Handle("POST /api/leagues/{league_id}/courses", chainMiddleware(http.HandlerFunc(s.handleCreateCourse), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/courses", chainMiddleware(http.HandlerFunc(s.handleListCourses), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/courses/{id}", chainMiddleware(http.HandlerFunc(s.handleGetCourse), authMiddleware))
 	s.mux.Handle("PUT /api/leagues/{league_id}/courses/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateCourse), authMiddleware))
-	
+
 	s.mux.Handle("POST /api/leagues/{league_id}/players", chainMiddleware(http.HandlerFunc(s.handleCreatePlayer), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/players", chainMiddleware(http.HandlerFunc(s.handleListPlayers), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}", chainMiddleware(http.HandlerFunc(s.handleGetPlayer), authMiddleware))
 	s.mux.Handle("PUT /api/leagues/{league_id}/players/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdatePlayer), authMiddleware))
-	
+
 	s.mux.Handle("POST /api/leagues/{league_id}/seasons", chainMiddleware(http.HandlerFunc(s.handleCreateSeason), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/seasons", chainMiddleware(http.HandlerFunc(s.handleListSeasons), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/seasons/{id}", chainMiddleware(http.HandlerFunc(s.handleGetSeason), authMiddleware))
 	s.mux.Handle("PUT /api/leagues/{league_id}/seasons/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateSeason), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/seasons/{id}/matches", chainMiddleware(http.HandlerFunc(s.handleGetSeasonMatches), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/seasons/active", chainMiddleware(http.HandlerFunc(s.handleGetActiveSeason), authMiddleware))
-	
+
 	s.mux.Handle("POST /api/leagues/{league_id}/matches", chainMiddleware(http.HandlerFunc(s.handleCreateMatch), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/matches", chainMiddleware(http.HandlerFunc(s.handleListMatches), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/matches/{id}", chainMiddleware(http.HandlerFunc(s.handleGetMatch), authMiddleware))
 	s.mux.Handle("PUT /api/leagues/{league_id}/matches/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateMatch), authMiddleware))
-	
+
 	// Match Day endpoints
 	s.mux.Handle("POST /api/leagues/{league_id}/match-days", chainMiddleware(http.HandlerFunc(s.handleCreateMatchDay), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/match-days", chainMiddleware(http.HandlerFunc(s.handleListMatchDays), authMiddleware))
@@ -110,22 +110,22 @@ func (s *APIServer) registerRoutes() {
 
 	s.mux.Handle("POST /api/leagues/{league_id}/scores", chainMiddleware(http.HandlerFunc(s.handleEnterScore), authMiddleware))
 	s.mux.Handle("POST /api/leagues/{league_id}/scores/batch", chainMiddleware(http.HandlerFunc(s.handleEnterScoreBatch), authMiddleware))
-	
+
 	s.mux.Handle("GET /api/leagues/{league_id}/standings", chainMiddleware(http.HandlerFunc(s.handleGetStandings), authMiddleware))
-	
+
 	// User account linking endpoints - require authentication only
 	s.mux.Handle("POST /api/user/link-player", chainMiddleware(http.HandlerFunc(s.handleLinkPlayerAccount), authMiddleware))
 	s.mux.Handle("GET /api/user/me", chainMiddleware(http.HandlerFunc(s.handleGetCurrentUser), authMiddleware))
-	
+
 	// League member endpoints - require authentication and league membership
 	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/handicap", chainMiddleware(http.HandlerFunc(s.handleGetPlayerHandicap), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetPlayerScores), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/matches/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetMatchScores), authMiddleware))
-	
+
 	// Job endpoints - require authentication and league admin role
 	s.mux.Handle("POST /api/leagues/{league_id}/jobs/recalculate-handicaps", chainMiddleware(http.HandlerFunc(s.handleRecalculateHandicaps), authMiddleware))
 	s.mux.Handle("POST /api/leagues/{league_id}/jobs/process-match/{id}", chainMiddleware(http.HandlerFunc(s.handleProcessMatch), authMiddleware))
-	
+
 	// Health check endpoints - public
 	healthHandler := handlers.NewHealthHandler(s.firestoreClient)
 	s.mux.HandleFunc("GET /health", healthHandler.HandleHealth)
@@ -307,7 +307,7 @@ func (s *APIServer) handleUpdatePlayer(w http.ResponseWriter, r *http.Request) {
 // handleLinkPlayerAccount links a Clerk user to a player account by email
 func (s *APIServer) handleLinkPlayerAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// Get the authenticated user ID from context
 	userID, err := GetUserIDFromContext(ctx)
 	if err != nil {
@@ -381,7 +381,7 @@ func (s *APIServer) handleLinkPlayerAccount(w http.ResponseWriter, r *http.Reque
 // handleGetCurrentUser returns the player info for the authenticated user
 func (s *APIServer) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// Get the authenticated user ID from context
 	userID, err := GetUserIDFromContext(ctx)
 	if err != nil {
@@ -395,7 +395,7 @@ func (s *APIServer) handleGetCurrentUser(w http.ResponseWriter, r *http.Request)
 		// User is authenticated but not linked to a player account yet
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"linked": false,
+			"linked":        false,
 			"clerk_user_id": userID,
 		})
 		return
@@ -702,7 +702,6 @@ func (s *APIServer) handleEnterScoreBatch(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"status": "success", "count": fmt.Sprintf("%d", len(req.Scores))})
 }
-
 
 // models.Player query handlers
 

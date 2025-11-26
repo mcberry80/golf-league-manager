@@ -13,11 +13,11 @@ func TestCORS(t *testing.T) {
 	}))
 
 	tests := []struct {
-		name           string
-		origin         string
-		method         string
-		expectStatus   int
-		expectOrigin   string
+		name         string
+		origin       string
+		method       string
+		expectStatus int
+		expectOrigin string
 	}{
 		{
 			name:         "Allowed origin",

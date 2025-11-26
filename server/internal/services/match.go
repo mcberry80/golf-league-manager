@@ -9,8 +9,8 @@ import (
 
 // Constants for match scoring
 const (
-	holesPerRound = 9   // Number of holes in a 9-hole round
-	maxStrokes    = 18  // Maximum strokes that can be allocated (2 per hole)
+	holesPerRound = 9  // Number of holes in a 9-hole round
+	maxStrokes    = 18 // Maximum strokes that can be allocated (2 per hole)
 )
 
 // AssignStrokes assigns strokes to holes based on playing handicap difference
