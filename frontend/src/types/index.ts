@@ -103,12 +103,22 @@ export interface Score {
     id: string;
     matchId: string;
     playerId: string;
+    leagueId?: string;
+    date?: string;
+    courseId?: string;
     holeScores: number[];
+    holeAdjustedGrossScores?: number[];
+    matchNetHoleScores?: number[];
     grossScore: number;
     netScore: number;
+    matchNetScore?: number;
     adjustedGross: number;
     handicapDifferential: number;
+    handicapIndex?: number;
+    courseHandicap?: number;
+    playingHandicap?: number;
     strokesReceived: number;
+    matchStrokes?: number[];
     playerAbsent?: boolean;
 }
 
