@@ -7,6 +7,7 @@ import { Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 import { 
     ExpandableCard, 
     ScorecardTable,
+    AbsentBadge,
     EMPTY_STROKES_ARRAY 
 } from '../components/Scorecard'
 
@@ -242,16 +243,70 @@ export default function Results() {
         const { playerAHolePoints, playerBHolePoints, playerATotal, playerBTotal } = 
             calculateMatchPoints(playerAScore, playerBScore, match)
 
+        // Calculate cell colors for net scores based on hole results
+        const getPlayerANetCellColors = (): ('win' | 'loss' | 'tie' | 'none')[] => {
+            const playerANetScores = playerAScore.matchNetHoleScores || playerAScore.holeScores
+            const playerBNetScores = playerBScore.matchNetHoleScores || playerBScore.holeScores
+            return playerANetScores.map((aNet, i) => {
+                const bNet = playerBNetScores[i]
+                if (aNet < bNet) return 'win'
+                if (aNet > bNet) return 'loss'
+                return 'tie'
+            })
+        }
+        
+        const getPlayerBNetCellColors = (): ('win' | 'loss' | 'tie' | 'none')[] => {
+            const playerANetScores = playerAScore.matchNetHoleScores || playerAScore.holeScores
+            const playerBNetScores = playerBScore.matchNetHoleScores || playerBScore.holeScores
+            return playerBNetScores.map((bNet, i) => {
+                const aNet = playerANetScores[i]
+                if (bNet < aNet) return 'win'
+                if (bNet > aNet) return 'loss'
+                return 'tie'
+            })
+        }
+
+        const playerANetCellColors = getPlayerANetCellColors()
+        const playerBNetCellColors = getPlayerBNetCellColors()
+
         return [
             ...(course?.holePars ? [{ label: 'Par', scores: course.holePars, total: course.par, withBorder: false }] : []),
             ...(course?.holeHandicaps ? [{ label: 'Hole Hdcp', scores: course.holeHandicaps, total: '', withBorder: true }] : []),
-            { label: `${playerAName} Gross`, scores: playerAScore.holeScores, total: playerAScore.grossScore, withBorder: false },
+            // Player A rows grouped together
+            { 
+                label: playerAScore.playerAbsent ? `${playerAName} Gross (Absent)` : `${playerAName} Gross`, 
+                scores: playerAScore.holeScores, 
+                total: playerAScore.grossScore, 
+                withBorder: false,
+                showGolfSymbols: !playerAScore.playerAbsent && !!course?.holePars,
+                pars: course?.holePars
+            },
             { label: `${playerAName} Strokes`, scores: playerAScore.matchStrokes || EMPTY_STROKES_ARRAY, total: playerAScore.strokesReceived, withBorder: false, color: 'var(--color-accent)' },
-            { label: `${playerAName} Net`, scores: playerAScore.matchNetHoleScores || playerAScore.holeScores, total: playerAScore.matchNetScore ?? playerAScore.netScore, withBorder: false, color: 'var(--color-primary)', bgColor: 'rgba(16, 185, 129, 0.1)' },
+            { 
+                label: `${playerAName} Net`, 
+                scores: playerAScore.matchNetHoleScores || playerAScore.holeScores, 
+                total: playerAScore.matchNetScore ?? playerAScore.netScore, 
+                withBorder: false, 
+                cellColors: playerANetCellColors
+            },
             { label: `${playerAName} Pts`, scores: playerAHolePoints, total: playerATotal, withBorder: true, color: 'var(--color-primary)', bgColor: 'rgba(16, 185, 129, 0.15)' },
-            { label: `${playerBName} Gross`, scores: playerBScore.holeScores, total: playerBScore.grossScore, withBorder: false },
+            // Player B rows grouped together
+            { 
+                label: playerBScore.playerAbsent ? `${playerBName} Gross (Absent)` : `${playerBName} Gross`, 
+                scores: playerBScore.holeScores, 
+                total: playerBScore.grossScore, 
+                withBorder: false,
+                showGolfSymbols: !playerBScore.playerAbsent && !!course?.holePars,
+                pars: course?.holePars
+            },
             { label: `${playerBName} Strokes`, scores: playerBScore.matchStrokes || EMPTY_STROKES_ARRAY, total: playerBScore.strokesReceived, withBorder: false, color: 'var(--color-warning)' },
-            { label: `${playerBName} Net`, scores: playerBScore.matchNetHoleScores || playerBScore.holeScores, total: playerBScore.matchNetScore ?? playerBScore.netScore, withBorder: false, color: 'var(--color-danger)', bgColor: 'rgba(239, 68, 68, 0.1)' },
+            { 
+                label: `${playerBName} Net`, 
+                scores: playerBScore.matchNetHoleScores || playerBScore.holeScores, 
+                total: playerBScore.matchNetScore ?? playerBScore.netScore, 
+                withBorder: false, 
+                cellColors: playerBNetCellColors
+            },
             { label: `${playerBName} Pts`, scores: playerBHolePoints, total: playerBTotal, withBorder: false, color: 'var(--color-danger)', bgColor: 'rgba(239, 68, 68, 0.15)' }
         ]
     }
@@ -409,6 +464,10 @@ export default function Results() {
                                                                     const { playerATotal, playerBTotal } = calculateMatchPoints(playerAScore, playerBScore, match)
 
                                                                     const scorecardRows = buildScorecardRows(matchData, course)
+                                                                    
+                                                                    // Check if either player was absent
+                                                                    const playerAAbsent = playerAScore?.playerAbsent
+                                                                    const playerBAbsent = playerBScore?.playerAbsent
 
                                                                     return (
                                                                         <ExpandableCard
@@ -423,8 +482,12 @@ export default function Results() {
                                                                                         </span>
                                                                                     )}
                                                                                     <div style={{ textAlign: 'left' }}>
-                                                                                        <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
-                                                                                            {playerAName} vs {playerBName}
+                                                                                        <p style={{ fontWeight: '600', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                                                            <span>{playerAName}</span>
+                                                                                            {playerAAbsent && <AbsentBadge small />}
+                                                                                            <span>vs</span>
+                                                                                            <span>{playerBName}</span>
+                                                                                            {playerBAbsent && <AbsentBadge small />}
                                                                                         </p>
                                                                                         {matchResult && !matchResult.isTie && (
                                                                                             <p style={{ fontSize: '0.75rem', color: 'var(--color-accent)' }}>

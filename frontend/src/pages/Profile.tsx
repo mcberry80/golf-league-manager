@@ -8,6 +8,7 @@ import {
     ExpandableCard, 
     ScorecardTable, 
     StatItem,
+    AbsentBadge,
     EMPTY_STROKES_ARRAY 
 } from '../components/Scorecard'
 
@@ -198,9 +199,23 @@ export default function Profile() {
     }
 
     // Build handicap history including provisional
+    // Only shows entries when handicap actually changes, excluding absent rounds
     const getHandicapHistory = (): HandicapHistoryEntry[] => {
         const history: HandicapHistoryEntry[] = []
         
+        // Get filtered scores for season
+        const filteredScores = selectedSeasonId 
+            ? scores.filter(s => {
+                const match = matches.find(m => m.id === s.matchId)
+                return match?.seasonId === selectedSeasonId
+            })
+            : scores
+
+        // Filter to non-absent rounds with valid data, sorted by date
+        const playedRounds = filteredScores
+            .filter(s => s.date && s.handicapIndex !== undefined && !s.playerAbsent)
+            .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
+
         // Add provisional handicap at start if available
         if (provisionalHandicap !== null) {
             const activeSeason = seasons.find(s => s.active) || seasons[0]
@@ -213,30 +228,34 @@ export default function Profile() {
             })
         }
 
-        // Add handicap from each round
-        const filteredScores = selectedSeasonId 
-            ? scores.filter(s => {
-                const match = matches.find(m => m.id === s.matchId)
-                return match?.seasonId === selectedSeasonId
-            })
-            : scores
+        // Track the last handicap to only show changes
+        let lastHandicap = provisionalHandicap
 
-        filteredScores
-            .filter(s => s.date && s.handicapIndex !== undefined) // Only include scores with dates and handicap
-            .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime())
-            .forEach(score => {
-                const match = matches.find(m => m.id === score.matchId)
-                const season = match ? seasons.find(s => s.id === match.seasonId) : null
-                
+        // Add handicap from each played round (non-absent)
+        playedRounds.forEach(score => {
+            const match = matches.find(m => m.id === score.matchId)
+            const season = match ? seasons.find(s => s.id === match.seasonId) : null
+            
+            // Safe access with fallback - we know handicapIndex exists from filter
+            const currentHandicapIndex = score.handicapIndex ?? 0
+            const currentDate = score.date ?? new Date().toISOString()
+            
+            // Only add if handicap changed from previous entry (or first played round)
+            const handicapChanged = lastHandicap === null || 
+                Math.abs(currentHandicapIndex - lastHandicap) >= 0.05
+            
+            if (handicapChanged) {
                 history.push({
-                    date: score.date!,
-                    handicapIndex: score.handicapIndex!,
+                    date: currentDate,
+                    handicapIndex: currentHandicapIndex,
                     roundId: score.id,
                     isProvisional: false,
                     seasonId: season?.id,
                     seasonName: season?.name
                 })
-            })
+                lastHandicap = currentHandicapIndex
+            }
+        })
 
         return history
     }
@@ -635,10 +654,19 @@ export default function Profile() {
                                             .map((score) => {
                                                 const course = courses.find(c => c.id === score.courseId)
                                                 const isExpanded = expandedRoundId === score.id
+                                                const isAbsent = score.playerAbsent
                                                 const scorecardRows = [
                                                     ...(course?.holePars ? [{ label: 'Par', scores: course.holePars, total: course.par, withBorder: false }] : []),
                                                     ...(course?.holeHandicaps ? [{ label: 'Hole Hdcp', scores: course.holeHandicaps, total: '', withBorder: true }] : []),
-                                                    { label: 'Gross', scores: score.holeScores, total: score.grossScore, withBorder: false }
+                                                    { 
+                                                        label: isAbsent ? 'Gross (Auto)' : 'Gross', 
+                                                        scores: score.holeScores, 
+                                                        total: score.grossScore, 
+                                                        withBorder: false,
+                                                        // Add golf scoring symbols for non-absent rounds
+                                                        showGolfSymbols: !isAbsent && !!course?.holePars,
+                                                        pars: course?.holePars
+                                                    }
                                                 ]
                                                 return (
                                                     <ExpandableCard
@@ -647,6 +675,7 @@ export default function Profile() {
                                                         onToggle={() => setExpandedRoundId(isExpanded ? null : score.id)}
                                                         header={
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
+                                                                {isAbsent && <AbsentBadge />}
                                                                 <div style={{ textAlign: 'left' }}>
                                                                     <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
                                                                         {formatDate(score.date!)}
@@ -665,13 +694,26 @@ export default function Profile() {
                                                                 </div>
                                                                 <div style={{ textAlign: 'center' }}>
                                                                     <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>Differential</p>
-                                                                    <p style={{ fontWeight: 'bold', color: 'var(--color-primary)' }}>
-                                                                        {score.handicapDifferential?.toFixed(1) || 'N/A'}
+                                                                    <p style={{ fontWeight: 'bold', color: isAbsent ? 'var(--color-warning)' : 'var(--color-primary)' }}>
+                                                                        {isAbsent ? 'N/A' : (score.handicapDifferential?.toFixed(1) || 'N/A')}
                                                                     </p>
                                                                 </div>
                                                             </div>
                                                         }
                                                     >
+                                                        {isAbsent && (
+                                                            <div style={{ 
+                                                                marginBottom: 'var(--spacing-md)', 
+                                                                padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                                backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                                                                borderRadius: 'var(--radius-md)',
+                                                                borderLeft: '3px solid var(--color-warning)'
+                                                            }}>
+                                                                <p style={{ fontSize: '0.8rem', color: 'var(--color-warning)' }}>
+                                                                    Player was absent. Scores were auto-calculated and do not affect handicap.
+                                                                </p>
+                                                            </div>
+                                                        )}
                                                         <div style={{ marginBottom: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-xl)', flexWrap: 'wrap' }}>
                                                             <StatItem label="Handicap Index" value={score.handicapIndex?.toFixed(1) || 'N/A'} />
                                                         </div>
@@ -800,17 +842,73 @@ export default function Profile() {
                                             
                                             const { playerPoints, opponentPoints, playerTotal, opponentTotal } = calculateHolePoints()
                                             
-                                            // Build comprehensive scorecard rows
+                                            // Calculate cell colors for net scores based on hole results
+                                            const getPlayerNetCellColors = (): ('win' | 'loss' | 'tie' | 'none')[] => {
+                                                if (!matchup.playerScore || !matchup.opponentScore) return []
+                                                const playerNetScores = matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores
+                                                const opponentNetScores = matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores
+                                                return playerNetScores.map((playerNet, i) => {
+                                                    const opponentNet = opponentNetScores[i]
+                                                    if (playerNet < opponentNet) return 'win'
+                                                    if (playerNet > opponentNet) return 'loss'
+                                                    return 'tie'
+                                                })
+                                            }
+                                            
+                                            const getOpponentNetCellColors = (): ('win' | 'loss' | 'tie' | 'none')[] => {
+                                                if (!matchup.playerScore || !matchup.opponentScore) return []
+                                                const playerNetScores = matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores
+                                                const opponentNetScores = matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores
+                                                return opponentNetScores.map((opponentNet, i) => {
+                                                    const playerNet = playerNetScores[i]
+                                                    if (opponentNet < playerNet) return 'win'
+                                                    if (opponentNet > playerNet) return 'loss'
+                                                    return 'tie'
+                                                })
+                                            }
+
+                                            const playerNetCellColors = getPlayerNetCellColors()
+                                            const opponentNetCellColors = getOpponentNetCellColors()
+                                            
+                                            // Build comprehensive scorecard rows - organized with player data grouped together
                                             const scorecardRows = matchup.playerScore && matchup.opponentScore ? [
                                                 ...(course?.holePars ? [{ label: 'Par', scores: course.holePars, total: course.par, withBorder: false }] : []),
                                                 ...(course?.holeHandicaps ? [{ label: 'Hole Hdcp', scores: course.holeHandicaps, total: '', withBorder: true }] : []),
-                                                { label: 'Your Gross', scores: matchup.playerScore.holeScores, total: matchup.playerScore.grossScore, withBorder: false },
+                                                // Player rows grouped together
+                                                { 
+                                                    label: matchup.playerScore.playerAbsent ? 'Your Gross (Absent)' : 'Your Gross', 
+                                                    scores: matchup.playerScore.holeScores, 
+                                                    total: matchup.playerScore.grossScore, 
+                                                    withBorder: false,
+                                                    showGolfSymbols: !matchup.playerScore.playerAbsent && !!course?.holePars,
+                                                    pars: course?.holePars
+                                                },
                                                 { label: 'Your Strokes', scores: matchup.playerScore.matchStrokes || EMPTY_STROKES_ARRAY, total: matchup.playerScore.strokesReceived, withBorder: false, color: 'var(--color-accent)' },
-                                                { label: 'Your Net', scores: matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores, total: matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore, withBorder: false, color: 'var(--color-primary)', bgColor: 'rgba(16, 185, 129, 0.1)' },
+                                                { 
+                                                    label: 'Your Net', 
+                                                    scores: matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores, 
+                                                    total: matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore, 
+                                                    withBorder: false, 
+                                                    cellColors: playerNetCellColors
+                                                },
                                                 { label: 'Your Points', scores: playerPoints, total: playerTotal, withBorder: true, color: 'var(--color-primary)', bgColor: 'rgba(16, 185, 129, 0.15)' },
-                                                { label: `${matchup.opponentName} Gross`, scores: matchup.opponentScore.holeScores, total: matchup.opponentScore.grossScore, withBorder: false },
+                                                // Opponent rows grouped together
+                                                { 
+                                                    label: matchup.opponentScore.playerAbsent ? `${matchup.opponentName} Gross (Absent)` : `${matchup.opponentName} Gross`, 
+                                                    scores: matchup.opponentScore.holeScores, 
+                                                    total: matchup.opponentScore.grossScore, 
+                                                    withBorder: false,
+                                                    showGolfSymbols: !matchup.opponentScore.playerAbsent && !!course?.holePars,
+                                                    pars: course?.holePars
+                                                },
                                                 { label: `${matchup.opponentName} Strokes`, scores: matchup.opponentScore.matchStrokes || EMPTY_STROKES_ARRAY, total: matchup.opponentScore.strokesReceived, withBorder: false, color: 'var(--color-warning)' },
-                                                { label: `${matchup.opponentName} Net`, scores: matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores, total: matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore, withBorder: false, color: 'var(--color-danger)', bgColor: 'rgba(239, 68, 68, 0.1)' },
+                                                { 
+                                                    label: `${matchup.opponentName} Net`, 
+                                                    scores: matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores, 
+                                                    total: matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore, 
+                                                    withBorder: false, 
+                                                    cellColors: opponentNetCellColors
+                                                },
                                                 { label: `${matchup.opponentName} Points`, scores: opponentPoints, total: opponentTotal, withBorder: false, color: 'var(--color-danger)', bgColor: 'rgba(239, 68, 68, 0.15)' }
                                             ] : []
 
@@ -829,9 +927,13 @@ export default function Profile() {
                                                             }`}>
                                                                 {matchup.result.toUpperCase()}
                                                             </span>
+                                                            {matchup.playerScore?.playerAbsent && <AbsentBadge small />}
                                                             <div style={{ textAlign: 'left' }}>
                                                                 <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
                                                                     vs {matchup.opponentName}
+                                                                    {matchup.opponentScore?.playerAbsent && (
+                                                                        <span style={{ marginLeft: '0.5rem' }}><AbsentBadge small /></span>
+                                                                    )}
                                                                 </p>
                                                                 <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                                                                     {formatDate(matchup.date)} • {matchup.courseName}
