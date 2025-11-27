@@ -315,7 +315,7 @@ func (fc *FirestoreClient) DeleteLeagueMember(ctx context.Context, memberID stri
 	})
 }
 
-// ListLeagueMembers retrieves all members of a league
+// ListLeagueMembers retrieves all active (non-deleted) members of a league
 func (fc *FirestoreClient) ListLeagueMembers(ctx context.Context, leagueID string) ([]models.LeagueMember, error) {
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
@@ -341,10 +341,352 @@ func (fc *FirestoreClient) ListLeagueMembers(ctx context.Context, leagueID strin
 			logger.ErrorContext(ctx, "Failed to parse league member data", "error", err)
 			return nil, fmt.Errorf("failed to parse league member data: %w", err)
 		}
-		members = append(members, member)
+		// Filter out soft-deleted members
+		if !member.IsDeleted {
+			members = append(members, member)
+		}
 	}
 
 	return members, nil
+}
+
+// SoftDeleteLeagueMember performs a soft delete on a league member
+func (fc *FirestoreClient) SoftDeleteLeagueMember(ctx context.Context, memberID string) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		now := time.Now()
+		_, err := fc.client.Collection("league_members").Doc(memberID).Update(ctx, []firestore.Update{
+			{Path: "is_deleted", Value: true},
+			{Path: "deleted_at", Value: now},
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to soft delete league member",
+				"member_id", memberID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to soft delete league member: %w", err)
+		}
+		return nil
+	})
+}
+
+// GetPlayerScheduledMatches retrieves scheduled matches where the player is involved
+func (fc *FirestoreClient) GetPlayerScheduledMatches(ctx context.Context, leagueID, playerID string) ([]models.Match, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	// Query matches where player is PlayerA
+	iterA := fc.client.Collection("matches").
+		Where("league_id", "==", leagueID).
+		Where("player_a_id", "==", playerID).
+		Where("status", "==", "scheduled").
+		Documents(ctx)
+	defer iterA.Stop()
+
+	matches := make([]models.Match, 0)
+	for {
+		doc, err := iterA.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate matches: %w", err)
+		}
+
+		var match models.Match
+		if err := doc.DataTo(&match); err != nil {
+			return nil, fmt.Errorf("failed to parse match data: %w", err)
+		}
+		matches = append(matches, match)
+	}
+
+	// Query matches where player is PlayerB
+	iterB := fc.client.Collection("matches").
+		Where("league_id", "==", leagueID).
+		Where("player_b_id", "==", playerID).
+		Where("status", "==", "scheduled").
+		Documents(ctx)
+	defer iterB.Stop()
+
+	for {
+		doc, err := iterB.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate matches: %w", err)
+		}
+
+		var match models.Match
+		if err := doc.DataTo(&match); err != nil {
+			return nil, fmt.Errorf("failed to parse match data: %w", err)
+		}
+		matches = append(matches, match)
+	}
+
+	return matches, nil
+}
+
+// GetPlayerCompletedMatches retrieves completed matches where the player has participated
+func (fc *FirestoreClient) GetPlayerCompletedMatches(ctx context.Context, leagueID, playerID string) ([]models.Match, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	// Query matches where player is PlayerA
+	iterA := fc.client.Collection("matches").
+		Where("league_id", "==", leagueID).
+		Where("player_a_id", "==", playerID).
+		Where("status", "==", "completed").
+		Documents(ctx)
+	defer iterA.Stop()
+
+	matches := make([]models.Match, 0)
+	for {
+		doc, err := iterA.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate matches: %w", err)
+		}
+
+		var match models.Match
+		if err := doc.DataTo(&match); err != nil {
+			return nil, fmt.Errorf("failed to parse match data: %w", err)
+		}
+		matches = append(matches, match)
+	}
+
+	// Query matches where player is PlayerB
+	iterB := fc.client.Collection("matches").
+		Where("league_id", "==", leagueID).
+		Where("player_b_id", "==", playerID).
+		Where("status", "==", "completed").
+		Documents(ctx)
+	defer iterB.Stop()
+
+	for {
+		doc, err := iterB.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate matches: %w", err)
+		}
+
+		var match models.Match
+		if err := doc.DataTo(&match); err != nil {
+			return nil, fmt.Errorf("failed to parse match data: %w", err)
+		}
+		matches = append(matches, match)
+	}
+
+	return matches, nil
+}
+
+// SeasonPlayer operations
+
+// CreateSeasonPlayer adds a player to a season
+func (fc *FirestoreClient) CreateSeasonPlayer(ctx context.Context, seasonPlayer models.SeasonPlayer) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("season_players").Doc(seasonPlayer.ID).Set(ctx, seasonPlayer)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create season player",
+				"season_player_id", seasonPlayer.ID,
+				"season_id", seasonPlayer.SeasonID,
+				"player_id", seasonPlayer.PlayerID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to create season player: %w", err)
+		}
+		return nil
+	})
+}
+
+// GetSeasonPlayer retrieves a season player by season and player ID
+func (fc *FirestoreClient) GetSeasonPlayer(ctx context.Context, seasonID, playerID string) (*models.SeasonPlayer, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	iter := fc.client.Collection("season_players").
+		Where("season_id", "==", seasonID).
+		Where("player_id", "==", playerID).
+		Limit(1).
+		Documents(ctx)
+	defer iter.Stop()
+
+	doc, err := iter.Next()
+	if err == iterator.Done {
+		return nil, fmt.Errorf("season player not found for season %s and player %s", seasonID, playerID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get season player: %w", err)
+	}
+
+	var seasonPlayer models.SeasonPlayer
+	if err := doc.DataTo(&seasonPlayer); err != nil {
+		return nil, fmt.Errorf("failed to parse season player data: %w", err)
+	}
+
+	return &seasonPlayer, nil
+}
+
+// UpdateSeasonPlayer updates an existing season player
+func (fc *FirestoreClient) UpdateSeasonPlayer(ctx context.Context, seasonPlayer models.SeasonPlayer) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("season_players").Doc(seasonPlayer.ID).Set(ctx, seasonPlayer)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to update season player",
+				"season_player_id", seasonPlayer.ID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to update season player: %w", err)
+		}
+		return nil
+	})
+}
+
+// ListSeasonPlayers retrieves all players in a season
+func (fc *FirestoreClient) ListSeasonPlayers(ctx context.Context, seasonID string) ([]models.SeasonPlayer, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	iter := fc.client.Collection("season_players").
+		Where("season_id", "==", seasonID).
+		Documents(ctx)
+	defer iter.Stop()
+
+	seasonPlayers := make([]models.SeasonPlayer, 0)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to iterate season players", "error", err)
+			return nil, fmt.Errorf("failed to iterate season players: %w", err)
+		}
+
+		var seasonPlayer models.SeasonPlayer
+		if err := doc.DataTo(&seasonPlayer); err != nil {
+			logger.ErrorContext(ctx, "Failed to parse season player data", "error", err)
+			return nil, fmt.Errorf("failed to parse season player data: %w", err)
+		}
+		seasonPlayers = append(seasonPlayers, seasonPlayer)
+	}
+
+	return seasonPlayers, nil
+}
+
+// RemoveSeasonPlayer marks a season player as inactive
+func (fc *FirestoreClient) RemoveSeasonPlayer(ctx context.Context, seasonPlayerID string) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("season_players").Doc(seasonPlayerID).Update(ctx, []firestore.Update{
+			{Path: "is_active", Value: false},
+		})
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to remove season player",
+				"season_player_id", seasonPlayerID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to remove season player: %w", err)
+		}
+		return nil
+	})
+}
+
+// GetPlayerScheduledMatchesForSeason retrieves scheduled matches for a player in a specific season
+func (fc *FirestoreClient) GetPlayerScheduledMatchesForSeason(ctx context.Context, seasonID, playerID string) ([]models.Match, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	// Query matches where player is PlayerA
+	iterA := fc.client.Collection("matches").
+		Where("season_id", "==", seasonID).
+		Where("player_a_id", "==", playerID).
+		Where("status", "==", "scheduled").
+		Documents(ctx)
+	defer iterA.Stop()
+
+	matches := make([]models.Match, 0)
+	for {
+		doc, err := iterA.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate matches: %w", err)
+		}
+
+		var match models.Match
+		if err := doc.DataTo(&match); err != nil {
+			return nil, fmt.Errorf("failed to parse match data: %w", err)
+		}
+		matches = append(matches, match)
+	}
+
+	// Query matches where player is PlayerB
+	iterB := fc.client.Collection("matches").
+		Where("season_id", "==", seasonID).
+		Where("player_b_id", "==", playerID).
+		Where("status", "==", "scheduled").
+		Documents(ctx)
+	defer iterB.Stop()
+
+	for {
+		doc, err := iterB.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate matches: %w", err)
+		}
+
+		var match models.Match
+		if err := doc.DataTo(&match); err != nil {
+			return nil, fmt.Errorf("failed to parse match data: %w", err)
+		}
+		matches = append(matches, match)
+	}
+
+	return matches, nil
+}
+
+// CountPlayerScores counts the number of scores (rounds played) for a player in a league
+func (fc *FirestoreClient) CountPlayerScores(ctx context.Context, leagueID, playerID string) (int, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	iter := fc.client.Collection("scores").
+		Where("league_id", "==", leagueID).
+		Where("player_id", "==", playerID).
+		Documents(ctx)
+	defer iter.Stop()
+
+	count := 0
+	for {
+		_, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return 0, fmt.Errorf("failed to count player scores: %w", err)
+		}
+		count++
+	}
+
+	return count, nil
 }
 
 // GetPlayerLeagues retrieves all leagues a player is a member of

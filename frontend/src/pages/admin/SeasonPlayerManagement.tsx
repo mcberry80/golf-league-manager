@@ -2,36 +2,42 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
-import type { LeagueMemberWithPlayer } from '../../types'
+import type { SeasonPlayerWithPlayer, LeagueMemberWithPlayer, Season } from '../../types'
 
-export default function PlayerManagement() {
-    const { leagueId } = useParams<{ leagueId: string }>()
+export default function SeasonPlayerManagement() {
+    const { leagueId, seasonId } = useParams<{ leagueId: string; seasonId: string }>()
     const { currentLeague, userRole, isLoading: leagueLoading, selectLeague } = useLeague()
     const navigate = useNavigate()
-    const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
+    const [seasonPlayers, setSeasonPlayers] = useState<SeasonPlayerWithPlayer[]>([])
+    const [leagueMembers, setLeagueMembers] = useState<LeagueMemberWithPlayer[]>([])
+    const [season, setSeason] = useState<Season | null>(null)
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
     const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        role: 'player',
+        playerId: '',
         provisionalHandicap: 0,
     })
     const [editingHandicap, setEditingHandicap] = useState<string | null>(null)
     const [editHandicapValue, setEditHandicapValue] = useState<number>(0)
 
-    const loadMembers = useCallback(async () => {
-        if (!currentLeague) return
+    const loadData = useCallback(async () => {
+        if (!currentLeague || !seasonId) return
 
         try {
-            const data = await api.listLeagueMembers(currentLeague.id)
-            setMembers(data)
+            const [seasonPlayersData, membersData, seasonData] = await Promise.all([
+                api.listSeasonPlayers(currentLeague.id, seasonId),
+                api.listLeagueMembers(currentLeague.id),
+                api.getSeason(currentLeague.id, seasonId),
+            ])
+            setSeasonPlayers(seasonPlayersData)
+            setLeagueMembers(membersData)
+            setSeason(seasonData)
         } catch (error) {
-            console.error('Failed to load members:', error)
+            console.error('Failed to load data:', error)
         } finally {
             setLoading(false)
         }
-    }, [currentLeague])
+    }, [currentLeague, seasonId])
 
     useEffect(() => {
         if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
@@ -45,40 +51,33 @@ export default function PlayerManagement() {
             return
         }
 
-        if (currentLeague) {
-            loadMembers()
+        if (currentLeague && seasonId) {
+            loadData()
         }
-    }, [currentLeague, leagueLoading, navigate, leagueId, loadMembers])
+    }, [currentLeague, leagueLoading, navigate, leagueId, seasonId, loadData])
+
+    // Get members not already in the season
+    const availableMembers = leagueMembers.filter(
+        m => !seasonPlayers.some(sp => sp.playerId === m.playerId)
+    )
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
-        if (!currentLeague) return
+        if (!currentLeague || !seasonId) return
 
         try {
-            await api.addLeagueMember(currentLeague.id, formData.email, formData.name, formData.provisionalHandicap)
+            await api.addSeasonPlayer(currentLeague.id, seasonId, formData.playerId, formData.provisionalHandicap)
             setShowForm(false)
-            setFormData({ name: '', email: '', role: 'player', provisionalHandicap: 0 })
-            loadMembers()
+            setFormData({ playerId: '', provisionalHandicap: 0 })
+            loadData()
         } catch (error) {
-            alert('Failed to add player: ' + (error instanceof Error ? error.message : 'Unknown error'))
+            alert('Failed to add player to season: ' + (error instanceof Error ? error.message : 'Unknown error'))
         }
     }
 
-    async function toggleAdmin(member: LeagueMemberWithPlayer) {
-        if (!currentLeague) return
-
-        const newRole = member.role === 'admin' ? 'player' : 'admin'
-        try {
-            await api.updateLeagueMemberRole(currentLeague.id, member.playerId, newRole)
-            loadMembers()
-        } catch (error) {
-            alert('Failed to update role: ' + (error instanceof Error ? error.message : 'Unknown error'))
-        }
-    }
-
-    function startEditHandicap(member: LeagueMemberWithPlayer) {
-        setEditingHandicap(member.playerId)
-        setEditHandicapValue(member.provisionalHandicap || 0)
+    function startEditHandicap(player: SeasonPlayerWithPlayer) {
+        setEditingHandicap(player.playerId)
+        setEditHandicapValue(player.provisionalHandicap || 0)
     }
 
     function cancelEditHandicap() {
@@ -86,29 +85,38 @@ export default function PlayerManagement() {
         setEditHandicapValue(0)
     }
 
-    async function saveHandicap(member: LeagueMemberWithPlayer) {
-        if (!currentLeague) return
+    async function saveHandicap(player: SeasonPlayerWithPlayer) {
+        if (!currentLeague || !seasonId) return
 
         try {
-            await api.updateLeagueMember(currentLeague.id, member.playerId, { provisionalHandicap: editHandicapValue })
+            await api.updateSeasonPlayer(currentLeague.id, seasonId, player.playerId, { provisionalHandicap: editHandicapValue })
             setEditingHandicap(null)
             setEditHandicapValue(0)
-            loadMembers()
+            loadData()
         } catch (error) {
             alert('Failed to update handicap: ' + (error instanceof Error ? error.message : 'Unknown error'))
         }
     }
 
-    async function removeMember(member: LeagueMemberWithPlayer) {
-        if (!currentLeague) return
-        if (!confirm(`Are you sure you want to remove ${member.player?.name || member.player?.email} from the league?`)) return
+    async function removePlayer(player: SeasonPlayerWithPlayer) {
+        if (!currentLeague || !seasonId) return
+        if (!confirm(`Are you sure you want to remove ${player.player?.name || player.player?.email} from this season?`)) return
 
         try {
-            await api.removeLeagueMember(currentLeague.id, member.playerId)
-            loadMembers()
+            await api.removeSeasonPlayer(currentLeague.id, seasonId, player.playerId)
+            loadData()
         } catch (error) {
-            alert('Failed to remove member: ' + (error instanceof Error ? error.message : 'Unknown error'))
+            alert('Failed to remove player from season: ' + (error instanceof Error ? error.message : 'Unknown error'))
         }
+    }
+
+    // Pre-fill handicap when player is selected
+    function handlePlayerSelect(playerId: string) {
+        const member = leagueMembers.find(m => m.playerId === playerId)
+        setFormData({
+            playerId,
+            provisionalHandicap: member?.provisionalHandicap || 0,
+        })
     }
 
     if (leagueLoading || loading) {
@@ -141,42 +149,39 @@ export default function PlayerManagement() {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
                     <div>
-                        <h1>Player Management</h1>
-                        <p className="text-gray-400 mt-1">{currentLeague.name}</p>
+                        <h1>Season Players</h1>
+                        <p className="text-gray-400 mt-1">
+                            {season?.name || 'Loading...'} - {currentLeague.name}
+                        </p>
                     </div>
-                    <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-                        {showForm ? 'Cancel' : '+ Add Player'}
+                    <button onClick={() => setShowForm(!showForm)} className="btn btn-primary" disabled={availableMembers.length === 0}>
+                        {showForm ? 'Cancel' : '+ Add Player to Season'}
                     </button>
                 </div>
 
-                {showForm && (
+                {showForm && availableMembers.length > 0 && (
                     <div className="card-glass" style={{ marginBottom: 'var(--spacing-xl)' }}>
-                        <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Add New Player</h3>
+                        <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Add Player to Season</h3>
                         <form onSubmit={handleSubmit}>
-                            <div className="grid grid-cols-3" style={{ gap: 'var(--spacing-lg)' }}>
+                            <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-lg)' }}>
                                 <div className="form-group">
-                                    <label className="form-label">Player Name</label>
-                                    <input
-                                        type="text"
-                                        className="form-input"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        placeholder="John Doe"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Email</label>
-                                    <input
-                                        type="email"
-                                        className="form-input"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    <label className="form-label">Player</label>
+                                    <select
+                                        className="form-select"
+                                        value={formData.playerId}
+                                        onChange={(e) => handlePlayerSelect(e.target.value)}
                                         required
-                                        placeholder="john@example.com"
-                                    />
+                                    >
+                                        <option value="">Select Player</option>
+                                        {availableMembers.map(member => (
+                                            <option key={member.playerId} value={member.playerId}>
+                                                {member.player?.name || member.player?.email}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="form-group">
-                                    <label className="form-label">Provisional Handicap</label>
+                                    <label className="form-label">Provisional Handicap for Season</label>
                                     <input
                                         type="number"
                                         step="0.1"
@@ -186,22 +191,27 @@ export default function PlayerManagement() {
                                         placeholder="12.5"
                                     />
                                     <small className="text-gray-400" style={{ fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                                        Starting handicap for this season (see League Rules 3.2)
+                                        Pre-filled from league member handicap. Adjust if needed.
                                     </small>
                                 </div>
                             </div>
-                            {/* Role selection could go here if supported by API */}
                             <button type="submit" className="btn btn-success">
-                                Add Player
+                                Add to Season
                             </button>
                         </form>
                     </div>
                 )}
 
+                {availableMembers.length === 0 && leagueMembers.length > 0 && !showForm && (
+                    <div className="alert alert-info" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                        All league members have been added to this season.
+                    </div>
+                )}
+
                 <div className="card-glass">
-                    <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>League Members ({members.length})</h3>
-                    {members.length === 0 ? (
-                        <p style={{ color: 'var(--color-text-muted)' }}>No players added yet.</p>
+                    <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Season Roster ({seasonPlayers.length})</h3>
+                    {seasonPlayers.length === 0 ? (
+                        <p style={{ color: 'var(--color-text-muted)' }}>No players added to this season yet.</p>
                     ) : (
                         <div className="table-container">
                             <table className="table">
@@ -209,25 +219,18 @@ export default function PlayerManagement() {
                                     <tr>
                                         <th>Name</th>
                                         <th>Email</th>
-                                        <th>Role</th>
-                                        <th>Provisional Handicap</th>
-                                        <th>Status</th>
-                                        <th>Joined</th>
+                                        <th>Season Handicap</th>
+                                        <th>Added</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {members.map((member) => (
-                                        <tr key={member.id}>
-                                            <td style={{ fontWeight: '600' }}>{member.player?.name || 'Unknown'}</td>
-                                            <td>{member.player?.email || 'Unknown'}</td>
+                                    {seasonPlayers.map((player) => (
+                                        <tr key={player.id}>
+                                            <td style={{ fontWeight: '600' }}>{player.player?.name || 'Unknown'}</td>
+                                            <td>{player.player?.email || 'Unknown'}</td>
                                             <td>
-                                                <span className={`badge ${member.role === 'admin' ? 'badge-primary' : 'badge-secondary'}`}>
-                                                    {member.role}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                {editingHandicap === member.playerId ? (
+                                                {editingHandicap === player.playerId ? (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                         <input
                                                             type="number"
@@ -239,7 +242,7 @@ export default function PlayerManagement() {
                                                             autoFocus
                                                         />
                                                         <button
-                                                            onClick={() => saveHandicap(member)}
+                                                            onClick={() => saveHandicap(player)}
                                                             className="btn btn-success"
                                                             style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                                                         >
@@ -255,37 +258,23 @@ export default function PlayerManagement() {
                                                     </div>
                                                 ) : (
                                                     <span
-                                                        onClick={() => startEditHandicap(member)}
+                                                        onClick={() => startEditHandicap(player)}
                                                         style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}
                                                         title="Click to edit"
                                                     >
-                                                        {member.provisionalHandicap?.toFixed(1) || '0.0'}
+                                                        {player.provisionalHandicap?.toFixed(1) || '0.0'}
                                                     </span>
                                                 )}
                                             </td>
+                                            <td>{new Date(player.addedAt).toLocaleDateString()}</td>
                                             <td>
-                                                <span className={`badge ${member.player?.active ? 'badge-success' : 'badge-danger'}`}>
-                                                    {member.player?.active ? 'Active' : 'Inactive'}
-                                                </span>
-                                            </td>
-                                            <td>{new Date(member.joinedAt).toLocaleDateString()}</td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                    <button
-                                                        onClick={() => toggleAdmin(member)}
-                                                        className="btn btn-secondary"
-                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                                                    >
-                                                        {member.role === 'admin' ? 'Remove Admin' : 'Make Admin'}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => removeMember(member)}
-                                                        className="btn btn-danger"
-                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                                                    >
-                                                        Remove
-                                                    </button>
-                                                </div>
+                                                <button
+                                                    onClick={() => removePlayer(player)}
+                                                    className="btn btn-danger"
+                                                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                                >
+                                                    Remove from Season
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
