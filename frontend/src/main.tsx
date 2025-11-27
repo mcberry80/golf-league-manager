@@ -11,6 +11,7 @@ import Admin from './pages/Admin.tsx'
 import LinkAccount from './pages/LinkAccount.tsx'
 import Profile from './pages/Profile.tsx'
 import Standings from './pages/Standings.tsx'
+import Results from './pages/Results.tsx'
 
 // Import admin pages
 import LeagueSetup from './pages/admin/LeagueSetup.tsx'
@@ -46,6 +47,7 @@ const router = createBrowserRouter([
             { path: "/link-account", element: <LinkAccount /> },
             { path: "/profile/:playerId", element: <Profile /> },
             { path: "/leagues/:leagueId/standings", element: <Standings /> },
+            { path: "/leagues/:leagueId/results", element: <Results /> },
         ],
     },
 ]);

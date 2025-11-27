@@ -1,14 +1,18 @@
-import { useState, useEffect, useCallback, ReactNode } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useLeague } from '../contexts/LeagueContext'
 import api from '../lib/api'
 import type { Player, Score, Season, Match, LeagueMemberWithPlayer, Course, League } from '../types'
-import { ChevronDown, ChevronUp, Trophy, Calendar, Target, TrendingUp, Users } from 'lucide-react'
+import { Trophy, Calendar, Target, TrendingUp, Users } from 'lucide-react'
+import { 
+    ExpandableCard, 
+    ScorecardTable, 
+    StatItem,
+    EMPTY_STROKES_ARRAY 
+} from '../components/Scorecard'
 
 // Constants
-const HOLE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 const MAX_HANDICAP_ROUNDS = 20
-const EMPTY_STROKES_ARRAY = Array(9).fill(0) as number[]
 
 // Helper function to get player/opponent points based on position
 function getMatchPoints(match: Match, isPlayerA: boolean): { playerPoints?: number, opponentPoints?: number } {
@@ -37,128 +41,6 @@ interface MatchupDetail {
     courseName: string
     date: string
     isPlayerA: boolean
-}
-
-// Reusable Components
-interface StatItemProps {
-    label: string
-    value: string | number
-    color?: string
-}
-
-function StatItem({ label, value, color }: StatItemProps) {
-    return (
-        <div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{label}</p>
-            <p style={{ fontWeight: '600', color }}>{value}</p>
-        </div>
-    )
-}
-
-interface ExpandableCardProps {
-    isExpanded: boolean
-    onToggle: () => void
-    header: ReactNode
-    rightContent: ReactNode
-    children: ReactNode
-}
-
-function ExpandableCard({ isExpanded, onToggle, header, rightContent, children }: ExpandableCardProps) {
-    return (
-        <div style={{ 
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            overflow: 'hidden'
-        }}>
-            <button
-                onClick={onToggle}
-                style={{
-                    width: '100%',
-                    padding: 'var(--spacing-md)',
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    color: 'var(--color-text)'
-                }}
-            >
-                {header}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
-                    {rightContent}
-                    {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                </div>
-            </button>
-            {isExpanded && (
-                <div style={{ 
-                    padding: 'var(--spacing-md)',
-                    background: 'rgba(0, 0, 0, 0.2)',
-                    borderTop: '1px solid var(--color-border)'
-                }}>
-                    {children}
-                </div>
-            )}
-        </div>
-    )
-}
-
-interface ScoreRowProps {
-    label: string
-    scores: number[]
-    total: number | string
-    color?: string
-    bgColor?: string
-    withBorder?: boolean
-}
-
-function ScoreRow({ label, scores, total, color, bgColor, withBorder = false }: ScoreRowProps) {
-    return (
-        <tr style={{ 
-            borderBottom: withBorder ? '1px solid var(--color-border)' : undefined, 
-            background: bgColor 
-        }}>
-            <td style={{ padding: '0.5rem', color: color || 'var(--color-text-muted)' }}>{label}</td>
-            {scores.map((score, i) => (
-                <td key={i} style={{ padding: '0.5rem', textAlign: 'center', color }}>{score}</td>
-            ))}
-            <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color }}>{total}</td>
-        </tr>
-    )
-}
-
-interface ScorecardTableProps {
-    rows: Array<{
-        label: string
-        scores: number[]
-        total: number | string
-        color?: string
-        bgColor?: string
-        withBorder?: boolean
-    }>
-}
-
-function ScorecardTable({ rows }: ScorecardTableProps) {
-    return (
-        <div className="table-container" style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
-                <thead>
-                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Hole</th>
-                        {HOLE_NUMBERS.map(i => (
-                            <th key={i} style={{ padding: '0.5rem', textAlign: 'center' }}>{i}</th>
-                        ))}
-                        <th style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.map((row, index) => (
-                        <ScoreRow key={index} {...row} />
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    )
 }
 
 export default function Profile() {
