@@ -5,6 +5,96 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 export const HOLE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 export const EMPTY_STROKES_ARRAY = Array(9).fill(0) as number[]
 
+// Colors for win/loss/tie
+export const HOLE_RESULT_COLORS = {
+    win: { bg: 'rgba(16, 185, 129, 0.3)', text: 'var(--color-accent)' },      // Green for win
+    loss: { bg: 'rgba(239, 68, 68, 0.3)', text: 'var(--color-danger)' },      // Red for loss
+    tie: { bg: 'rgba(156, 163, 175, 0.3)', text: 'var(--color-text-secondary)' }, // Gray for tie
+    none: { bg: 'transparent', text: 'inherit' }
+} as const
+
+// Golf scoring symbol helper - returns styled element for the score
+export function getGolfScoreSymbol(gross: number, par: number): { style: React.CSSProperties, display: string } {
+    const diff = gross - par
+    
+    if (diff <= -2) {
+        // Eagle or better - double circle
+        return {
+            style: {
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                border: '2px solid var(--color-accent)',
+                boxShadow: '0 0 0 2px var(--color-accent)',
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                fontWeight: 'bold'
+            },
+            display: gross.toString()
+        }
+    } else if (diff === -1) {
+        // Birdie - single circle
+        return {
+            style: {
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                border: '2px solid var(--color-accent)',
+                fontWeight: 'bold'
+            },
+            display: gross.toString()
+        }
+    } else if (diff === 1) {
+        // Bogey - single square
+        return {
+            style: {
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '22px',
+                height: '22px',
+                border: '2px solid var(--color-warning)',
+                fontWeight: 'bold'
+            },
+            display: gross.toString()
+        }
+    } else if (diff >= 2) {
+        // Double bogey or worse - double square
+        return {
+            style: {
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '22px',
+                height: '22px',
+                border: '2px solid var(--color-danger)',
+                boxShadow: '0 0 0 2px var(--color-danger)',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                fontWeight: 'bold'
+            },
+            display: gross.toString()
+        }
+    } else {
+        // Par - plain
+        return {
+            style: {
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '22px',
+                height: '22px',
+                fontWeight: 'bold'
+            },
+            display: gross.toString()
+        }
+    }
+}
+
 // Score Row Component
 export interface ScoreRowProps {
     label: string
@@ -13,18 +103,53 @@ export interface ScoreRowProps {
     color?: string
     bgColor?: string
     withBorder?: boolean
+    // Enhanced properties for styling individual cells
+    cellColors?: ('win' | 'loss' | 'tie' | 'none')[]
+    // For golf scoring symbols
+    showGolfSymbols?: boolean
+    pars?: number[]
 }
 
-export function ScoreRow({ label, scores, total, color, bgColor, withBorder = false }: ScoreRowProps) {
+export function ScoreRow({ 
+    label, 
+    scores, 
+    total, 
+    color, 
+    bgColor, 
+    withBorder = false,
+    cellColors,
+    showGolfSymbols = false,
+    pars
+}: ScoreRowProps) {
     return (
         <tr style={{ 
             borderBottom: withBorder ? '1px solid var(--color-border)' : undefined, 
             background: bgColor 
         }}>
             <td style={{ padding: '0.5rem', color: color || 'var(--color-text-muted)' }}>{label}</td>
-            {scores.map((score, i) => (
-                <td key={i} style={{ padding: '0.5rem', textAlign: 'center', color }}>{score}</td>
-            ))}
+            {scores.map((score, i) => {
+                const cellColor = cellColors?.[i] ? HOLE_RESULT_COLORS[cellColors[i]] : null
+                const showSymbol = showGolfSymbols && pars && pars[i]
+                const symbolInfo = showSymbol ? getGolfScoreSymbol(score, pars![i]) : null
+                
+                return (
+                    <td 
+                        key={i} 
+                        style={{ 
+                            padding: '0.5rem', 
+                            textAlign: 'center', 
+                            color: cellColor?.text || color,
+                            backgroundColor: cellColor?.bg || 'transparent'
+                        }}
+                    >
+                        {symbolInfo ? (
+                            <span style={symbolInfo.style}>{symbolInfo.display}</span>
+                        ) : (
+                            score
+                        )}
+                    </td>
+                )
+            })}
             <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color }}>{total}</td>
         </tr>
     )
@@ -39,6 +164,11 @@ export interface ScorecardTableProps {
         color?: string
         bgColor?: string
         withBorder?: boolean
+        // Enhanced properties for styling individual cells
+        cellColors?: ('win' | 'loss' | 'tie' | 'none')[]
+        // For golf scoring symbols
+        showGolfSymbols?: boolean
+        pars?: number[]
     }>
 }
 
@@ -127,5 +257,29 @@ export function StatItem({ label, value, color }: StatItemProps) {
             <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{label}</p>
             <p style={{ fontWeight: '600', color }}>{value}</p>
         </div>
+    )
+}
+
+// Absent Badge Component
+export interface AbsentBadgeProps {
+    small?: boolean
+}
+
+export function AbsentBadge({ small = false }: AbsentBadgeProps) {
+    return (
+        <span 
+            style={{ 
+                fontSize: small ? '0.65rem' : '0.75rem', 
+                backgroundColor: 'var(--color-warning)',
+                color: '#000',
+                padding: small ? '0.1rem 0.3rem' : '0.15rem 0.4rem',
+                borderRadius: '3px',
+                fontWeight: '600',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+            }}
+        >
+            Absent
+        </span>
     )
 }
