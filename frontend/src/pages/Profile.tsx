@@ -28,6 +28,7 @@ interface MatchupDetail {
     result: 'won' | 'lost' | 'tied' | 'pending'
     courseName: string
     date: string
+    isPlayerA: boolean
 }
 
 // Reusable Components
@@ -387,7 +388,8 @@ export default function Profile() {
                 opponentScore,
                 result,
                 courseName: course?.name || 'Unknown',
-                date: match.matchDate
+                date: match.matchDate,
+                isPlayerA
             }
         }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     }
@@ -830,7 +832,6 @@ export default function Profile() {
                                         {matchups.map((matchup) => {
                                             const isExpanded = expandedMatchId === matchup.match.id
                                             const course = courses.find(c => c.id === matchup.match.courseId)
-                                            const isPlayerA = matchup.match.playerAId === player?.id
                                             
                                             // Calculate points per hole based on net scores
                                             const calculateHolePoints = (): { playerPoints: number[], opponentPoints: number[], playerTotal: number, opponentTotal: number } => {
@@ -840,8 +841,8 @@ export default function Profile() {
                                                 let opponentTotal = 0
                                                 
                                                 // Use server-stored match points when available
-                                                const storedPlayerTotal = isPlayerA ? matchup.match.playerAPoints : matchup.match.playerBPoints
-                                                const storedOpponentTotal = isPlayerA ? matchup.match.playerBPoints : matchup.match.playerAPoints
+                                                const storedPlayerTotal = matchup.isPlayerA ? matchup.match.playerAPoints : matchup.match.playerBPoints
+                                                const storedOpponentTotal = matchup.isPlayerA ? matchup.match.playerBPoints : matchup.match.playerAPoints
                                                 
                                                 if (matchup.playerScore && matchup.opponentScore) {
                                                     const playerNetScores = matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores

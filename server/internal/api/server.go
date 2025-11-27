@@ -849,6 +849,12 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 
 	// Aggregate match results
 	for _, match := range matches {
+		// Skip matches where points were not stored (legacy matches completed before this feature)
+		// A valid match will have non-zero total points (22 points distributed between players)
+		if match.PlayerAPoints == 0 && match.PlayerBPoints == 0 {
+			continue
+		}
+
 		// Update Player A stats
 		if entryA, ok := standingsMap[match.PlayerAID]; ok {
 			entryA.MatchesPlayed++
