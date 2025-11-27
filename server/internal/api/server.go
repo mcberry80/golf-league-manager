@@ -107,6 +107,9 @@ func (s *APIServer) registerRoutes() {
 	s.mux.Handle("POST /api/leagues/{league_id}/match-days", chainMiddleware(http.HandlerFunc(s.handleCreateMatchDay), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/match-days", chainMiddleware(http.HandlerFunc(s.handleListMatchDaysWithStatus), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/match-days/{id}", chainMiddleware(http.HandlerFunc(s.handleGetMatchDay), authMiddleware))
+	s.mux.Handle("PUT /api/leagues/{league_id}/match-days/{id}", chainMiddleware(http.HandlerFunc(s.handleUpdateMatchDay), authMiddleware))
+	s.mux.Handle("DELETE /api/leagues/{league_id}/match-days/{id}", chainMiddleware(http.HandlerFunc(s.handleDeleteMatchDay), authMiddleware))
+	s.mux.Handle("PUT /api/leagues/{league_id}/match-days/{id}/matchups", chainMiddleware(http.HandlerFunc(s.handleUpdateMatchDayMatchups), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/match-days/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetMatchDayScores), authMiddleware))
 	s.mux.Handle("POST /api/leagues/{league_id}/match-days/scores", chainMiddleware(http.HandlerFunc(s.handleEnterMatchDayScores), authMiddleware))
 

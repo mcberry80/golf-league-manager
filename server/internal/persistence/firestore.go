@@ -1064,6 +1064,51 @@ func (fc *FirestoreClient) UpdateMatchDay(ctx context.Context, matchDay models.M
 	return nil
 }
 
+// DeleteMatchDay deletes a match day by ID
+func (fc *FirestoreClient) DeleteMatchDay(ctx context.Context, matchDayID string) error {
+	_, err := fc.client.Collection("match_days").Doc(matchDayID).Delete(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete match day: %w", err)
+	}
+	return nil
+}
+
+// GetMatchesByMatchDayID retrieves all matches for a specific match day
+func (fc *FirestoreClient) GetMatchesByMatchDayID(ctx context.Context, matchDayID string) ([]models.Match, error) {
+	iter := fc.client.Collection("matches").
+		Where("match_day_id", "==", matchDayID).
+		Documents(ctx)
+	defer iter.Stop()
+
+	matches := make([]models.Match, 0)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate matches: %w", err)
+		}
+
+		var match models.Match
+		if err := doc.DataTo(&match); err != nil {
+			return nil, fmt.Errorf("failed to parse match data: %w", err)
+		}
+		matches = append(matches, match)
+	}
+
+	return matches, nil
+}
+
+// DeleteMatch deletes a match by ID
+func (fc *FirestoreClient) DeleteMatch(ctx context.Context, matchID string) error {
+	_, err := fc.client.Collection("matches").Doc(matchID).Delete(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete match: %w", err)
+	}
+	return nil
+}
+
 // GetMatchDayScores retrieves all scores for all matches in a match day
 func (fc *FirestoreClient) GetMatchDayScores(ctx context.Context, matchDayID string) ([]models.Score, error) {
 	// First get all matches for this match day

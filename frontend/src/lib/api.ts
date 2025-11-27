@@ -233,6 +233,26 @@ class APIClient {
         return this.request<MatchDay>(`/api/leagues/${leagueId}/match-days/${id}`);
     }
 
+    async updateMatchDay(leagueId: string, id: string, data: { date?: string; courseId?: string }): Promise<MatchDay> {
+        return this.request<MatchDay>(`/api/leagues/${leagueId}/match-days/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async deleteMatchDay(leagueId: string, id: string): Promise<{ status: string }> {
+        return this.request<{ status: string }>(`/api/leagues/${leagueId}/match-days/${id}`, {
+            method: 'DELETE',
+        });
+    }
+
+    async updateMatchDayMatchups(leagueId: string, matchDayId: string, matches: { id?: string; playerAId: string; playerBId: string }[]): Promise<{ matchDay: MatchDay; matches: Match[] }> {
+        return this.request<{ matchDay: MatchDay; matches: Match[] }>(`/api/leagues/${leagueId}/match-days/${matchDayId}/matchups`, {
+            method: 'PUT',
+            body: JSON.stringify({ matches }),
+        });
+    }
+
     async getMatchDayScores(leagueId: string, matchDayId: string): Promise<MatchDayScoresResponse> {
         return this.request<MatchDayScoresResponse>(`/api/leagues/${leagueId}/match-days/${matchDayId}/scores`);
     }
