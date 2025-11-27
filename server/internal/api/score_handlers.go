@@ -355,14 +355,17 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	// If this was a new score entry (not an update), lock previous match days and mark current as completed
-	if !isUpdate {
-		// Mark current match day as completed
+	// Always mark current match day as completed after saving scores (if not locked)
+	// Skip if already completed to avoid unnecessary writes
+	if currentMatchDay.Status != "locked" && currentMatchDay.Status != "completed" {
 		currentMatchDay.Status = "completed"
 		if err := s.firestoreClient.UpdateMatchDay(ctx, *currentMatchDay); err != nil {
 			log.Printf("Error updating match day status to completed: %v", err)
 		}
+	}
 
+	// If this was a new score entry (not an update), lock previous match days
+	if !isUpdate {
 		// Lock all previous match days in the same season
 		allMatchDays, err := s.firestoreClient.ListMatchDays(ctx, leagueID)
 		if err == nil {
