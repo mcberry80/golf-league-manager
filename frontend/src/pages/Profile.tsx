@@ -352,15 +352,31 @@ export default function Profile() {
             const opponentScore = scores.find(s => s.matchId === match.id && s.playerId === opponentId)
 
             let result: 'won' | 'lost' | 'tied' | 'pending' = 'pending'
-            if (playerScore && opponentScore && match.status === 'completed') {
-                const playerNet = playerScore.matchNetScore ?? playerScore.netScore
-                const opponentNet = opponentScore.matchNetScore ?? opponentScore.netScore
-                if (playerNet < opponentNet) {
-                    result = 'won'
-                } else if (playerNet > opponentNet) {
-                    result = 'lost'
-                } else {
-                    result = 'tied'
+            if (match.status === 'completed') {
+                // Use stored match points when available
+                const playerPoints = isPlayerA ? match.playerAPoints : match.playerBPoints
+                const opponentPoints = isPlayerA ? match.playerBPoints : match.playerAPoints
+                
+                if (playerPoints !== undefined && opponentPoints !== undefined) {
+                    // Determine result based on stored match points
+                    if (playerPoints > opponentPoints) {
+                        result = 'won'
+                    } else if (playerPoints < opponentPoints) {
+                        result = 'lost'
+                    } else {
+                        result = 'tied'
+                    }
+                } else if (playerScore && opponentScore) {
+                    // Fallback to calculating from net scores for backwards compatibility
+                    const playerNet = playerScore.matchNetScore ?? playerScore.netScore
+                    const opponentNet = opponentScore.matchNetScore ?? opponentScore.netScore
+                    if (playerNet < opponentNet) {
+                        result = 'won'
+                    } else if (playerNet > opponentNet) {
+                        result = 'lost'
+                    } else {
+                        result = 'tied'
+                    }
                 }
             }
 
@@ -814,6 +830,7 @@ export default function Profile() {
                                         {matchups.map((matchup) => {
                                             const isExpanded = expandedMatchId === matchup.match.id
                                             const course = courses.find(c => c.id === matchup.match.courseId)
+                                            const isPlayerA = matchup.match.playerAId === player?.id
                                             
                                             // Calculate points per hole based on net scores
                                             const calculateHolePoints = (): { playerPoints: number[], opponentPoints: number[], playerTotal: number, opponentTotal: number } => {
@@ -821,6 +838,10 @@ export default function Profile() {
                                                 const opponentPoints: number[] = []
                                                 let playerTotal = 0
                                                 let opponentTotal = 0
+                                                
+                                                // Use server-stored match points when available
+                                                const storedPlayerTotal = isPlayerA ? matchup.match.playerAPoints : matchup.match.playerBPoints
+                                                const storedOpponentTotal = isPlayerA ? matchup.match.playerBPoints : matchup.match.playerAPoints
                                                 
                                                 if (matchup.playerScore && matchup.opponentScore) {
                                                     const playerNetScores = matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores
@@ -846,17 +867,23 @@ export default function Profile() {
                                                         }
                                                     }
                                                     
-                                                    // Add overall match points (4 points for lower total)
-                                                    const playerMatchNet = matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore
-                                                    const opponentMatchNet = matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore
-                                                    
-                                                    if (playerMatchNet < opponentMatchNet) {
-                                                        playerTotal += 4
-                                                    } else if (playerMatchNet > opponentMatchNet) {
-                                                        opponentTotal += 4
+                                                    // Use server-stored totals if available, otherwise calculate
+                                                    if (storedPlayerTotal !== undefined && storedOpponentTotal !== undefined) {
+                                                        playerTotal = storedPlayerTotal
+                                                        opponentTotal = storedOpponentTotal
                                                     } else {
-                                                        playerTotal += 2
-                                                        opponentTotal += 2
+                                                        // Add overall match points (4 points for lower total)
+                                                        const playerMatchNet = matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore
+                                                        const opponentMatchNet = matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore
+                                                        
+                                                        if (playerMatchNet < opponentMatchNet) {
+                                                            playerTotal += 4
+                                                        } else if (playerMatchNet > opponentMatchNet) {
+                                                            opponentTotal += 4
+                                                        } else {
+                                                            playerTotal += 2
+                                                            opponentTotal += 2
+                                                        }
                                                     }
                                                 }
                                                 

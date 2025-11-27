@@ -97,6 +97,8 @@ export interface Match {
     courseId: string;
     matchDate: string;
     status: 'scheduled' | 'completed';
+    playerAPoints?: number;
+    playerBPoints?: number;
 }
 
 export interface Score {
