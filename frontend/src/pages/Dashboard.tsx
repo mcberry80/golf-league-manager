@@ -13,6 +13,9 @@ import type {
 } from '../types'
 import { Trophy, MessageSquare, Calendar, Send, Trash2, ChevronRight, Users } from 'lucide-react'
 
+// Maximum length for bulletin board messages (must match backend)
+const MAX_MESSAGE_LENGTH = 1000
+
 export default function Dashboard() {
     const { leagueId } = useParams<{ leagueId: string }>()
     const { currentLeague, isLoading: leagueLoading } = useLeague()
@@ -130,7 +133,7 @@ export default function Dashboard() {
         if (diffHours < 24) return `${diffHours}h ago`
         if (diffDays < 7) return `${diffDays}d ago`
         
-        return date.toLocaleDateString('en-US', { 
+        return date.toLocaleString('en-US', { 
             month: 'short', 
             day: 'numeric',
             hour: 'numeric',
@@ -295,7 +298,7 @@ export default function Dashboard() {
                                                     resize: 'none',
                                                     fontSize: '0.95rem'
                                                 }}
-                                                maxLength={1000}
+                                                maxLength={MAX_MESSAGE_LENGTH}
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter' && !e.shiftKey) {
                                                         e.preventDefault()
@@ -317,7 +320,7 @@ export default function Dashboard() {
                                             </button>
                                         </div>
                                         <div className="text-xs text-gray-500 mt-1 text-right">
-                                            {newMessage.length}/1000
+                                            {newMessage.length}/{MAX_MESSAGE_LENGTH}
                                         </div>
                                     </div>
 

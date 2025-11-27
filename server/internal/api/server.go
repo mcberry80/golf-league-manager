@@ -20,6 +20,9 @@ import (
 	"golf-league-manager/internal/services"
 )
 
+// MaxBulletinMessageLength is the maximum length allowed for bulletin board messages
+const MaxBulletinMessageLength = 1000
+
 // APIServer handles HTTP requests for the golf league management system
 type APIServer struct {
 	firestoreClient *persistence.FirestoreClient
@@ -1043,8 +1046,8 @@ func (s *APIServer) handleCreateBulletinPost(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "Message is required", http.StatusBadRequest)
 		return
 	}
-	if len(requestBody.Message) > 1000 {
-		http.Error(w, "Message too long (max 1000 characters)", http.StatusBadRequest)
+	if len(requestBody.Message) > MaxBulletinMessageLength {
+		http.Error(w, fmt.Sprintf("Message too long (max %d characters)", MaxBulletinMessageLength), http.StatusBadRequest)
 		return
 	}
 
