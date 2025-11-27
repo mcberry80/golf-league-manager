@@ -165,6 +165,29 @@ export interface UserInfo {
     leagues?: LeagueMember[]; // List of leagues the user is a member of
 }
 
+export interface LeagueInvite {
+    id: string;
+    leagueId: string;
+    token: string;
+    createdBy: string;
+    expiresAt: string;
+    maxUses: number;
+    useCount: number;
+    createdAt: string;
+    revokedAt?: string;
+}
+
+export interface InviteDetails {
+    invite: LeagueInvite;
+    league: League;
+}
+
+export interface AcceptInviteResponse {
+    message: string;
+    league: League;
+    member?: LeagueMember;
+}
+
 // Request/Response types
 export interface CreateLeagueRequest {
     name: string;

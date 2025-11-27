@@ -45,6 +45,19 @@ type Player struct {
 	CreatedAt   time.Time `firestore:"created_at" json:"createdAt"`
 }
 
+// LeagueInvite represents an invitation to join a league
+type LeagueInvite struct {
+	ID        string     `firestore:"id" json:"id"`
+	LeagueID  string     `firestore:"league_id" json:"leagueId"`
+	Token     string     `firestore:"token" json:"token"`         // Unique token for the invite URL
+	CreatedBy string     `firestore:"created_by" json:"createdBy"` // Player ID who created the invite
+	ExpiresAt time.Time  `firestore:"expires_at" json:"expiresAt"` // When the invite expires
+	MaxUses   int        `firestore:"max_uses" json:"maxUses"`     // Maximum number of uses (0 = unlimited)
+	UseCount  int        `firestore:"use_count" json:"useCount"`   // Current number of uses
+	CreatedAt time.Time  `firestore:"created_at" json:"createdAt"`
+	RevokedAt *time.Time `firestore:"revoked_at" json:"revokedAt"` // When the invite was revoked (nil if active)
+}
+
 // BulletinMessage represents a message posted to a season's bulletin board
 type BulletinMessage struct {
 	ID         string    `firestore:"id" json:"id"`

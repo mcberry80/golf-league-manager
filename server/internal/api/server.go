@@ -133,6 +133,13 @@ func (s *APIServer) registerRoutes() {
 	s.mux.Handle("POST /api/user/link-player", chainMiddleware(http.HandlerFunc(s.handleLinkPlayerAccount), authMiddleware))
 	s.mux.Handle("GET /api/user/me", chainMiddleware(http.HandlerFunc(s.handleGetCurrentUser), authMiddleware))
 
+	// League invite endpoints - authenticated
+	s.mux.Handle("POST /api/leagues/{league_id}/invites", chainMiddleware(http.HandlerFunc(s.handleCreateLeagueInvite), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/invites", chainMiddleware(http.HandlerFunc(s.handleListLeagueInvites), authMiddleware))
+	s.mux.Handle("DELETE /api/leagues/{league_id}/invites/{invite_id}", chainMiddleware(http.HandlerFunc(s.handleRevokeLeagueInvite), authMiddleware))
+	s.mux.Handle("GET /api/invites/{token}", chainMiddleware(http.HandlerFunc(s.handleGetInviteByToken), authMiddleware))
+	s.mux.Handle("POST /api/invites/{token}/accept", chainMiddleware(http.HandlerFunc(s.handleAcceptLeagueInvite), authMiddleware))
+
 	// League member endpoints - require authentication and league membership
 	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/handicap", chainMiddleware(http.HandlerFunc(s.handleGetPlayerHandicap), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetPlayerScores), authMiddleware))

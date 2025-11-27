@@ -13,6 +13,7 @@ import LinkAccount from './pages/LinkAccount.tsx'
 import Profile from './pages/Profile.tsx'
 import Standings from './pages/Standings.tsx'
 import Results from './pages/Results.tsx'
+import JoinLeague from './pages/JoinLeague.tsx'
 
 // Import admin pages
 import LeagueSetup from './pages/admin/LeagueSetup.tsx'
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
             { path: "/profile/:playerId", element: <Profile /> },
             { path: "/leagues/:leagueId/standings", element: <Standings /> },
             { path: "/leagues/:leagueId/results", element: <Results /> },
+            { path: "/invite/:token", element: <JoinLeague /> },
         ],
     },
 ]);
