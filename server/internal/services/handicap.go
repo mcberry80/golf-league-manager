@@ -130,6 +130,8 @@ func CalculateDifferential(score models.Score, course models.Course) float64 {
 
 // CalculateLeagueHandicap calculates the league handicap from the last 5 scores
 // Uses the best 3 of the last 5 differentials, rounded to 0.1
+// NOTE: This function does NOT incorporate provisional handicap. Use CalculateHandicapWithProvisional
+// for proper league handicap calculation that follows Golf League Rules 3.2
 func CalculateLeagueHandicap(scores []models.Score, courses map[string]models.Course) float64 {
 	if len(scores) == 0 {
 		return 0.0
@@ -157,6 +159,54 @@ func CalculateLeagueHandicap(scores []models.Score, courses map[string]models.Co
 	// Use the Handicap function with 3 scores used and 5 considered
 	// This automatically handles the case where we have fewer than 5 rounds
 	return math.Round(Handicap(differentials, 3, 5)*10) / 10
+}
+
+// CalculateHandicapWithProvisional calculates the league handicap following Golf League Rules 3.2
+// This properly incorporates the provisional handicap based on the number of rounds played:
+//   - 0 rounds: Use provisional handicap
+//   - 1 round: ((2 × provisional) + diff₁) / 3
+//   - 2 rounds: (provisional + diff₁ + diff₂) / 3
+//   - 3-4 rounds: Average of all differentials (no drops)
+//   - 5+ rounds: Average of best 3 differentials from last 5 rounds
+func CalculateHandicapWithProvisional(differentials []float64, provisionalHandicap float64) float64 {
+	scoreCount := len(differentials)
+
+	var leagueHandicap float64
+
+	switch {
+	case scoreCount == 0:
+		// Use provisional handicap
+		leagueHandicap = provisionalHandicap
+
+	case scoreCount == 1:
+		// ((2 × provisional) + diff₁) / 3
+		leagueHandicap = ((2 * provisionalHandicap) + differentials[0]) / 3
+
+	case scoreCount == 2:
+		// (provisional + diff₁ + diff₂) / 3
+		leagueHandicap = (provisionalHandicap + differentials[0] + differentials[1]) / 3
+
+	case scoreCount >= 3 && scoreCount <= 4:
+		// Average all differentials (no drops)
+		sum := 0.0
+		for _, diff := range differentials {
+			sum += diff
+		}
+		leagueHandicap = sum / float64(scoreCount)
+
+	default: // 5+ rounds
+		// Sort differentials ascending to find best 3
+		sortedDiffs := make([]float64, len(differentials))
+		copy(sortedDiffs, differentials)
+		slices.Sort(sortedDiffs)
+
+		// Take best (lowest) 3
+		sum := sortedDiffs[0] + sortedDiffs[1] + sortedDiffs[2]
+		leagueHandicap = sum / 3
+	}
+
+	// Round to nearest 0.1
+	return math.Round(leagueHandicap*10) / 10
 }
 
 // CalculateAdjustedGrossScores applies the Net Double Bogey rule for all players
