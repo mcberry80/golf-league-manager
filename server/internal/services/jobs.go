@@ -200,15 +200,16 @@ func NewMatchCompletionProcessor(fc *persistence.FirestoreClient) *MatchCompleti
 }
 
 // ProcessMatch processes a completed match and calculates points
-func (proc *MatchCompletionProcessor) ProcessMatch(ctx context.Context, matchID string) error {
+// If forceRecalculate is true, points will be recalculated even if the match is already completed
+func (proc *MatchCompletionProcessor) ProcessMatch(ctx context.Context, matchID string, forceRecalculate bool) error {
 	// Get the match
 	match, err := proc.firestoreClient.GetMatch(ctx, matchID)
 	if err != nil {
 		return fmt.Errorf("failed to get match: %w", err)
 	}
 
-	if match.Status == "completed" {
-		return nil // Already processed
+	if match.Status == "completed" && !forceRecalculate {
+		return nil // Already processed and not forcing recalculation
 	}
 
 	// Get the course

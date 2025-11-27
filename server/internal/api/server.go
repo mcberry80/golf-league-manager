@@ -931,7 +931,8 @@ func (s *APIServer) handleProcessMatch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	processor := services.NewMatchCompletionProcessor(s.firestoreClient)
-	if err := processor.ProcessMatch(ctx, matchID); err != nil {
+	// Force recalculation when explicitly processing a match
+	if err := processor.ProcessMatch(ctx, matchID, true); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to process match: %v", err), http.StatusInternalServerError)
 		return
 	}

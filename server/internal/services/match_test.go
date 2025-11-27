@@ -181,6 +181,32 @@ func TestCalculateMatchPoints(t *testing.T) {
 			wantPointsA: 11, // 9 holes * 1 point each + 2 for total tie = 11
 			wantPointsB: 11,
 		},
+		{
+			name: "empty hole scores returns 0,0",
+			scoreA: models.Score{
+				HoleScores: []int{},
+			},
+			scoreB: models.Score{
+				HoleScores: []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+			},
+			strokesA:    []int{0, 0, 0, 0, 0, 0, 0, 0, 0},
+			strokesB:    []int{0, 0, 0, 0, 0, 0, 0, 0, 0},
+			wantPointsA: 0,
+			wantPointsB: 0,
+		},
+		{
+			name: "incomplete hole scores returns 0,0",
+			scoreA: models.Score{
+				HoleScores: []int{4, 3, 5}, // Only 3 holes
+			},
+			scoreB: models.Score{
+				HoleScores: []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+			},
+			strokesA:    []int{0, 0, 0, 0, 0, 0, 0, 0, 0},
+			strokesB:    []int{0, 0, 0, 0, 0, 0, 0, 0, 0},
+			wantPointsA: 0,
+			wantPointsB: 0,
+		},
 	}
 
 	for _, tt := range tests {
