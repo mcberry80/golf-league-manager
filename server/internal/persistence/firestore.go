@@ -1515,7 +1515,12 @@ func (fc *FirestoreClient) ListBulletinMessages(ctx context.Context, seasonID st
 	iter := query.Documents(ctx)
 	defer iter.Stop()
 
-	messages := make([]models.BulletinMessage, 0)
+	// Pre-allocate slice with expected capacity
+	capacity := limit
+	if capacity <= 0 {
+		capacity = 50 // Default capacity
+	}
+	messages := make([]models.BulletinMessage, 0, capacity)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {

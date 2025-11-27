@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,6 +18,46 @@ type CreateBulletinMessageRequest struct {
 	Content string `json:"content"`
 }
 
+// bulletinAccessResult contains the result of a bulletin access check
+type bulletinAccessResult struct {
+	player    *models.Player
+	hasAccess bool
+}
+
+// checkBulletinAccess verifies that the authenticated user has access to the bulletin board
+// Returns the player and whether they have access (season player or league admin)
+func (s *APIServer) checkBulletinAccess(ctx context.Context, leagueID, seasonID string) (*bulletinAccessResult, error) {
+	// Get authenticated user ID from context
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized")
+	}
+
+	// Get player for this user
+	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("player not found")
+	}
+
+	// Check if player is a member of this season
+	isSeasonPlayer, err := s.firestoreClient.IsSeasonPlayer(ctx, seasonID, player.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check season membership: %w", err)
+	}
+
+	if isSeasonPlayer {
+		return &bulletinAccessResult{player: player, hasAccess: true}, nil
+	}
+
+	// Also check if they're a league admin
+	isAdmin, err := s.firestoreClient.IsLeagueAdmin(ctx, leagueID, player.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check admin status: %w", err)
+	}
+
+	return &bulletinAccessResult{player: player, hasAccess: isAdmin}, nil
+}
+
 // handleCreateBulletinMessage creates a new bulletin message for a season
 func (s *APIServer) handleCreateBulletinMessage(w http.ResponseWriter, r *http.Request) {
 	leagueID := r.PathValue("league_id")
@@ -28,38 +69,22 @@ func (s *APIServer) handleCreateBulletinMessage(w http.ResponseWriter, r *http.R
 
 	ctx := r.Context()
 
-	// Get authenticated user ID from context
-	userID, err := GetUserIDFromContext(ctx)
+	// Check access
+	result, err := s.checkBulletinAccess(ctx, leagueID, seasonID)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Get player for this user
-	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
-	if err != nil {
-		http.Error(w, "Player not found for authenticated user", http.StatusNotFound)
-		return
-	}
-
-	// Check if player is a member of this season
-	isSeasonPlayer, err := s.firestoreClient.IsSeasonPlayer(ctx, seasonID, player.ID)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to check season membership: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	if !isSeasonPlayer {
-		// Also check if they're a league admin
-		isAdmin, err := s.firestoreClient.IsLeagueAdmin(ctx, leagueID, player.ID)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to check admin status: %v", err), http.StatusInternalServerError)
-			return
+		if err.Error() == "unauthorized" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		} else if err.Error() == "player not found" {
+			http.Error(w, "Player not found for authenticated user", http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-		if !isAdmin {
-			http.Error(w, "Access denied: must be a season player or league admin to post messages", http.StatusForbidden)
-			return
-		}
+		return
+	}
+
+	if !result.hasAccess {
+		http.Error(w, "Access denied: must be a season player or league admin to post messages", http.StatusForbidden)
+		return
 	}
 
 	var req CreateBulletinMessageRequest
@@ -83,8 +108,8 @@ func (s *APIServer) handleCreateBulletinMessage(w http.ResponseWriter, r *http.R
 		ID:         uuid.New().String(),
 		SeasonID:   seasonID,
 		LeagueID:   leagueID,
-		PlayerID:   player.ID,
-		PlayerName: player.Name,
+		PlayerID:   result.player.ID,
+		PlayerName: result.player.Name,
 		Content:    req.Content,
 		CreatedAt:  time.Now(),
 	}
@@ -110,38 +135,22 @@ func (s *APIServer) handleListBulletinMessages(w http.ResponseWriter, r *http.Re
 
 	ctx := r.Context()
 
-	// Get authenticated user ID from context
-	userID, err := GetUserIDFromContext(ctx)
+	// Check access
+	result, err := s.checkBulletinAccess(ctx, leagueID, seasonID)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Get player for this user
-	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
-	if err != nil {
-		http.Error(w, "Player not found for authenticated user", http.StatusNotFound)
-		return
-	}
-
-	// Check if player is a member of this season
-	isSeasonPlayer, err := s.firestoreClient.IsSeasonPlayer(ctx, seasonID, player.ID)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to check season membership: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	if !isSeasonPlayer {
-		// Also check if they're a league admin
-		isAdmin, err := s.firestoreClient.IsLeagueAdmin(ctx, leagueID, player.ID)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to check admin status: %v", err), http.StatusInternalServerError)
-			return
+		if err.Error() == "unauthorized" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		} else if err.Error() == "player not found" {
+			http.Error(w, "Player not found for authenticated user", http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-		if !isAdmin {
-			http.Error(w, "Access denied: must be a season player or league admin to view messages", http.StatusForbidden)
-			return
-		}
+		return
+	}
+
+	if !result.hasAccess {
+		http.Error(w, "Access denied: must be a season player or league admin to view messages", http.StatusForbidden)
+		return
 	}
 
 	// Parse limit from query params (default 50)

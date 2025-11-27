@@ -24,11 +24,12 @@ export default function BulletinBoard({ leagueId, seasonId, currentPlayerId, isA
             const data = await api.listBulletinMessages(leagueId, seasonId, 50)
             setMessages(data)
         } catch (err) {
-            // If forbidden, it means user is not a season player
-            if (err instanceof Error && err.message.includes('403')) {
+            // Check for access denied errors (HTTP 403)
+            const errorMessage = err instanceof Error ? err.message : 'Failed to load messages'
+            if (errorMessage.includes('403') || errorMessage.toLowerCase().includes('forbidden') || errorMessage.toLowerCase().includes('access denied')) {
                 setError('You must be a season player to view the bulletin board.')
             } else {
-                setError(err instanceof Error ? err.message : 'Failed to load messages')
+                setError(errorMessage)
             }
         } finally {
             setLoading(false)

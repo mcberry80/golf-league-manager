@@ -1,6 +1,20 @@
 {
     "indexes": [
         {
+            "collectionGroup": "bulletin_messages",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "season_id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "created_at",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
             "collectionGroup": "handicaps",
             "queryScope": "COLLECTION",
             "fields": [
