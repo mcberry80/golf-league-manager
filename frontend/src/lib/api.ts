@@ -27,6 +27,9 @@ import type {
     ScoreEntryResponse,
     SeasonPlayer,
     SeasonPlayerWithPlayer,
+    LeagueInvite,
+    InviteDetails,
+    AcceptInviteResponse,
 } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -384,6 +387,34 @@ class APIClient {
 
     async processMatch(leagueId: string, matchId: string): Promise<{ status: string }> {
         return this.request<{ status: string }>(`/api/leagues/${leagueId}/jobs/process-match/${matchId}`, {
+            method: 'POST',
+        });
+    }
+
+    // League invite endpoints
+    async createLeagueInvite(leagueId: string, expiresInDays?: number, maxUses?: number): Promise<LeagueInvite> {
+        return this.request<LeagueInvite>(`/api/leagues/${leagueId}/invites`, {
+            method: 'POST',
+            body: JSON.stringify({ expiresInDays, maxUses }),
+        });
+    }
+
+    async listLeagueInvites(leagueId: string): Promise<LeagueInvite[]> {
+        return this.request<LeagueInvite[]>(`/api/leagues/${leagueId}/invites`);
+    }
+
+    async revokeLeagueInvite(leagueId: string, inviteId: string): Promise<void> {
+        return this.request<void>(`/api/leagues/${leagueId}/invites/${inviteId}`, {
+            method: 'DELETE',
+        });
+    }
+
+    async getInviteByToken(token: string): Promise<InviteDetails> {
+        return this.request<InviteDetails>(`/api/invites/${token}`);
+    }
+
+    async acceptInvite(token: string): Promise<AcceptInviteResponse> {
+        return this.request<AcceptInviteResponse>(`/api/invites/${token}/accept`, {
             method: 'POST',
         });
     }

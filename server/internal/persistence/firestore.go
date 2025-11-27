@@ -1583,3 +1583,133 @@ func (fc *FirestoreClient) IsSeasonPlayer(ctx context.Context, seasonID, playerI
 
 	return true, nil
 }
+
+// LeagueInvite operations
+
+// CreateLeagueInvite creates a new league invite
+func (fc *FirestoreClient) CreateLeagueInvite(ctx context.Context, invite models.LeagueInvite) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("league_invites").Doc(invite.ID).Set(ctx, invite)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create league invite",
+				"invite_id", invite.ID,
+				"league_id", invite.LeagueID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to create league invite: %w", err)
+		}
+		return nil
+	})
+}
+
+// GetLeagueInvite retrieves a league invite by ID
+func (fc *FirestoreClient) GetLeagueInvite(ctx context.Context, inviteID string) (*models.LeagueInvite, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	var invite *models.LeagueInvite
+	err := retryOnTransientError(ctx, func() error {
+		doc, err := fc.client.Collection("league_invites").Doc(inviteID).Get(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get league invite: %w", err)
+		}
+
+		var i models.LeagueInvite
+		if err := doc.DataTo(&i); err != nil {
+			return fmt.Errorf("failed to parse league invite data: %w", err)
+		}
+		invite = &i
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return invite, nil
+}
+
+// GetLeagueInviteByToken retrieves a league invite by its unique token
+func (fc *FirestoreClient) GetLeagueInviteByToken(ctx context.Context, token string) (*models.LeagueInvite, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	iter := fc.client.Collection("league_invites").
+		Where("token", "==", token).
+		Limit(1).
+		Documents(ctx)
+	defer iter.Stop()
+
+	doc, err := iter.Next()
+	if err == iterator.Done {
+		return nil, fmt.Errorf("invite not found with token: %s", token)
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to query invite by token",
+			"token", token,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to query invite by token: %w", err)
+	}
+
+	var invite models.LeagueInvite
+	if err := doc.DataTo(&invite); err != nil {
+		logger.ErrorContext(ctx, "Failed to parse league invite data", "error", err)
+		return nil, fmt.Errorf("failed to parse league invite data: %w", err)
+	}
+
+	return &invite, nil
+}
+
+// UpdateLeagueInvite updates an existing league invite
+func (fc *FirestoreClient) UpdateLeagueInvite(ctx context.Context, invite models.LeagueInvite) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("league_invites").Doc(invite.ID).Set(ctx, invite)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to update league invite",
+				"invite_id", invite.ID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to update league invite: %w", err)
+		}
+		return nil
+	})
+}
+
+// ListLeagueInvites retrieves all invites for a league
+func (fc *FirestoreClient) ListLeagueInvites(ctx context.Context, leagueID string) ([]models.LeagueInvite, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	iter := fc.client.Collection("league_invites").
+		Where("league_id", "==", leagueID).
+		OrderBy("created_at", firestore.Desc).
+		Documents(ctx)
+	defer iter.Stop()
+
+	invites := make([]models.LeagueInvite, 0)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to iterate league invites", "error", err)
+			return nil, fmt.Errorf("failed to iterate league invites: %w", err)
+		}
+
+		var invite models.LeagueInvite
+		if err := doc.DataTo(&invite); err != nil {
+			logger.ErrorContext(ctx, "Failed to parse league invite data", "error", err)
+			return nil, fmt.Errorf("failed to parse league invite data: %w", err)
+		}
+		invites = append(invites, invite)
+	}
+
+	return invites, nil
+}
