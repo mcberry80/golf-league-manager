@@ -1,30 +1,13 @@
-import { useState, useEffect } from 'react'
 import { SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLeague } from '../contexts/LeagueContext'
+import { useCurrentUser } from '../hooks'
 import { Trophy, LayoutDashboard, MessageSquare, Calendar, TrendingUp } from 'lucide-react'
-import api from '../lib/api'
-import type { Player } from '../types'
 
 export default function Home() {
     const { currentLeague, isLoading } = useLeague();
     const navigate = useNavigate();
-    const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
-
-    // Load current user's player info
-    useEffect(() => {
-        async function loadCurrentPlayer() {
-            try {
-                const userInfo = await api.getCurrentUser();
-                if (userInfo.linked && userInfo.player) {
-                    setCurrentPlayer(userInfo.player);
-                }
-            } catch {
-                // User not linked yet, that's okay
-            }
-        }
-        loadCurrentPlayer();
-    }, []);
+    const { player: currentPlayer } = useCurrentUser();
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
