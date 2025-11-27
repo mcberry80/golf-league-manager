@@ -76,12 +76,10 @@ export default function Standings() {
                                         <tr>
                                             <th>Rank</th>
                                             <th>Player</th>
-                                            <th>Matches Played</th>
                                             <th>Won</th>
                                             <th>Lost</th>
                                             <th>Tied</th>
                                             <th>Total Points</th>
-                                            <th>Handicap</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -106,7 +104,6 @@ export default function Standings() {
                                                         {entry.playerName}
                                                     </Link>
                                                 </td>
-                                                <td>{entry.matchesPlayed}</td>
                                                 <td style={{ color: 'var(--color-accent)' }}>{entry.matchesWon}</td>
                                                 <td style={{ color: 'var(--color-danger)' }}>{entry.matchesLost}</td>
                                                 <td style={{ color: 'var(--color-text-muted)' }}>{entry.matchesTied}</td>
@@ -119,7 +116,6 @@ export default function Standings() {
                                                         {entry.totalPoints}
                                                     </span>
                                                 </td>
-                                                <td>{entry.leagueHandicap?.toFixed(1) || 'N/A'}</td>
                                             </tr>
                                         ))}
                                     </tbody>
