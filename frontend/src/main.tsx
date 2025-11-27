@@ -12,6 +12,7 @@ import LinkAccount from './pages/LinkAccount.tsx'
 import Profile from './pages/Profile.tsx'
 import Standings from './pages/Standings.tsx'
 import Results from './pages/Results.tsx'
+import Dashboard from './pages/Dashboard.tsx'
 
 // Import admin pages
 import LeagueSetup from './pages/admin/LeagueSetup.tsx'
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
             { path: "/", element: <Home /> },
             { path: "/leagues", element: <LeagueList /> },
             { path: "/leagues/create", element: <CreateLeague /> },
+            { path: "/leagues/:leagueId/dashboard", element: <Dashboard /> },
             { path: "/leagues/:leagueId/admin", element: <Admin /> },
             { path: "/leagues/:leagueId/admin/league-setup", element: <LeagueSetup /> },
             { path: "/leagues/:leagueId/admin/players", element: <PlayerManagement /> },

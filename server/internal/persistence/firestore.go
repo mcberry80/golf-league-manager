@@ -1119,3 +1119,106 @@ func (fc *FirestoreClient) DeleteScore(ctx context.Context, scoreID string) erro
 	}
 	return nil
 }
+
+// BulletinPost operations
+
+// CreateBulletinPost creates a new bulletin post in Firestore
+func (fc *FirestoreClient) CreateBulletinPost(ctx context.Context, post models.BulletinPost) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("bulletin_posts").Doc(post.ID).Set(ctx, post)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create bulletin post",
+				"post_id", post.ID,
+				"season_id", post.SeasonID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to create bulletin post: %w", err)
+		}
+		return nil
+	})
+}
+
+// ListBulletinPosts retrieves all bulletin posts for a season, ordered by creation time descending
+func (fc *FirestoreClient) ListBulletinPosts(ctx context.Context, seasonID string, limit int) ([]models.BulletinPost, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	query := fc.client.Collection("bulletin_posts").
+		Where("season_id", "==", seasonID).
+		OrderBy("created_at", firestore.Desc)
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	iter := query.Documents(ctx)
+	defer iter.Stop()
+
+	posts := make([]models.BulletinPost, 0)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to iterate bulletin posts", "error", err)
+			return nil, fmt.Errorf("failed to iterate bulletin posts: %w", err)
+		}
+
+		var post models.BulletinPost
+		if err := doc.DataTo(&post); err != nil {
+			logger.ErrorContext(ctx, "Failed to parse bulletin post data", "error", err)
+			return nil, fmt.Errorf("failed to parse bulletin post data: %w", err)
+		}
+		posts = append(posts, post)
+	}
+
+	return posts, nil
+}
+
+// GetBulletinPost retrieves a bulletin post by ID
+func (fc *FirestoreClient) GetBulletinPost(ctx context.Context, postID string) (*models.BulletinPost, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	var post *models.BulletinPost
+	err := retryOnTransientError(ctx, func() error {
+		doc, err := fc.client.Collection("bulletin_posts").Doc(postID).Get(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get bulletin post: %w", err)
+		}
+
+		var p models.BulletinPost
+		if err := doc.DataTo(&p); err != nil {
+			return fmt.Errorf("failed to parse bulletin post data: %w", err)
+		}
+		post = &p
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return post, nil
+}
+
+// DeleteBulletinPost deletes a bulletin post by ID
+func (fc *FirestoreClient) DeleteBulletinPost(ctx context.Context, postID string) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("bulletin_posts").Doc(postID).Delete(ctx)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to delete bulletin post",
+				"post_id", postID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to delete bulletin post: %w", err)
+		}
+		return nil
+	})
+}

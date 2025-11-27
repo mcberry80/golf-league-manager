@@ -103,7 +103,36 @@ export default function Home() {
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-xl)', maxWidth: '900px', margin: '0 auto' }}>
+                        <>
+                            {/* Featured Dashboard Link */}
+                            <div className="mb-8">
+                                <Link 
+                                    to={`/leagues/${currentLeague?.id}/dashboard`} 
+                                    className="card block"
+                                    style={{ 
+                                        textDecoration: 'none', 
+                                        color: 'inherit',
+                                        background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%)',
+                                        borderColor: 'rgba(59, 130, 246, 0.3)',
+                                        maxWidth: '900px',
+                                        margin: '0 auto var(--spacing-xl)'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
+                                        <div style={{ fontSize: '3rem' }}>📰</div>
+                                        <div>
+                                            <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1.5rem' }}>
+                                                Player Dashboard
+                                            </h3>
+                                            <p style={{ color: 'var(--color-text-secondary)', fontSize: '1rem' }}>
+                                                View standings, recent results, and chat with league members in the bulletin board
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Link>
+                            </div>
+
+                            <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-xl)', maxWidth: '900px', margin: '0 auto' }}>
                             <Link to={`/leagues/${currentLeague?.id}/admin`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                                 <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>⚙️</div>
                                 <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Admin</h3>
@@ -144,6 +173,7 @@ export default function Home() {
                                 </p>
                             </Link>
                         </div>
+                        </>
                     )}
                 </SignedIn>
 

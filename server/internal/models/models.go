@@ -118,3 +118,14 @@ type Score struct {
 	MatchStrokes            []int     `firestore:"match_strokes" json:"matchStrokes"`       // Strokes received per hole for the match
 	PlayerAbsent            bool      `firestore:"player_absent" json:"playerAbsent"`
 }
+
+// BulletinPost represents a message in a season's bulletin board
+type BulletinPost struct {
+	ID         string    `firestore:"id" json:"id"`
+	SeasonID   string    `firestore:"season_id" json:"seasonId"`
+	LeagueID   string    `firestore:"league_id" json:"leagueId"`
+	PlayerID   string    `firestore:"player_id" json:"playerId"`
+	PlayerName string    `firestore:"player_name" json:"playerName"` // Denormalized for display
+	Message    string    `firestore:"message" json:"message"`
+	CreatedAt  time.Time `firestore:"created_at" json:"createdAt"`
+}

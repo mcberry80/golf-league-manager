@@ -124,6 +124,11 @@ func (s *APIServer) registerRoutes() {
 	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetPlayerScores), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/matches/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetMatchScores), authMiddleware))
 
+	// Bulletin board endpoints - require authentication and season membership
+	s.mux.Handle("GET /api/leagues/{league_id}/seasons/{season_id}/bulletin", chainMiddleware(http.HandlerFunc(s.handleListBulletinPosts), authMiddleware))
+	s.mux.Handle("POST /api/leagues/{league_id}/seasons/{season_id}/bulletin", chainMiddleware(http.HandlerFunc(s.handleCreateBulletinPost), authMiddleware))
+	s.mux.Handle("DELETE /api/leagues/{league_id}/seasons/{season_id}/bulletin/{post_id}", chainMiddleware(http.HandlerFunc(s.handleDeleteBulletinPost), authMiddleware))
+
 	// Job endpoints - require authentication and league admin role
 	s.mux.Handle("POST /api/leagues/{league_id}/jobs/recalculate-handicaps", chainMiddleware(http.HandlerFunc(s.handleRecalculateHandicaps), authMiddleware))
 	s.mux.Handle("POST /api/leagues/{league_id}/jobs/process-match/{id}", chainMiddleware(http.HandlerFunc(s.handleProcessMatch), authMiddleware))
@@ -933,6 +938,193 @@ func (s *APIServer) handleProcessMatch(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// Bulletin board handlers
+
+func (s *APIServer) handleListBulletinPosts(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	seasonID := r.PathValue("season_id")
+	if leagueID == "" || seasonID == "" {
+		http.Error(w, "League ID and Season ID are required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get the authenticated user ID from context
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get the player for this user
+	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
+	if err != nil {
+		http.Error(w, "Player not found", http.StatusForbidden)
+		return
+	}
+
+	// Verify the player is a member of this league
+	isMember, err := s.firestoreClient.IsLeagueMember(ctx, leagueID, player.ID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to check league membership: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "Access denied: not a league member", http.StatusForbidden)
+		return
+	}
+
+	// Get limit from query params, default to 50
+	limit := 50
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsedLimit, err := parseIntParam(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 100 {
+			limit = parsedLimit
+		}
+	}
+
+	posts, err := s.firestoreClient.ListBulletinPosts(ctx, seasonID, limit)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to list bulletin posts: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(posts)
+}
+
+func (s *APIServer) handleCreateBulletinPost(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	seasonID := r.PathValue("season_id")
+	if leagueID == "" || seasonID == "" {
+		http.Error(w, "League ID and Season ID are required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get the authenticated user ID from context
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get the player for this user
+	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
+	if err != nil {
+		http.Error(w, "Player not found", http.StatusForbidden)
+		return
+	}
+
+	// Verify the player is a member of this league
+	isMember, err := s.firestoreClient.IsLeagueMember(ctx, leagueID, player.ID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to check league membership: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "Access denied: not a league member", http.StatusForbidden)
+		return
+	}
+
+	var requestBody struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Validate message
+	if requestBody.Message == "" {
+		http.Error(w, "Message is required", http.StatusBadRequest)
+		return
+	}
+	if len(requestBody.Message) > 1000 {
+		http.Error(w, "Message too long (max 1000 characters)", http.StatusBadRequest)
+		return
+	}
+
+	post := models.BulletinPost{
+		ID:         uuid.New().String(),
+		SeasonID:   seasonID,
+		LeagueID:   leagueID,
+		PlayerID:   player.ID,
+		PlayerName: player.Name,
+		Message:    requestBody.Message,
+		CreatedAt:  time.Now(),
+	}
+
+	if err := s.firestoreClient.CreateBulletinPost(ctx, post); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to create bulletin post: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(post)
+}
+
+func (s *APIServer) handleDeleteBulletinPost(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	postID := r.PathValue("post_id")
+	if leagueID == "" || postID == "" {
+		http.Error(w, "League ID and Post ID are required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get the authenticated user ID from context
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get the player for this user
+	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
+	if err != nil {
+		http.Error(w, "Player not found", http.StatusForbidden)
+		return
+	}
+
+	// Get the post to check ownership
+	post, err := s.firestoreClient.GetBulletinPost(ctx, postID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Post not found: %v", err), http.StatusNotFound)
+		return
+	}
+
+	// Check if user is the owner or a league admin
+	isAdmin, err := s.firestoreClient.IsLeagueAdmin(ctx, leagueID, player.ID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to check admin status: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if post.PlayerID != player.ID && !isAdmin {
+		http.Error(w, "Access denied: can only delete your own posts", http.StatusForbidden)
+		return
+	}
+
+	if err := s.firestoreClient.DeleteBulletinPost(ctx, postID); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to delete bulletin post: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+}
+
+// parseIntParam parses an integer from a string query parameter
+func parseIntParam(s string) (int, error) {
+	var result int
+	_, err := fmt.Sscanf(s, "%d", &result)
+	return result, err
 }
 
 // ServerComponents holds the server and its dependencies for graceful shutdown

@@ -24,6 +24,7 @@ import type {
     ScoreSubmission,
     MatchDayScoresResponse,
     ScoreEntryResponse,
+    BulletinPost,
 } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -311,6 +312,25 @@ class APIClient {
     async processMatch(leagueId: string, matchId: string): Promise<{ status: string }> {
         return this.request<{ status: string }>(`/api/leagues/${leagueId}/jobs/process-match/${matchId}`, {
             method: 'POST',
+        });
+    }
+
+    // Bulletin board endpoints
+    async listBulletinPosts(leagueId: string, seasonId: string, limit?: number): Promise<BulletinPost[]> {
+        const query = limit ? `?limit=${limit}` : '';
+        return this.request<BulletinPost[]>(`/api/leagues/${leagueId}/seasons/${seasonId}/bulletin${query}`);
+    }
+
+    async createBulletinPost(leagueId: string, seasonId: string, message: string): Promise<BulletinPost> {
+        return this.request<BulletinPost>(`/api/leagues/${leagueId}/seasons/${seasonId}/bulletin`, {
+            method: 'POST',
+            body: JSON.stringify({ message }),
+        });
+    }
+
+    async deleteBulletinPost(leagueId: string, seasonId: string, postId: string): Promise<{ status: string }> {
+        return this.request<{ status: string }>(`/api/leagues/${leagueId}/seasons/${seasonId}/bulletin/${postId}`, {
+            method: 'DELETE',
         });
     }
 }
