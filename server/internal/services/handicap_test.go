@@ -258,7 +258,7 @@ func TestApplyProvisionalAdjustment(t *testing.T) {
 // - 1 round played: (2*provisional + differential)/3
 // - 2 rounds played: (provisional + differential1 + differential2)/3
 // - 3 rounds played: average of 3 differentials
-// - 4 rounds played: average of all 4 differentials (no drops)
+// - 4 rounds played: average of 3 lowest differentials (drop 1 worst)
 // - 5+ rounds played: average of 3 lowest (best) differentials over 5 most recent rounds
 func TestCalculateHandicapWithProvisional(t *testing.T) {
 	tests := []struct {
@@ -349,20 +349,20 @@ func TestCalculateHandicapWithProvisional(t *testing.T) {
 			description:         "3 rounds: (8.5 + 15.2 + 11.3) / 3 = 35 / 3 = 11.67 -> 11.7",
 		},
 
-		// 4 rounds - average of all 4 differentials (no drops yet)
+		// 4 rounds - average of best 3 differentials (drop 1 worst)
 		{
-			name:                "4 rounds - average all differentials",
+			name:                "4 rounds - average best 3 differentials",
 			differentials:       []float64{10.0, 12.0, 14.0, 8.0},
-			provisionalHandicap: 15.0, // Not used for 3+ rounds
-			wantHandicap:        11.0,
-			description:         "4 rounds: (10.0 + 12.0 + 14.0 + 8.0) / 4 = 44 / 4 = 11.0",
+			provisionalHandicap: 15.0, // Not used for 4+ rounds
+			wantHandicap:        10.0,
+			description:         "4 rounds: best 3 are 8.0, 10.0, 12.0 -> avg = 30 / 3 = 10.0",
 		},
 		{
-			name:                "4 rounds - with one outlier",
+			name:                "4 rounds - with one outlier dropped",
 			differentials:       []float64{10.0, 10.0, 10.0, 20.0},
 			provisionalHandicap: 15.0,
-			wantHandicap:        12.5,
-			description:         "4 rounds: (10 + 10 + 10 + 20) / 4 = 50 / 4 = 12.5",
+			wantHandicap:        10.0,
+			description:         "4 rounds: best 3 are 10.0, 10.0, 10.0 -> avg = 30 / 3 = 10.0 (20.0 dropped)",
 		},
 
 		// 5 rounds - drop 2 worst (highest), average best 3

@@ -161,12 +161,13 @@ func CalculateLeagueHandicap(scores []models.Score, courses map[string]models.Co
 	return math.Round(Handicap(differentials, 3, 5)*10) / 10
 }
 
-// CalculateHandicapWithProvisional calculates the league handicap following Golf League Rules 3.2
+// CalculateHandicapWithProvisional calculates the league handicap following league rules:
 // This properly incorporates the provisional handicap based on the number of rounds played:
 //   - 0 rounds: Use provisional handicap
 //   - 1 round: ((2 × provisional) + diff₁) / 3
 //   - 2 rounds: (provisional + diff₁ + diff₂) / 3
-//   - 3-4 rounds: Average of all differentials (no drops)
+//   - 3 rounds: Average of all 3 differentials
+//   - 4 rounds: Average of best 3 differentials (drop 1 worst)
 //   - 5+ rounds: Average of best 3 differentials from last 5 rounds
 func CalculateHandicapWithProvisional(differentials []float64, provisionalHandicap float64) float64 {
 	scoreCount := len(differentials)
@@ -186,15 +187,12 @@ func CalculateHandicapWithProvisional(differentials []float64, provisionalHandic
 		// (provisional + diff₁ + diff₂) / 3
 		leagueHandicap = (provisionalHandicap + differentials[0] + differentials[1]) / 3
 
-	case scoreCount >= 3 && scoreCount <= 4:
-		// Average all differentials (no drops)
-		sum := 0.0
-		for _, diff := range differentials {
-			sum += diff
-		}
-		leagueHandicap = sum / float64(scoreCount)
+	case scoreCount == 3:
+		// Average all 3 differentials
+		sum := differentials[0] + differentials[1] + differentials[2]
+		leagueHandicap = sum / 3
 
-	default: // 5+ rounds
+	default: // 4+ rounds
 		// Sort differentials ascending to find best 3
 		sortedDiffs := make([]float64, len(differentials))
 		copy(sortedDiffs, differentials)
