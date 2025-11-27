@@ -13,12 +13,25 @@ type League struct {
 
 // LeagueMember represents a player's membership in a league with their role
 type LeagueMember struct {
+	ID                  string     `firestore:"id" json:"id"`
+	LeagueID            string     `firestore:"league_id" json:"leagueId"`
+	PlayerID            string     `firestore:"player_id" json:"playerId"`
+	Role                string     `firestore:"role" json:"role"`                                // "admin" or "player"
+	ProvisionalHandicap float64    `firestore:"provisional_handicap" json:"provisionalHandicap"` // Starting handicap for the season
+	JoinedAt            time.Time  `firestore:"joined_at" json:"joinedAt"`
+	IsDeleted           bool       `firestore:"is_deleted" json:"isDeleted"` // Soft delete flag
+	DeletedAt           *time.Time `firestore:"deleted_at" json:"deletedAt"` // When the member was soft deleted
+}
+
+// SeasonPlayer represents a player's participation in a specific season
+type SeasonPlayer struct {
 	ID                  string    `firestore:"id" json:"id"`
-	LeagueID            string    `firestore:"league_id" json:"leagueId"`
+	SeasonID            string    `firestore:"season_id" json:"seasonId"`
 	PlayerID            string    `firestore:"player_id" json:"playerId"`
-	Role                string    `firestore:"role" json:"role"`                                // "admin" or "player"
-	ProvisionalHandicap float64   `firestore:"provisional_handicap" json:"provisionalHandicap"` // Starting handicap for the season
-	JoinedAt            time.Time `firestore:"joined_at" json:"joinedAt"`
+	LeagueID            string    `firestore:"league_id" json:"leagueId"`
+	ProvisionalHandicap float64   `firestore:"provisional_handicap" json:"provisionalHandicap"` // Starting handicap for this season
+	AddedAt             time.Time `firestore:"added_at" json:"addedAt"`
+	IsActive            bool      `firestore:"is_active" json:"isActive"` // Whether player is active in the season
 }
 
 // Player represents a golf league player (global, can be in multiple leagues)
@@ -88,9 +101,9 @@ type Match struct {
 	WeekNumber    int       `firestore:"week_number" json:"weekNumber"`
 	PlayerAID     string    `firestore:"player_a_id" json:"playerAId"`
 	PlayerBID     string    `firestore:"player_b_id" json:"playerBId"`
-	CourseID      string    `firestore:"course_id" json:"courseId"`   // Denormalized from MatchDay for easier querying if needed, or can be removed. Keeping for now.
-	MatchDate     time.Time `firestore:"match_date" json:"matchDate"` // Denormalized
-	Status        string    `firestore:"status" json:"status"`        // scheduled|completed
+	CourseID      string    `firestore:"course_id" json:"courseId"`            // Denormalized from MatchDay for easier querying if needed, or can be removed. Keeping for now.
+	MatchDate     time.Time `firestore:"match_date" json:"matchDate"`          // Denormalized
+	Status        string    `firestore:"status" json:"status"`                 // scheduled|completed
 	PlayerAPoints int       `firestore:"player_a_points" json:"playerAPoints"` // Match points earned by Player A
 	PlayerBPoints int       `firestore:"player_b_points" json:"playerBPoints"` // Match points earned by Player B
 }

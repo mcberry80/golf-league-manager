@@ -19,6 +19,7 @@ import PlayerManagement from './pages/admin/PlayerManagement.tsx'
 import CourseManagement from './pages/admin/CourseManagement.tsx'
 import MatchScheduling from './pages/admin/MatchScheduling.tsx'
 import ScoreEntry from './pages/admin/ScoreEntry.tsx'
+import SeasonPlayerManagement from './pages/admin/SeasonPlayerManagement.tsx'
 
 // Import league pages
 import LeagueList from './pages/leagues/LeagueList.tsx'
@@ -44,6 +45,7 @@ const router = createBrowserRouter([
             { path: "/leagues/:leagueId/admin/courses", element: <CourseManagement /> },
             { path: "/leagues/:leagueId/admin/matches", element: <MatchScheduling /> },
             { path: "/leagues/:leagueId/admin/scores", element: <ScoreEntry /> },
+            { path: "/leagues/:leagueId/admin/seasons/:seasonId/players", element: <SeasonPlayerManagement /> },
             { path: "/link-account", element: <LinkAccount /> },
             { path: "/profile/:playerId", element: <Profile /> },
             { path: "/leagues/:leagueId/standings", element: <Standings /> },

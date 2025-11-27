@@ -383,7 +383,7 @@ func (s *APIServer) handleListLeagueMembers(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(enrichedMembers)
 }
 
-// handleUpdateLeagueMemberRole updates a member's role
+// handleUpdateLeagueMemberRole updates a member's role and/or provisional handicap
 func (s *APIServer) handleUpdateLeagueMemberRole(w http.ResponseWriter, r *http.Request) {
 	leagueID := r.PathValue("id")
 	playerID := r.PathValue("player_id")
@@ -396,7 +396,8 @@ func (s *APIServer) handleUpdateLeagueMemberRole(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 
 	var req struct {
-		Role string `json:"role"`
+		Role                *string  `json:"role"`
+		ProvisionalHandicap *float64 `json:"provisionalHandicap"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request body: %v", err))
@@ -423,7 +424,15 @@ func (s *APIServer) handleUpdateLeagueMemberRole(w http.ResponseWriter, r *http.
 		return
 	}
 
-	targetMember.Role = req.Role
+	// Update role if provided
+	if req.Role != nil {
+		targetMember.Role = *req.Role
+	}
+	// Update provisional handicap if provided
+	if req.ProvisionalHandicap != nil {
+		targetMember.ProvisionalHandicap = *req.ProvisionalHandicap
+	}
+
 	if err := s.firestoreClient.UpdateLeagueMember(ctx, *targetMember); err != nil {
 		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to update member: %v", err))
 		return
@@ -433,7 +442,7 @@ func (s *APIServer) handleUpdateLeagueMemberRole(w http.ResponseWriter, r *http.
 	json.NewEncoder(w).Encode(targetMember)
 }
 
-// handleRemoveLeagueMember removes a player from a league
+// handleRemoveLeagueMember removes a player from a league (soft delete with validation)
 func (s *APIServer) handleRemoveLeagueMember(w http.ResponseWriter, r *http.Request) {
 	leagueID := r.PathValue("id")
 	playerID := r.PathValue("player_id")
@@ -465,8 +474,263 @@ func (s *APIServer) handleRemoveLeagueMember(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := s.firestoreClient.DeleteLeagueMember(ctx, targetMemberID); err != nil {
+	// Validation: Check if player is part of any scheduled matches
+	scheduledMatches, err := s.firestoreClient.GetPlayerScheduledMatches(ctx, leagueID, playerID)
+	if err != nil {
+		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to check scheduled matches: %v", err))
+		return
+	}
+
+	if len(scheduledMatches) > 0 {
+		s.respondWithError(w, http.StatusConflict, fmt.Sprintf("Cannot remove player: they are part of %d scheduled match(es). Please remove them from those matches first.", len(scheduledMatches)))
+		return
+	}
+
+	// Validation: Check if player has played any rounds (has any scores)
+	scoreCount, err := s.firestoreClient.CountPlayerScores(ctx, leagueID, playerID)
+	if err != nil {
+		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to check player scores: %v", err))
+		return
+	}
+
+	if scoreCount > 0 {
+		s.respondWithError(w, http.StatusConflict, fmt.Sprintf("Cannot remove player: they have played %d round(s). Players with match history cannot be removed.", scoreCount))
+		return
+	}
+
+	// Validation: Check if player is part of any matchups (completed matches)
+	completedMatches, err := s.firestoreClient.GetPlayerCompletedMatches(ctx, leagueID, playerID)
+	if err != nil {
+		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to check completed matches: %v", err))
+		return
+	}
+
+	if len(completedMatches) > 0 {
+		s.respondWithError(w, http.StatusConflict, fmt.Sprintf("Cannot remove player: they have been in %d completed match(es). Players with match history cannot be removed.", len(completedMatches)))
+		return
+	}
+
+	// Perform soft delete
+	if err := s.firestoreClient.SoftDeleteLeagueMember(ctx, targetMemberID); err != nil {
 		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to remove member: %v", err))
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Season Player handlers
+
+// SeasonPlayerWithPlayer wraps a SeasonPlayer with the associated Player details
+type SeasonPlayerWithPlayer struct {
+	models.SeasonPlayer
+	Player *models.Player `json:"player"`
+}
+
+// handleAddSeasonPlayer adds a player to a season
+func (s *APIServer) handleAddSeasonPlayer(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	seasonID := r.PathValue("season_id")
+
+	if leagueID == "" || seasonID == "" {
+		s.respondWithError(w, http.StatusBadRequest, "League ID and Season ID are required")
+		return
+	}
+
+	ctx := r.Context()
+
+	var req struct {
+		PlayerID            string  `json:"playerId"`
+		ProvisionalHandicap float64 `json:"provisionalHandicap"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request body: %v", err))
+		return
+	}
+
+	if req.PlayerID == "" {
+		s.respondWithError(w, http.StatusBadRequest, "Player ID is required")
+		return
+	}
+
+	// Check if player is a member of the league
+	members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
+	if err != nil {
+		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to check league membership: %v", err))
+		return
+	}
+
+	var memberFound bool
+	var provisionalHandicap float64 = req.ProvisionalHandicap
+	for _, m := range members {
+		if m.PlayerID == req.PlayerID {
+			memberFound = true
+			// If no provisional handicap provided, use the one from league membership
+			if req.ProvisionalHandicap == 0 {
+				provisionalHandicap = m.ProvisionalHandicap
+			}
+			break
+		}
+	}
+
+	if !memberFound {
+		s.respondWithError(w, http.StatusBadRequest, "Player must be a member of the league to be added to a season")
+		return
+	}
+
+	// Check if player is already in this season
+	existingSeasonPlayer, _ := s.firestoreClient.GetSeasonPlayer(ctx, seasonID, req.PlayerID)
+	if existingSeasonPlayer != nil {
+		if existingSeasonPlayer.IsActive {
+			s.respondWithError(w, http.StatusConflict, "Player is already in this season")
+			return
+		}
+		// Reactivate the player
+		existingSeasonPlayer.IsActive = true
+		existingSeasonPlayer.ProvisionalHandicap = provisionalHandicap
+		if err := s.firestoreClient.UpdateSeasonPlayer(ctx, *existingSeasonPlayer); err != nil {
+			s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to reactivate season player: %v", err))
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(existingSeasonPlayer)
+		return
+	}
+
+	// Create new season player
+	seasonPlayer := models.SeasonPlayer{
+		ID:                  uuid.New().String(),
+		SeasonID:            seasonID,
+		PlayerID:            req.PlayerID,
+		LeagueID:            leagueID,
+		ProvisionalHandicap: provisionalHandicap,
+		AddedAt:             time.Now(),
+		IsActive:            true,
+	}
+
+	if err := s.firestoreClient.CreateSeasonPlayer(ctx, seasonPlayer); err != nil {
+		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to add player to season: %v", err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(seasonPlayer)
+}
+
+// handleListSeasonPlayers lists all players in a season with their details
+func (s *APIServer) handleListSeasonPlayers(w http.ResponseWriter, r *http.Request) {
+	seasonID := r.PathValue("season_id")
+
+	if seasonID == "" {
+		s.respondWithError(w, http.StatusBadRequest, "Season ID is required")
+		return
+	}
+
+	ctx := r.Context()
+	seasonPlayers, err := s.firestoreClient.ListSeasonPlayers(ctx, seasonID)
+	if err != nil {
+		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get season players: %v", err))
+		return
+	}
+
+	// Enrich with player details
+	enrichedPlayers := make([]SeasonPlayerWithPlayer, 0, len(seasonPlayers))
+	for _, sp := range seasonPlayers {
+		if !sp.IsActive {
+			continue // Skip inactive players
+		}
+		player, err := s.firestoreClient.GetPlayer(ctx, sp.PlayerID)
+		if err != nil {
+			fmt.Printf("Failed to get player %s for season player %s: %v\n", sp.PlayerID, sp.ID, err)
+			continue
+		}
+		enrichedPlayers = append(enrichedPlayers, SeasonPlayerWithPlayer{
+			SeasonPlayer: sp,
+			Player:       player,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(enrichedPlayers)
+}
+
+// handleUpdateSeasonPlayer updates a season player's provisional handicap
+func (s *APIServer) handleUpdateSeasonPlayer(w http.ResponseWriter, r *http.Request) {
+	seasonID := r.PathValue("season_id")
+	playerID := r.PathValue("player_id")
+
+	if seasonID == "" || playerID == "" {
+		s.respondWithError(w, http.StatusBadRequest, "Season ID and Player ID are required")
+		return
+	}
+
+	ctx := r.Context()
+
+	var req struct {
+		ProvisionalHandicap *float64 `json:"provisionalHandicap"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request body: %v", err))
+		return
+	}
+
+	// Get the season player
+	seasonPlayer, err := s.firestoreClient.GetSeasonPlayer(ctx, seasonID, playerID)
+	if err != nil {
+		s.respondWithError(w, http.StatusNotFound, "Season player not found")
+		return
+	}
+
+	// Update provisional handicap if provided
+	if req.ProvisionalHandicap != nil {
+		seasonPlayer.ProvisionalHandicap = *req.ProvisionalHandicap
+	}
+
+	if err := s.firestoreClient.UpdateSeasonPlayer(ctx, *seasonPlayer); err != nil {
+		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to update season player: %v", err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(seasonPlayer)
+}
+
+// handleRemoveSeasonPlayer removes a player from a season (with validation)
+func (s *APIServer) handleRemoveSeasonPlayer(w http.ResponseWriter, r *http.Request) {
+	seasonID := r.PathValue("season_id")
+	playerID := r.PathValue("player_id")
+
+	if seasonID == "" || playerID == "" {
+		s.respondWithError(w, http.StatusBadRequest, "Season ID and Player ID are required")
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get the season player
+	seasonPlayer, err := s.firestoreClient.GetSeasonPlayer(ctx, seasonID, playerID)
+	if err != nil {
+		s.respondWithError(w, http.StatusNotFound, "Season player not found")
+		return
+	}
+
+	// Validation: Check if player is part of any scheduled matches in this season
+	scheduledMatches, err := s.firestoreClient.GetPlayerScheduledMatchesForSeason(ctx, seasonID, playerID)
+	if err != nil {
+		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to check scheduled matches: %v", err))
+		return
+	}
+
+	if len(scheduledMatches) > 0 {
+		s.respondWithError(w, http.StatusConflict, fmt.Sprintf("Cannot remove player from season: they are part of %d scheduled match(es). Please remove them from those matches first.", len(scheduledMatches)))
+		return
+	}
+
+	// Mark as inactive
+	if err := s.firestoreClient.RemoveSeasonPlayer(ctx, seasonPlayer.ID); err != nil {
+		s.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to remove player from season: %v", err))
 		return
 	}
 

@@ -207,13 +207,22 @@ export default function LeagueSetup() {
                                                 </span>
                                             </td>
                                             <td>
-                                                <button
-                                                    onClick={() => toggleActive(season)}
-                                                    className="btn btn-secondary"
-                                                    style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
-                                                >
-                                                    {season.active ? 'Deactivate' : 'Activate'}
-                                                </button>
+                                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                    <button
+                                                        onClick={() => toggleActive(season)}
+                                                        className="btn btn-secondary"
+                                                        style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                                                    >
+                                                        {season.active ? 'Deactivate' : 'Activate'}
+                                                    </button>
+                                                    <Link
+                                                        to={`/leagues/${currentLeague.id}/admin/seasons/${season.id}/players`}
+                                                        className="btn btn-primary"
+                                                        style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                                                    >
+                                                        Manage Players
+                                                    </Link>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

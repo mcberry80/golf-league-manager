@@ -24,6 +24,8 @@ import type {
     ScoreSubmission,
     MatchDayScoresResponse,
     ScoreEntryResponse,
+    SeasonPlayer,
+    SeasonPlayerWithPlayer,
 } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -109,8 +111,40 @@ class APIClient {
         });
     }
 
+    async updateLeagueMember(leagueId: string, playerId: string, data: { role?: 'admin' | 'player'; provisionalHandicap?: number }): Promise<LeagueMember> {
+        return this.request<LeagueMember>(`/api/leagues/${leagueId}/members/${playerId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
+
     async removeLeagueMember(leagueId: string, playerId: string): Promise<void> {
         return this.request<void>(`/api/leagues/${leagueId}/members/${playerId}`, {
+            method: 'DELETE',
+        });
+    }
+
+    // Season Player endpoints
+    async addSeasonPlayer(leagueId: string, seasonId: string, playerId: string, provisionalHandicap?: number): Promise<SeasonPlayer> {
+        return this.request<SeasonPlayer>(`/api/leagues/${leagueId}/seasons/${seasonId}/players`, {
+            method: 'POST',
+            body: JSON.stringify({ playerId, provisionalHandicap: provisionalHandicap || 0 }),
+        });
+    }
+
+    async listSeasonPlayers(leagueId: string, seasonId: string): Promise<SeasonPlayerWithPlayer[]> {
+        return this.request<SeasonPlayerWithPlayer[]>(`/api/leagues/${leagueId}/seasons/${seasonId}/players`);
+    }
+
+    async updateSeasonPlayer(leagueId: string, seasonId: string, playerId: string, data: { provisionalHandicap?: number }): Promise<SeasonPlayer> {
+        return this.request<SeasonPlayer>(`/api/leagues/${leagueId}/seasons/${seasonId}/players/${playerId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async removeSeasonPlayer(leagueId: string, seasonId: string, playerId: string): Promise<void> {
+        return this.request<void>(`/api/leagues/${leagueId}/seasons/${seasonId}/players/${playerId}`, {
             method: 'DELETE',
         });
     }

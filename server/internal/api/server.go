@@ -98,6 +98,12 @@ func (s *APIServer) registerRoutes() {
 	s.mux.Handle("GET /api/leagues/{league_id}/seasons/{id}/matches", chainMiddleware(http.HandlerFunc(s.handleGetSeasonMatches), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/seasons/active", chainMiddleware(http.HandlerFunc(s.handleGetActiveSeason), authMiddleware))
 
+	// Season Player endpoints
+	s.mux.Handle("POST /api/leagues/{league_id}/seasons/{season_id}/players", chainMiddleware(http.HandlerFunc(s.handleAddSeasonPlayer), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/seasons/{season_id}/players", chainMiddleware(http.HandlerFunc(s.handleListSeasonPlayers), authMiddleware))
+	s.mux.Handle("PUT /api/leagues/{league_id}/seasons/{season_id}/players/{player_id}", chainMiddleware(http.HandlerFunc(s.handleUpdateSeasonPlayer), authMiddleware))
+	s.mux.Handle("DELETE /api/leagues/{league_id}/seasons/{season_id}/players/{player_id}", chainMiddleware(http.HandlerFunc(s.handleRemoveSeasonPlayer), authMiddleware))
+
 	s.mux.Handle("POST /api/leagues/{league_id}/matches", chainMiddleware(http.HandlerFunc(s.handleCreateMatch), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/matches", chainMiddleware(http.HandlerFunc(s.handleListMatches), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/matches/{id}", chainMiddleware(http.HandlerFunc(s.handleGetMatch), authMiddleware))
