@@ -1,21 +1,25 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useLeague } from '../contexts/LeagueContext'
 import api from '../lib/api'
 import type { StandingsEntry } from '../types'
 
 export default function Standings() {
+    const { leagueId } = useParams<{ leagueId: string }>()
     const { currentLeague, isLoading: leagueLoading } = useLeague()
     const [standings, setStandings] = useState<StandingsEntry[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
 
+    // Use leagueId from URL params, fallback to currentLeague from context
+    const effectiveLeagueId = leagueId || currentLeague?.id
+
     useEffect(() => {
         async function loadStandings() {
-            if (!currentLeague) return
+            if (!effectiveLeagueId) return
 
             try {
-                const data = await api.getStandings(currentLeague.id)
+                const data = await api.getStandings(effectiveLeagueId)
                 // Sort by total points descending
                 const sorted = data.sort((a, b) => b.totalPoints - a.totalPoints)
                 setStandings(sorted)
@@ -27,13 +31,9 @@ export default function Standings() {
         }
 
         if (!leagueLoading) {
-            if (currentLeague) {
-                loadStandings()
-            } else {
-                setLoading(false)
-            }
+            loadStandings()
         }
-    }, [currentLeague, leagueLoading])
+    }, [effectiveLeagueId, leagueLoading])
 
     if (leagueLoading || loading) {
         return (
@@ -61,7 +61,7 @@ export default function Standings() {
                     </div>
                 )}
 
-                {!currentLeague ? (
+                {!effectiveLeagueId ? (
                     <div className="alert alert-info">
                         Select a league to view standings.
                     </div>
@@ -95,7 +95,17 @@ export default function Standings() {
                                                         {index === 0 && '🏆 '}#{index + 1}
                                                     </span>
                                                 </td>
-                                                <td style={{ fontWeight: '600' }}>{entry.playerName}</td>
+                                                <td style={{ fontWeight: '600' }}>
+                                                    <Link 
+                                                        to={`/profile/${entry.playerId}`}
+                                                        style={{ 
+                                                            color: 'var(--color-primary)', 
+                                                            textDecoration: 'none'
+                                                        }}
+                                                    >
+                                                        {entry.playerName}
+                                                    </Link>
+                                                </td>
                                                 <td>{entry.matchesPlayed}</td>
                                                 <td style={{ color: 'var(--color-accent)' }}>{entry.matchesWon}</td>
                                                 <td style={{ color: 'var(--color-danger)' }}>{entry.matchesLost}</td>
