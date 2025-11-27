@@ -792,14 +792,13 @@ func (s *APIServer) handleGetMatchScores(w http.ResponseWriter, r *http.Request)
 
 // StandingsEntry represents a player's standing in the league
 type StandingsEntry struct {
-	PlayerID            string  `json:"player_id"`
-	PlayerName          string  `json:"player_name"`
-	MatchesPlayed       int     `json:"matches_played"`
-	MatchesWon          int     `json:"matches_won"`
-	MatchesLost         int     `json:"matches_lost"`
-	MatchesTied         int     `json:"matches_tied"`
-	TotalPoints         int     `json:"total_points"`
-	LeagueHandicapIndex float64 `json:"league_handicap_index"`
+	PlayerID      string `json:"playerId"`
+	PlayerName    string `json:"playerName"`
+	MatchesPlayed int    `json:"matchesPlayed"`
+	MatchesWon    int    `json:"matchesWon"`
+	MatchesLost   int    `json:"matchesLost"`
+	MatchesTied   int    `json:"matchesTied"`
+	TotalPoints   int    `json:"totalPoints"`
 }
 
 func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
@@ -835,14 +834,9 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		handicap, _ := s.firestoreClient.GetPlayerHandicap(ctx, leagueID, player.ID)
-
 		entry := &StandingsEntry{
 			PlayerID:   player.ID,
 			PlayerName: player.Name,
-		}
-		if handicap != nil {
-			entry.LeagueHandicapIndex = handicap.LeagueHandicapIndex
 		}
 		standingsMap[player.ID] = entry
 	}

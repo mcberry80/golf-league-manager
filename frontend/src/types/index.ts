@@ -130,7 +130,6 @@ export interface StandingsEntry {
     matchesLost: number;
     matchesTied: number;
     totalPoints: number;
-    leagueHandicap: number;
 }
 
 export interface UserInfo {
