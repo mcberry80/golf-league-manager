@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLeague } from '../contexts/LeagueContext'
 import api from '../lib/api'
+import { formatDateWithWeekday } from '../lib/utils'
 import type { MatchDay, Match, Score, LeagueMemberWithPlayer, Course, Season } from '../types'
 import { Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 import { 
@@ -10,6 +11,7 @@ import {
     AbsentBadge,
     EMPTY_STROKES_ARRAY 
 } from '../components/Scorecard'
+import { LoadingSpinner } from '../components/Layout'
 
 // Match day status constants
 const MATCH_DAY_STATUS = {
@@ -114,27 +116,16 @@ export default function Results() {
         }
     }, [leagueId, currentLeague, leagueLoading])
 
-    // Helper to get player name by ID
-    const getPlayerName = (playerId: string): string => {
+    // Helper to get player name by ID - memoized to prevent recreation on each render
+    const getPlayerName = useCallback((playerId: string): string => {
         const member = members.find(m => m.playerId === playerId)
         return member?.player?.name || 'Unknown'
-    }
+    }, [members])
 
-    // Helper to get course by ID
-    const getCourse = (courseId: string): Course | undefined => {
+    // Helper to get course by ID - memoized to prevent recreation on each render
+    const getCourse = useCallback((courseId: string): Course | undefined => {
         return courses.find(c => c.id === courseId)
-    }
-
-    // Format date for display
-    const formatDate = (dateString: string) => {
-        const date = new Date(dateString)
-        return date.toLocaleDateString('en-US', { 
-            weekday: 'short',
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
-        })
-    }
+    }, [courses])
 
     // Get match days grouped by season and sorted by date
     const getMatchDaysByWeek = (): MatchDayWithMatches[] => {
@@ -331,11 +322,7 @@ export default function Results() {
     }
 
     if (leagueLoading || loading) {
-        return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div className="spinner"></div>
-            </div>
-        )
+        return <LoadingSpinner />
     }
 
     const effectiveLeague = currentLeague
@@ -430,7 +417,7 @@ export default function Results() {
                                                         </span>
                                                         <div style={{ textAlign: 'left' }}>
                                                             <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
-                                                                {formatDate(mdData.matchDay.date)}
+                                                                {formatDateWithWeekday(mdData.matchDay.date)}
                                                             </p>
                                                             <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                                                                 {mdData.courseName} • {completedMatchesCount} match{completedMatchesCount !== 1 ? 'es' : ''}

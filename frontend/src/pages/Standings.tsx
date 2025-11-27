@@ -1,46 +1,19 @@
-import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLeague } from '../contexts/LeagueContext'
-import api from '../lib/api'
-import type { StandingsEntry } from '../types'
+import { useStandings } from '../hooks'
+import { LoadingSpinner } from '../components/Layout'
 
 export default function Standings() {
     const { leagueId } = useParams<{ leagueId: string }>()
     const { currentLeague, isLoading: leagueLoading } = useLeague()
-    const [standings, setStandings] = useState<StandingsEntry[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState('')
 
     // Use leagueId from URL params, fallback to currentLeague from context
     const effectiveLeagueId = leagueId || currentLeague?.id
-
-    useEffect(() => {
-        async function loadStandings() {
-            if (!effectiveLeagueId) return
-
-            try {
-                const data = await api.getStandings(effectiveLeagueId)
-                // Sort by total points descending
-                const sorted = data.sort((a, b) => b.totalPoints - a.totalPoints)
-                setStandings(sorted)
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'Failed to load standings')
-            } finally {
-                setLoading(false)
-            }
-        }
-
-        if (!leagueLoading) {
-            loadStandings()
-        }
-    }, [effectiveLeagueId, leagueLoading])
+    
+    const { standings, loading, error } = useStandings(effectiveLeagueId)
 
     if (leagueLoading || loading) {
-        return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div className="spinner"></div>
-            </div>
-        )
+        return <LoadingSpinner />
     }
 
     return (

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { League, LeagueMember } from '../types';
 import { api } from '../lib/api';
 import { useAuth } from '@clerk/clerk-react';
@@ -14,12 +14,57 @@ interface LeagueContextType {
 
 const LeagueContext = createContext<LeagueContextType | undefined>(undefined);
 
+/**
+ * Batch size for parallel API calls. Set to 5 to balance:
+ * - Reducing total latency by parallelizing requests
+ * - Avoiding server overload or rate limiting
+ * - Keeping memory usage reasonable
+ */
+const BATCH_SIZE = 5;
+
+async function fetchLeagueMembersInBatches(
+    leagues: League[],
+    playerId: string
+): Promise<LeagueMember[]> {
+    const leagueMembers: LeagueMember[] = [];
+    
+    // Process in batches to avoid overwhelming the server
+    for (let i = 0; i < leagues.length; i += BATCH_SIZE) {
+        const batch = leagues.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+            batch.map(async (league) => {
+                try {
+                    const members = await api.listLeagueMembers(league.id);
+                    return members.find(m => m.playerId === playerId) || null;
+                } catch (err) {
+                    console.error(`Failed to load members for league ${league.id}:`, err);
+                    return null;
+                }
+            })
+        );
+        
+        // Add non-null results to leagueMembers
+        for (const result of batchResults) {
+            if (result) {
+                leagueMembers.push(result);
+            }
+        }
+    }
+    
+    return leagueMembers;
+}
+
 export function LeagueProvider({ children }: { children: React.ReactNode }) {
     const { getToken, userId } = useAuth();
     const [currentLeague, setCurrentLeague] = useState<League | null>(null);
     const [userRole, setUserRole] = useState<'admin' | 'player' | null>(null);
     const [userLeagues, setUserLeagues] = useState<LeagueMember[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    
+    // Ref to prevent duplicate loading on re-renders
+    const loadingRef = useRef(false);
+    // Cache leagues to avoid re-fetching
+    const leaguesCacheRef = useRef<Map<string, League>>(new Map());
 
     // Set up auth token provider on mount
     useEffect(() => {
@@ -32,7 +77,13 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     const selectLeague = useCallback(async (leagueId: string, membersList?: LeagueMember[]) => {
         setIsLoading(true);
         try {
-            const league = await api.getLeague(leagueId);
+            // Check cache first
+            let league = leaguesCacheRef.current.get(leagueId);
+            if (!league) {
+                league = await api.getLeague(leagueId);
+                leaguesCacheRef.current.set(leagueId, league);
+            }
+            
             setCurrentLeague(league);
             localStorage.setItem('selectedLeagueId', leagueId);
 
@@ -67,10 +118,12 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     // Load user's leagues on mount or auth change
     useEffect(() => {
         const loadLeagues = async () => {
-            if (!userId) {
+            if (!userId || loadingRef.current) {
                 setIsLoading(false);
                 return;
             }
+            
+            loadingRef.current = true;
 
             try {
                 // Get current user info
@@ -79,59 +132,49 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
                 // If user has a linked player, get their leagues
                 if (userInfo.linked && userInfo.player) {
                     const leagues = await api.listLeagues();
-                    const leagueMembers: LeagueMember[] = [];
-
-                    // Fetch membership info for each league
+                    
+                    // Cache all leagues
                     for (const league of leagues) {
-                        try {
-                            const members = await api.listLeagueMembers(league.id);
-                            const userMember = members.find(m => m.playerId === userInfo.player!.id);
-                            if (userMember) {
-                                leagueMembers.push(userMember);
-                            }
-                        } catch (err) {
-                            console.error(`Failed to load members for league ${league.id}:`, err);
-                        }
+                        leaguesCacheRef.current.set(league.id, league);
                     }
+                    
+                    // Fetch membership info for all leagues in parallel batches
+                    const leagueMembers = await fetchLeagueMembersInBatches(leagues, userInfo.player.id);
 
                     setUserLeagues(leagueMembers);
-
-                    // Helper to select league inline to avoid circular dependency
-                    const selectLeagueInline = async (leagueId: string, membersList: LeagueMember[]) => {
-                        setIsLoading(true);
-                        try {
-                            const league = await api.getLeague(leagueId);
-                            setCurrentLeague(league);
-                            localStorage.setItem('selectedLeagueId', leagueId);
-                            const member = membersList.find(l => l.leagueId === leagueId);
-                            setUserRole(member?.role || null);
-                        } catch (error) {
-                            console.error('Failed to select league:', error);
-                        } finally {
-                            setIsLoading(false);
-                        }
-                    };
 
                     // Restore selected league from local storage if available
                     const savedLeagueId = localStorage.getItem('selectedLeagueId');
                     if (savedLeagueId && leagueMembers.some(m => m.leagueId === savedLeagueId)) {
-                        await selectLeagueInline(savedLeagueId, leagueMembers);
+                        // Use cached league
+                        const league = leaguesCacheRef.current.get(savedLeagueId);
+                        if (league) {
+                            setCurrentLeague(league);
+                            const member = leagueMembers.find(l => l.leagueId === savedLeagueId);
+                            setUserRole(member?.role || null);
+                        }
                     } else if (leagueMembers.length > 0) {
-                        // Default to first league
-                        await selectLeagueInline(leagueMembers[0].leagueId, leagueMembers);
+                        // Default to first league, use cached league
+                        const league = leaguesCacheRef.current.get(leagueMembers[0].leagueId);
+                        if (league) {
+                            setCurrentLeague(league);
+                            localStorage.setItem('selectedLeagueId', leagueMembers[0].leagueId);
+                            setUserRole(leagueMembers[0].role || null);
+                        }
                     }
                 }
             } catch (error) {
                 console.error('Failed to load leagues:', error);
             } finally {
                 setIsLoading(false);
+                loadingRef.current = false;
             }
         };
 
         loadLeagues();
     }, [userId]);
 
-    const refreshLeagues = async () => {
+    const refreshLeagues = useCallback(async () => {
         if (!userId) return;
 
         try {
@@ -139,37 +182,34 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
 
             if (userInfo.linked && userInfo.player) {
                 const leagues = await api.listLeagues();
-                const leagueMembers: LeagueMember[] = [];
-
-                // Fetch membership info for each league
+                
+                // Update cache
                 for (const league of leagues) {
-                    try {
-                        const members = await api.listLeagueMembers(league.id);
-                        const userMember = members.find(m => m.playerId === userInfo.player!.id);
-                        if (userMember) {
-                            leagueMembers.push(userMember);
-                        }
-                    } catch (err) {
-                        console.error(`Failed to load members for league ${league.id}:`, err);
-                    }
+                    leaguesCacheRef.current.set(league.id, league);
                 }
+                
+                // Fetch membership info for all leagues in parallel batches
+                const leagueMembers = await fetchLeagueMembersInBatches(leagues, userInfo.player.id);
 
                 setUserLeagues(leagueMembers);
             }
         } catch (error) {
             console.error('Failed to refresh leagues:', error);
         }
-    };
+    }, [userId]);
+
+    // Memoize context value to prevent unnecessary re-renders
+    const contextValue = useMemo(() => ({
+        currentLeague,
+        userRole,
+        userLeagues,
+        isLoading,
+        selectLeague,
+        refreshLeagues
+    }), [currentLeague, userRole, userLeagues, isLoading, selectLeague, refreshLeagues]);
 
     return (
-        <LeagueContext.Provider value={{
-            currentLeague,
-            userRole,
-            userLeagues,
-            isLoading,
-            selectLeague,
-            refreshLeagues
-        }}>
+        <LeagueContext.Provider value={contextValue}>
             {children}
         </LeagueContext.Provider>
     );

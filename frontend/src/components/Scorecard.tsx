@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { ReactNode, memo } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
 // Constants
@@ -104,7 +104,10 @@ export interface ScoreRowProps {
     pars?: number[]
 }
 
-export function ScoreRow({ 
+/**
+ * ScoreRow component - memoized to prevent unnecessary re-renders in large scorecards
+ */
+export const ScoreRow = memo(function ScoreRow({ 
     label, 
     scores, 
     total, 
@@ -148,7 +151,7 @@ export function ScoreRow({
             <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color }}>{total}</td>
         </tr>
     )
-}
+})
 
 // Scorecard Table Component
 export interface ScorecardTableProps {
@@ -167,7 +170,10 @@ export interface ScorecardTableProps {
     }>
 }
 
-export function ScorecardTable({ rows }: ScorecardTableProps) {
+/**
+ * ScorecardTable component - memoized to prevent unnecessary re-renders
+ */
+export const ScorecardTable = memo(function ScorecardTable({ rows }: ScorecardTableProps) {
     return (
         <div className="table-container" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
@@ -188,7 +194,7 @@ export function ScorecardTable({ rows }: ScorecardTableProps) {
             </table>
         </div>
     )
-}
+})
 
 // Expandable Card Component
 export interface ExpandableCardProps {
@@ -199,7 +205,10 @@ export interface ExpandableCardProps {
     children: ReactNode
 }
 
-export function ExpandableCard({ isExpanded, onToggle, header, rightContent, children }: ExpandableCardProps) {
+/**
+ * ExpandableCard component - memoized to prevent unnecessary re-renders
+ */
+export const ExpandableCard = memo(function ExpandableCard({ isExpanded, onToggle, header, rightContent, children }: ExpandableCardProps) {
     return (
         <div style={{ 
             border: '1px solid var(--color-border)',
@@ -237,7 +246,7 @@ export function ExpandableCard({ isExpanded, onToggle, header, rightContent, chi
             )}
         </div>
     )
-}
+})
 
 // Stat Item Component
 export interface StatItemProps {
@@ -246,21 +255,27 @@ export interface StatItemProps {
     color?: string
 }
 
-export function StatItem({ label, value, color }: StatItemProps) {
+/**
+ * StatItem component - memoized to prevent unnecessary re-renders
+ */
+export const StatItem = memo(function StatItem({ label, value, color }: StatItemProps) {
     return (
         <div>
             <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{label}</p>
             <p style={{ fontWeight: '600', color }}>{value}</p>
         </div>
     )
-}
+})
 
 // Absent Badge Component
 export interface AbsentBadgeProps {
     small?: boolean
 }
 
-export function AbsentBadge({ small = false }: AbsentBadgeProps) {
+/**
+ * AbsentBadge component - memoized to prevent unnecessary re-renders
+ */
+export const AbsentBadge = memo(function AbsentBadge({ small = false }: AbsentBadgeProps) {
     return (
         <span 
             style={{ 
@@ -277,4 +292,4 @@ export function AbsentBadge({ small = false }: AbsentBadgeProps) {
             Absent
         </span>
     )
-}
+})

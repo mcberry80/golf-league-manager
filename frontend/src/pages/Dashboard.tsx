@@ -1,22 +1,25 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { useLeague } from '../contexts/LeagueContext'
+import { useCurrentUser } from '../hooks'
+import { formatDateShort } from '../lib/utils'
 import { Trophy, Calendar, MessageSquare, TrendingUp, ChevronRight } from 'lucide-react'
 import api from '../lib/api'
 import BulletinBoard from '../components/BulletinBoard'
-import type { StandingsEntry, Season, Match, LeagueMemberWithPlayer, Player } from '../types'
+import { LoadingSpinner } from '../components/Layout'
+import type { StandingsEntry, Season, Match, LeagueMemberWithPlayer } from '../types'
 
 export default function Dashboard() {
     const { leagueId } = useParams<{ leagueId: string }>()
     const navigate = useNavigate()
     const { currentLeague, userRole, isLoading: leagueLoading } = useLeague()
+    const { player: currentPlayer } = useCurrentUser()
 
     const [activeSeason, setActiveSeason] = useState<Season | null>(null)
     const [standings, setStandings] = useState<StandingsEntry[]>([])
     const [recentMatches, setRecentMatches] = useState<Match[]>([])
     const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
-    const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
 
@@ -29,12 +32,6 @@ export default function Dashboard() {
             try {
                 setLoading(true)
                 setError('')
-
-                // Load current user's player info
-                const userInfo = await api.getCurrentUser()
-                if (userInfo.linked && userInfo.player) {
-                    setCurrentPlayer(userInfo.player)
-                }
 
                 // Load all data in parallel
                 const [seasonsData, standingsData, matchesData, membersData] = await Promise.all([
@@ -70,25 +67,14 @@ export default function Dashboard() {
         }
     }, [effectiveLeagueId, leagueLoading])
 
-    const getPlayerName = (playerId: string): string => {
+    // Memoize helper function to prevent recreation on each render
+    const getPlayerName = useCallback((playerId: string): string => {
         const member = members.find(m => m.playerId === playerId)
         return member?.player?.name || 'Unknown'
-    }
-
-    const formatDate = (dateString: string) => {
-        const date = new Date(dateString)
-        return date.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric'
-        })
-    }
+    }, [members])
 
     if (leagueLoading || loading) {
-        return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div className="spinner"></div>
-            </div>
-        )
+        return <LoadingSpinner />
     }
 
     if (!effectiveLeagueId) {
@@ -370,7 +356,7 @@ export default function Dashboard() {
                                                     marginBottom: '0.25rem'
                                                 }}>
                                                     <span>Week {match.weekNumber}</span>
-                                                    <span>{formatDate(match.matchDate)}</span>
+                                                    <span>{formatDateShort(match.matchDate)}</span>
                                                 </div>
                                                 <div style={{ 
                                                     display: 'flex', 
