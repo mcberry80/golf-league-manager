@@ -7,6 +7,7 @@ import './index.css'
 
 // Import pages
 import Home from './pages/Home.tsx'
+import Dashboard from './pages/Dashboard.tsx'
 import Admin from './pages/Admin.tsx'
 import LinkAccount from './pages/LinkAccount.tsx'
 import Profile from './pages/Profile.tsx'
@@ -39,6 +40,7 @@ const router = createBrowserRouter([
             { path: "/", element: <Home /> },
             { path: "/leagues", element: <LeagueList /> },
             { path: "/leagues/create", element: <CreateLeague /> },
+            { path: "/leagues/:leagueId/dashboard", element: <Dashboard /> },
             { path: "/leagues/:leagueId/admin", element: <Admin /> },
             { path: "/leagues/:leagueId/admin/league-setup", element: <LeagueSetup /> },
             { path: "/leagues/:leagueId/admin/players", element: <PlayerManagement /> },

@@ -10,6 +10,7 @@ import type {
     Round,
     HandicapRecord,
     StandingsEntry,
+    BulletinMessage,
     UserInfo,
     CreateLeagueRequest,
     CreateCourseRequest,
@@ -353,6 +354,25 @@ class APIClient {
     // Standings endpoints
     async getStandings(leagueId: string): Promise<StandingsEntry[]> {
         return this.request<StandingsEntry[]>(`/api/leagues/${leagueId}/standings`);
+    }
+
+    // Bulletin board endpoints
+    async listBulletinMessages(leagueId: string, seasonId: string, limit?: number): Promise<BulletinMessage[]> {
+        const query = limit ? `?limit=${limit}` : '';
+        return this.request<BulletinMessage[]>(`/api/leagues/${leagueId}/seasons/${seasonId}/bulletin${query}`);
+    }
+
+    async createBulletinMessage(leagueId: string, seasonId: string, content: string): Promise<BulletinMessage> {
+        return this.request<BulletinMessage>(`/api/leagues/${leagueId}/seasons/${seasonId}/bulletin`, {
+            method: 'POST',
+            body: JSON.stringify({ content }),
+        });
+    }
+
+    async deleteBulletinMessage(leagueId: string, messageId: string): Promise<{ status: string }> {
+        return this.request<{ status: string }>(`/api/leagues/${leagueId}/bulletin/${messageId}`, {
+            method: 'DELETE',
+        });
     }
 
     // Job endpoints

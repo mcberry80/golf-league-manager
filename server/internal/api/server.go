@@ -124,6 +124,11 @@ func (s *APIServer) registerRoutes() {
 
 	s.mux.Handle("GET /api/leagues/{league_id}/standings", chainMiddleware(http.HandlerFunc(s.handleGetStandings), authMiddleware))
 
+	// Bulletin board endpoints - require authentication and season membership
+	s.mux.Handle("POST /api/leagues/{league_id}/seasons/{season_id}/bulletin", chainMiddleware(http.HandlerFunc(s.handleCreateBulletinMessage), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/seasons/{season_id}/bulletin", chainMiddleware(http.HandlerFunc(s.handleListBulletinMessages), authMiddleware))
+	s.mux.Handle("DELETE /api/leagues/{league_id}/bulletin/{message_id}", chainMiddleware(http.HandlerFunc(s.handleDeleteBulletinMessage), authMiddleware))
+
 	// User account linking endpoints - require authentication only
 	s.mux.Handle("POST /api/user/link-player", chainMiddleware(http.HandlerFunc(s.handleLinkPlayerAccount), authMiddleware))
 	s.mux.Handle("GET /api/user/me", chainMiddleware(http.HandlerFunc(s.handleGetCurrentUser), authMiddleware))
