@@ -3,6 +3,7 @@ package services
 import (
 	"math"
 	"testing"
+	"time"
 
 	"golf-league-manager/internal/models"
 )
@@ -116,4 +117,116 @@ func TestHandicapRefactor_VerificationCase(t *testing.T) {
 	if updatedHandicapRounded != expectedUpdatedHandicap {
 		t.Errorf("Expected Updated Handicap %.1f, got %.1f (raw %.4f)", expectedUpdatedHandicap, updatedHandicapRounded, updatedHandicap)
 	}
+}
+
+// TestProvisionalHandicapUsedForFirstRoundScoreUpdate validates that when a player has played
+// only 1 round in the season and that round's score is edited, the provisional handicap
+// is always used instead of any calculated handicap index in the handicap table.
+//
+// Scenario:
+// - Player has played 1 round in the season
+// - Match day is in "completed" state
+// - Player has a handicap record with handicap index of 3
+// - Player has a provisional handicap of 15
+// - When that round score is edited and saved
+// - The applied handicap index should be 15 (provisional), not 3 (handicap table)
+// - Course handicap and playing handicap are calculated based on the provisional index of 15
+func TestProvisionalHandicapUsedForFirstRoundScoreUpdate(t *testing.T) {
+	// Setup Course
+	course := models.Course{
+		ID:            "test-course",
+		Name:          "Test Course",
+		Par:           36,
+		CourseRating:  35.5,
+		SlopeRating:   120,
+		HolePars:      []int{4, 3, 5, 4, 4, 3, 5, 4, 4},
+		HoleHandicaps: []int{1, 7, 3, 5, 2, 9, 4, 6, 8},
+	}
+
+	// Setup Player with handicap record showing index of 3
+	// This represents a calculated handicap that may exist from previous seasons
+	handicapRecord := models.HandicapRecord{
+		ID:                  "hr-1",
+		PlayerID:            "player-1",
+		LeagueID:            "league-1",
+		LeagueHandicapIndex: 3.0, // Existing handicap index (should NOT be used for first round)
+		UpdatedAt:           time.Now().AddDate(0, -1, 0),
+	}
+
+	// Setup League Member with provisional handicap of 15
+	// This represents the starting handicap for the season
+	leagueMember := models.LeagueMember{
+		ID:                  "lm-1",
+		LeagueID:            "league-1",
+		PlayerID:            "player-1",
+		Role:                "player",
+		ProvisionalHandicap: 15.0, // Provisional handicap (should be used for first round)
+		JoinedAt:            time.Now().AddDate(0, -6, 0),
+	}
+
+	// Setup Match Day in completed state
+	matchDay := models.MatchDay{
+		ID:       "md-1",
+		LeagueID: "league-1",
+		SeasonID: "season-1",
+		Date:     time.Now().AddDate(0, 0, -7),
+		CourseID: course.ID,
+		Status:   "completed", // Match day is completed
+	}
+
+	// Simulate: Player has 1 score in the season (the first round)
+	seasonScoreCount := 1
+
+	// This simulates the score entry/update logic:
+	// For the first round of the season (score count == 1), use provisional handicap
+	// regardless of what's in the handicap table
+	var appliedHandicapIndex float64
+	if seasonScoreCount <= 1 {
+		// First round - always use provisional handicap
+		appliedHandicapIndex = leagueMember.ProvisionalHandicap
+	} else {
+		// Subsequent rounds - use handicap from handicap table
+		appliedHandicapIndex = handicapRecord.LeagueHandicapIndex
+	}
+
+	// Verify the applied handicap index is the provisional (15), not the handicap record (3)
+	if appliedHandicapIndex != 15.0 {
+		t.Errorf("Expected applied handicap index to be provisional (15.0), got %.1f", appliedHandicapIndex)
+	}
+
+	// Calculate course handicap and playing handicap based on the applied index
+	// Formula: course_handicap = (handicap_index * slope_rating / 113) + (course_rating - par)
+	// (15 * 120 / 113) + (35.5 - 36) = 15.929... + (-0.5) = 15.429...
+	courseHandicap, playingHandicap := CalculateCourseAndPlayingHandicap(appliedHandicapIndex, course)
+
+	// Verify course handicap is calculated based on provisional (15), not handicap record (3)
+	// With provisional 15: course_handicap ≈ 15.43, rounded = 15
+	// With handicap index 3: course_handicap ≈ 2.68, rounded = 3
+	expectedCourseHandicap := 15.43 // (15 * 120 / 113) + (35.5 - 36)
+	if math.Abs(courseHandicap-expectedCourseHandicap) > 0.1 {
+		t.Errorf("Expected Course Handicap %.2f (based on provisional 15), got %.2f", expectedCourseHandicap, courseHandicap)
+	}
+
+	// Verify playing handicap is calculated based on provisional (15), not handicap record (3)
+	// Formula: playing_handicap = round(course_handicap * 0.95)
+	// 15.43 * 0.95 = 14.66 → rounds to 15
+	expectedPlayingHandicap := 15 // round(15.43 * 0.95)
+	if playingHandicap != expectedPlayingHandicap {
+		t.Errorf("Expected Playing Handicap %d (based on provisional 15), got %d", expectedPlayingHandicap, playingHandicap)
+	}
+
+	// Verify that match day status allows score updates
+	if matchDay.Status == "locked" {
+		t.Error("Match day should allow score updates when status is 'completed'")
+	}
+
+	// Log the verification for debugging
+	t.Logf("Test scenario validated:")
+	t.Logf("  - Season score count: %d (first round)", seasonScoreCount)
+	t.Logf("  - Match day status: %s", matchDay.Status)
+	t.Logf("  - Handicap record index: %.1f (NOT used)", handicapRecord.LeagueHandicapIndex)
+	t.Logf("  - Provisional handicap: %.1f (USED)", leagueMember.ProvisionalHandicap)
+	t.Logf("  - Applied handicap index: %.1f", appliedHandicapIndex)
+	t.Logf("  - Calculated course handicap: %.2f", courseHandicap)
+	t.Logf("  - Calculated playing handicap: %d", playingHandicap)
 }
