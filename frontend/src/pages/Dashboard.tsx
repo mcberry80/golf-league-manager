@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { SignedIn, UserButton } from '@clerk/clerk-react'
 import { useLeague } from '../contexts/LeagueContext'
 import api from '../lib/api'
 import type { 
@@ -12,6 +11,8 @@ import type {
     Player 
 } from '../types'
 import { Trophy, MessageSquare, Calendar, Send, Trash2, ChevronRight, Users } from 'lucide-react'
+import PageHeader from '../components/PageHeader'
+import LoadingSpinner from '../components/LoadingSpinner'
 
 // Maximum length for bulletin board messages (must match backend)
 const MAX_MESSAGE_LENGTH = 1000
@@ -186,11 +187,7 @@ export default function Dashboard() {
     }
 
     if (leagueLoading || loading) {
-        return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div className="spinner"></div>
-            </div>
-        )
+        return <LoadingSpinner />
     }
 
     if (!effectiveLeagueId) {
@@ -215,46 +212,7 @@ export default function Dashboard() {
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
-            {/* Header */}
-            <header className="border-b" style={{ borderColor: 'var(--color-border)', background: 'rgba(30, 41, 59, 0.8)', backdropFilter: 'blur(10px)' }}>
-                <div className="container" style={{ padding: 'var(--spacing-lg)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div className="flex items-center gap-4">
-                            <Link to="/" style={{ textDecoration: 'none' }}>
-                                <h2 style={{ margin: 0, background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                                    ⛳ Golf League
-                                </h2>
-                            </Link>
-                            <SignedIn>
-                                {currentLeague && (
-                                    <div className="hidden md:flex items-center text-gray-400 text-sm border-l border-gray-700 pl-4 ml-4">
-                                        <Trophy className="w-4 h-4 mr-2 text-emerald-500" />
-                                        <span className="text-gray-200 font-medium">{currentLeague.name}</span>
-                                        <button
-                                            onClick={() => navigate('/leagues')}
-                                            className="btn btn-sm btn-outline ml-2"
-                                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: 'auto' }}
-                                        >
-                                            Switch
-                                        </button>
-                                    </div>
-                                )}
-                            </SignedIn>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <button
-                                onClick={() => navigate('/leagues')}
-                                className="btn btn-sm btn-outline md:hidden"
-                            >
-                                Leagues
-                            </button>
-                            <SignedIn>
-                                <UserButton afterSignOutUrl="/" />
-                            </SignedIn>
-                        </div>
-                    </div>
-                </div>
-            </header>
+            <PageHeader currentLeague={currentLeague} showSignIn={false} />
 
             <main className="container animate-fade-in" style={{ paddingTop: 'var(--spacing-xl)', paddingBottom: 'var(--spacing-2xl)' }}>
                 {error && (

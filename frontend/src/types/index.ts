@@ -13,9 +13,25 @@ export interface LeagueMember {
     role: 'admin' | 'player';
     provisionalHandicap: number; // Starting handicap for the season (Golf League Rules 3.2)
     joinedAt: string;
+    isDeleted?: boolean;
+    deletedAt?: string;
 }
 
 export interface LeagueMemberWithPlayer extends LeagueMember {
+    player: Player;
+}
+
+export interface SeasonPlayer {
+    id: string;
+    seasonId: string;
+    playerId: string;
+    leagueId: string;
+    provisionalHandicap: number;
+    addedAt: string;
+    isActive: boolean;
+}
+
+export interface SeasonPlayerWithPlayer extends SeasonPlayer {
     player: Player;
 }
 
