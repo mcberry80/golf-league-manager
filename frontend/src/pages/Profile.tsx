@@ -8,6 +8,7 @@ import { ChevronDown, ChevronUp, Trophy, Calendar, Target, TrendingUp, Users } f
 // Constants
 const HOLE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 const MAX_HANDICAP_ROUNDS = 20
+const EMPTY_STROKES_ARRAY = Array(9).fill(0) as number[]
 
 // Extended types for profile data
 interface HandicapHistoryEntry {
@@ -176,9 +177,10 @@ export default function Profile() {
     const [expandedRoundId, setExpandedRoundId] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'overview' | 'rounds' | 'handicaps' | 'matchups'>('overview')
 
-    // Fetch all leagues to display names
+    // Fetch all leagues to display names (only if user has league memberships)
     useEffect(() => {
         async function fetchLeagues() {
+            if (userLeagues.length === 0) return
             try {
                 const leagues = await api.listLeagues()
                 setAllLeagues(leagues)
@@ -187,7 +189,7 @@ export default function Profile() {
             }
         }
         fetchLeagues()
-    }, [])
+    }, [userLeagues.length])
 
     // Load current user and verify access
     useEffect(() => {
@@ -709,7 +711,7 @@ export default function Profile() {
                                                 const isExpanded = expandedRoundId === score.id
                                                 const scorecardRows = [
                                                     ...(course?.holePars ? [{ label: 'Par', scores: course.holePars, total: course.par, withBorder: false }] : []),
-                                                    ...(course?.holeHandicaps ? [{ label: 'Handicap', scores: course.holeHandicaps, total: '', withBorder: true }] : []),
+                                                    ...(course?.holeHandicaps ? [{ label: 'Hole Hdcp', scores: course.holeHandicaps, total: '', withBorder: true }] : []),
                                                     { label: 'Gross', scores: score.holeScores, total: score.grossScore, withBorder: false }
                                                 ]
                                                 return (
@@ -868,11 +870,11 @@ export default function Profile() {
                                                 ...(course?.holePars ? [{ label: 'Par', scores: course.holePars, total: course.par, withBorder: false }] : []),
                                                 ...(course?.holeHandicaps ? [{ label: 'Hole Hdcp', scores: course.holeHandicaps, total: '', withBorder: true }] : []),
                                                 { label: 'Your Gross', scores: matchup.playerScore.holeScores, total: matchup.playerScore.grossScore, withBorder: false },
-                                                { label: 'Your Strokes', scores: matchup.playerScore.matchStrokes || Array(9).fill(0), total: matchup.playerScore.strokesReceived, withBorder: false, color: 'var(--color-accent)' },
+                                                { label: 'Your Strokes', scores: matchup.playerScore.matchStrokes || EMPTY_STROKES_ARRAY, total: matchup.playerScore.strokesReceived, withBorder: false, color: 'var(--color-accent)' },
                                                 { label: 'Your Net', scores: matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores, total: matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore, withBorder: false, color: 'var(--color-primary)', bgColor: 'rgba(16, 185, 129, 0.1)' },
                                                 { label: 'Your Points', scores: playerPoints, total: playerTotal, withBorder: true, color: 'var(--color-primary)', bgColor: 'rgba(16, 185, 129, 0.15)' },
                                                 { label: `${matchup.opponentName} Gross`, scores: matchup.opponentScore.holeScores, total: matchup.opponentScore.grossScore, withBorder: false },
-                                                { label: `${matchup.opponentName} Strokes`, scores: matchup.opponentScore.matchStrokes || Array(9).fill(0), total: matchup.opponentScore.strokesReceived, withBorder: false, color: 'var(--color-warning)' },
+                                                { label: `${matchup.opponentName} Strokes`, scores: matchup.opponentScore.matchStrokes || EMPTY_STROKES_ARRAY, total: matchup.opponentScore.strokesReceived, withBorder: false, color: 'var(--color-warning)' },
                                                 { label: `${matchup.opponentName} Net`, scores: matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores, total: matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore, withBorder: false, color: 'var(--color-danger)', bgColor: 'rgba(239, 68, 68, 0.1)' },
                                                 { label: `${matchup.opponentName} Points`, scores: opponentPoints, total: opponentTotal, withBorder: false, color: 'var(--color-danger)', bgColor: 'rgba(239, 68, 68, 0.15)' }
                                             ] : []
