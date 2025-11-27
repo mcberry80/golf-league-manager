@@ -57,6 +57,7 @@ export default function Profile() {
     const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
     const [courses, setCourses] = useState<Course[]>([])
     const [provisionalHandicap, setProvisionalHandicap] = useState<number | null>(null)
+    const [currentHandicapIndex, setCurrentHandicapIndex] = useState<number | null>(null) // From HandicapRecord API
     const [allLeagues, setAllLeagues] = useState<League[]>([])
     
     const [loading, setLoading] = useState(true)
@@ -126,12 +127,13 @@ export default function Profile() {
         }
 
         try {
-            const [scoresData, seasonsData, matchesData, membersData, coursesData] = await Promise.all([
+            const [scoresData, seasonsData, matchesData, membersData, coursesData, handicapRecord] = await Promise.all([
                 api.getPlayerScores(currentLeague.id, player.id).catch(() => []),
                 api.listSeasons(currentLeague.id).catch(() => []),
                 api.listMatches(currentLeague.id).catch(() => []),
                 api.listLeagueMembers(currentLeague.id).catch(() => []),
                 api.listCourses(currentLeague.id).catch(() => []),
+                api.getPlayerHandicap(currentLeague.id, player.id).catch(() => null),
             ])
 
             setScores(scoresData)
@@ -139,6 +141,11 @@ export default function Profile() {
             setMatches(matchesData)
             setMembers(membersData)
             setCourses(coursesData)
+
+            // Set the current handicap index from the HandicapRecord
+            if (handicapRecord) {
+                setCurrentHandicapIndex(handicapRecord.leagueHandicapIndex)
+            }
 
             // Fetch all scores for matches the player is in (including opponent scores)
             const playerMatches = matchesData.filter(
@@ -180,15 +187,14 @@ export default function Profile() {
         }
     }, [player, currentLeague, leagueLoading, loadLeagueData])
 
-    // Get current handicap from most recent score
+    // Get current handicap from HandicapRecord API (preferred) or fallback to provisional
     const getCurrentHandicap = (): number | null => {
-        if (scores.length === 0) return provisionalHandicap
-        const sortedScores = [...scores]
-            .filter(s => s.date) // Only include scores with dates
-            .sort((a, b) => 
-                new Date(b.date!).getTime() - new Date(a.date!).getTime()
-            )
-        return sortedScores[0]?.handicapIndex ?? provisionalHandicap
+        // Use the current handicap index from HandicapRecord if available
+        if (currentHandicapIndex !== null) {
+            return currentHandicapIndex
+        }
+        // Fallback to provisional handicap if no HandicapRecord exists
+        return provisionalHandicap
     }
 
     // Build handicap history including provisional

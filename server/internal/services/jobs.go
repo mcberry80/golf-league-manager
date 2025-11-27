@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -94,67 +93,34 @@ func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Conte
 		return fmt.Errorf("failed to get player scores: %w", err)
 	}
 
-	scoreCount := len(scores)
-	var leagueHandicap float64
-
-	// Calculate league handicap based on scores played (Golf League Rules 3.2)
-	switch {
-	case scoreCount == 0:
-		// Use provisional handicap
-		leagueHandicap = provisionalHandicap
-		log.Printf("Player %s (%s): Using provisional handicap %.1f (0 scores)", player.Name, player.ID, provisionalHandicap)
-
-	case scoreCount == 1:
-		// ((2 × provisional) + diff₁) / 3
-		course := coursesMap[scores[0].CourseID]
-		// Use stored differential if available
-		diff1 := scores[0].HandicapDifferential
-		if diff1 == 0 {
-			diff1 = CalculateDifferential(scores[0], course)
+	// Extract differentials from scores
+	differentials := make([]float64, 0, len(scores))
+	for _, s := range scores {
+		course := coursesMap[s.CourseID]
+		diff := s.HandicapDifferential
+		if diff == 0 {
+			diff = CalculateDifferential(s, course)
 		}
-		leagueHandicap = ((2 * provisionalHandicap) + diff1) / 3
-		log.Printf("Player %s (%s): 1 score - ((2 × %.1f) + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, diff1, leagueHandicap)
-
-	case scoreCount == 2:
-		// (provisional + diff₁ + diff₂) / 3
-		course1 := coursesMap[scores[0].CourseID]
-		course2 := coursesMap[scores[1].CourseID]
-
-		diff1 := scores[0].HandicapDifferential
-		if diff1 == 0 {
-			diff1 = CalculateDifferential(scores[0], course1)
-		}
-
-		diff2 := scores[1].HandicapDifferential
-		if diff2 == 0 {
-			diff2 = CalculateDifferential(scores[1], course2)
-		}
-
-		leagueHandicap = (provisionalHandicap + diff1 + diff2) / 3
-		log.Printf("Player %s (%s): 2 scores - (%.1f + %.1f + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, diff1, diff2, leagueHandicap)
-
-	case scoreCount >= 3 && scoreCount <= 4:
-		// Average all differentials (no drops)
-		sum := 0.0
-		for _, s := range scores {
-			course := coursesMap[s.CourseID]
-			diff := s.HandicapDifferential
-			if diff == 0 {
-				diff = CalculateDifferential(s, course)
-			}
-			sum += diff
-		}
-		leagueHandicap = sum / float64(scoreCount)
-		log.Printf("Player %s (%s): %d scores - average all differentials = %.1f", player.Name, player.ID, scoreCount, leagueHandicap)
-
-	default: // 5+ scores
-		// Drop 2 worst, average best 3 (existing logic)
-		leagueHandicap = CalculateLeagueHandicap(scores, coursesMap)
-		log.Printf("Player %s (%s): %d scores - drop 2 worst, average best 3 = %.1f", player.Name, player.ID, scoreCount, leagueHandicap)
+		differentials = append(differentials, diff)
 	}
 
-	// Round to nearest 0.1
-	leagueHandicap = math.Round(leagueHandicap*10) / 10
+	// Calculate league handicap using the centralized function
+	leagueHandicap := CalculateHandicapWithProvisional(differentials, provisionalHandicap)
+
+	// Log the calculation for debugging
+	scoreCount := len(scores)
+	switch {
+	case scoreCount == 0:
+		log.Printf("Player %s (%s): Using provisional handicap %.1f (0 scores)", player.Name, player.ID, provisionalHandicap)
+	case scoreCount == 1:
+		log.Printf("Player %s (%s): 1 score - ((2 × %.1f) + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, differentials[0], leagueHandicap)
+	case scoreCount == 2:
+		log.Printf("Player %s (%s): 2 scores - (%.1f + %.1f + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, differentials[0], differentials[1], leagueHandicap)
+	case scoreCount >= 3 && scoreCount <= 4:
+		log.Printf("Player %s (%s): %d scores - average all differentials = %.1f", player.Name, player.ID, scoreCount, leagueHandicap)
+	default:
+		log.Printf("Player %s (%s): %d scores - drop 2 worst, average best 3 = %.1f", player.Name, player.ID, scoreCount, leagueHandicap)
+	}
 
 	// Update player's established status (5 or more scores)
 	wasEstablished := player.Established

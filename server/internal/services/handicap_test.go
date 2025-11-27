@@ -251,3 +251,159 @@ func TestApplyProvisionalAdjustment(t *testing.T) {
 		})
 	}
 }
+
+// TestCalculateHandicapWithProvisional tests the handicap calculation rules from Golf League Rules 3.2
+// Test scenarios:
+// - 0 rounds played: use provisional
+// - 1 round played: (2*provisional + differential)/3
+// - 2 rounds played: (provisional + differential1 + differential2)/3
+// - 3 rounds played: average of 3 differentials
+// - 4 rounds played: average of 3 lowest differentials (drop 1 worst)
+// - 5+ rounds played: average of 3 lowest (best) differentials over 5 most recent rounds
+func TestCalculateHandicapWithProvisional(t *testing.T) {
+	tests := []struct {
+		name                string
+		differentials       []float64
+		provisionalHandicap float64
+		wantHandicap        float64
+		description         string
+	}{
+		// Issue scenario: provisional 11.7, diffs 6.3 and 14.1
+		// Expected: (11.7 + 6.3 + 14.1) / 3 = 10.7
+		{
+			name:                "issue scenario - 2 rounds with provisional 11.7",
+			differentials:       []float64{6.3, 14.1},
+			provisionalHandicap: 11.7,
+			wantHandicap:        10.7,
+			description:         "2 rounds: (11.7 + 6.3 + 14.1) / 3 = 32.1 / 3 = 10.7",
+		},
+
+		// 0 rounds - use provisional
+		{
+			name:                "0 rounds - use provisional",
+			differentials:       []float64{},
+			provisionalHandicap: 15.0,
+			wantHandicap:        15.0,
+			description:         "With 0 rounds, handicap equals provisional",
+		},
+
+		// 1 round - ((2 * provisional) + diff) / 3
+		{
+			name:                "1 round - weighted average with provisional",
+			differentials:       []float64{9.0},
+			provisionalHandicap: 12.0,
+			wantHandicap:        11.0,
+			description:         "1 round: ((2 * 12.0) + 9.0) / 3 = 33 / 3 = 11.0",
+		},
+		{
+			name:                "1 round - low differential",
+			differentials:       []float64{5.0},
+			provisionalHandicap: 15.0,
+			wantHandicap:        11.7,
+			description:         "1 round: ((2 * 15.0) + 5.0) / 3 = 35 / 3 = 11.67 -> 11.7",
+		},
+		{
+			name:                "1 round - high differential",
+			differentials:       []float64{20.0},
+			provisionalHandicap: 10.0,
+			wantHandicap:        13.3,
+			description:         "1 round: ((2 * 10.0) + 20.0) / 3 = 40 / 3 = 13.33 -> 13.3",
+		},
+
+		// 2 rounds - (provisional + diff1 + diff2) / 3
+		{
+			name:                "2 rounds - average with provisional",
+			differentials:       []float64{9.0, 12.0},
+			provisionalHandicap: 12.0,
+			wantHandicap:        11.0,
+			description:         "2 rounds: (12.0 + 9.0 + 12.0) / 3 = 33 / 3 = 11.0",
+		},
+		{
+			name:                "2 rounds - both low differentials",
+			differentials:       []float64{6.0, 7.0},
+			provisionalHandicap: 15.0,
+			wantHandicap:        9.3,
+			description:         "2 rounds: (15.0 + 6.0 + 7.0) / 3 = 28 / 3 = 9.33 -> 9.3",
+		},
+		{
+			name:                "2 rounds - both high differentials",
+			differentials:       []float64{18.0, 20.0},
+			provisionalHandicap: 10.0,
+			wantHandicap:        16.0,
+			description:         "2 rounds: (10.0 + 18.0 + 20.0) / 3 = 48 / 3 = 16.0",
+		},
+
+		// 3 rounds - average of all 3 differentials (no provisional, no drops)
+		{
+			name:                "3 rounds - average all differentials",
+			differentials:       []float64{10.0, 12.0, 14.0},
+			provisionalHandicap: 15.0, // Not used for 3+ rounds
+			wantHandicap:        12.0,
+			description:         "3 rounds: (10.0 + 12.0 + 14.0) / 3 = 36 / 3 = 12.0",
+		},
+		{
+			name:                "3 rounds - varied differentials",
+			differentials:       []float64{8.5, 15.2, 11.3},
+			provisionalHandicap: 20.0,
+			wantHandicap:        11.7,
+			description:         "3 rounds: (8.5 + 15.2 + 11.3) / 3 = 35 / 3 = 11.67 -> 11.7",
+		},
+
+		// 4 rounds - average of best 3 differentials (drop 1 worst)
+		{
+			name:                "4 rounds - average best 3 differentials",
+			differentials:       []float64{10.0, 12.0, 14.0, 8.0},
+			provisionalHandicap: 15.0, // Not used for 4+ rounds
+			wantHandicap:        10.0,
+			description:         "4 rounds: best 3 are 8.0, 10.0, 12.0 -> avg = 30 / 3 = 10.0",
+		},
+		{
+			name:                "4 rounds - with one outlier dropped",
+			differentials:       []float64{10.0, 10.0, 10.0, 20.0},
+			provisionalHandicap: 15.0,
+			wantHandicap:        10.0,
+			description:         "4 rounds: best 3 are 10.0, 10.0, 10.0 -> avg = 30 / 3 = 10.0 (20.0 dropped)",
+		},
+
+		// 5 rounds - drop 2 worst (highest), average best 3
+		{
+			name:                "5 rounds - drop 2 worst, average best 3",
+			differentials:       []float64{10.5, 12.0, 14.0, 15.5, 18.0},
+			provisionalHandicap: 15.0, // Not used for 5+ rounds
+			wantHandicap:        12.2,
+			description:         "5 rounds: best 3 are 10.5, 12.0, 14.0 -> avg = 36.5 / 3 = 12.17 -> 12.2",
+		},
+		{
+			name:                "5 rounds - all similar differentials",
+			differentials:       []float64{10.0, 10.5, 11.0, 11.5, 12.0},
+			provisionalHandicap: 20.0,
+			wantHandicap:        10.5,
+			description:         "5 rounds: best 3 are 10.0, 10.5, 11.0 -> avg = 31.5 / 3 = 10.5",
+		},
+		{
+			name:                "5 rounds - significant improvement",
+			differentials:       []float64{18.0, 16.0, 12.0, 10.0, 8.0},
+			provisionalHandicap: 18.0,
+			wantHandicap:        10.0,
+			description:         "5 rounds: best 3 are 8.0, 10.0, 12.0 -> avg = 30 / 3 = 10.0",
+		},
+
+		// 6+ rounds - still uses last 5 (implicitly via jobs.go), but function takes all passed
+		{
+			name:                "6 rounds - drop 3 worst, average best 3",
+			differentials:       []float64{8.0, 10.0, 12.0, 14.0, 16.0, 18.0},
+			provisionalHandicap: 15.0,
+			wantHandicap:        10.0,
+			description:         "6 rounds: best 3 are 8.0, 10.0, 12.0 -> avg = 30 / 3 = 10.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CalculateHandicapWithProvisional(tt.differentials, tt.provisionalHandicap)
+			if math.Abs(got-tt.wantHandicap) > 0.05 {
+				t.Errorf("%s\ngot = %.1f, want = %.1f", tt.description, got, tt.wantHandicap)
+			}
+		})
+	}
+}

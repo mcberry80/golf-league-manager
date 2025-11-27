@@ -57,9 +57,7 @@ export interface HandicapRecord {
     id: string;
     playerId: string;
     leagueId: string;
-    leagueHandicap: number;
-    courseHandicap: number;
-    playingHandicap: number;
+    leagueHandicapIndex: number;
     updatedAt: string;
 }
 
