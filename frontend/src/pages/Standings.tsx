@@ -11,10 +11,11 @@ export default function Standings() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
 
+    // Use leagueId from URL params, fallback to currentLeague from context
+    const effectiveLeagueId = leagueId || currentLeague?.id
+
     useEffect(() => {
         async function loadStandings() {
-            // Use leagueId from URL params, fallback to currentLeague from context
-            const effectiveLeagueId = leagueId || currentLeague?.id
             if (!effectiveLeagueId) return
 
             try {
@@ -32,7 +33,7 @@ export default function Standings() {
         if (!leagueLoading) {
             loadStandings()
         }
-    }, [leagueId, currentLeague, leagueLoading])
+    }, [effectiveLeagueId, leagueLoading])
 
     if (leagueLoading || loading) {
         return (
@@ -41,9 +42,6 @@ export default function Standings() {
             </div>
         )
     }
-
-    // Use effective league for display (currentLeague may not be set even if leagueId exists)
-    const effectiveLeagueId = leagueId || currentLeague?.id
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
