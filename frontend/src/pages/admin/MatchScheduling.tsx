@@ -18,6 +18,10 @@ export default function MatchScheduling() {
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
 
+    // Edit mode state
+    const [editingMatchDay, setEditingMatchDay] = useState<MatchDay | null>(null)
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+
     // Form state
     const [formData, setFormData] = useState({
         seasonId: '',
@@ -25,7 +29,7 @@ export default function MatchScheduling() {
         date: '',
     })
 
-    const [matchups, setMatchups] = useState<{ playerAId: string; playerBId: string }[]>([
+    const [matchups, setMatchups] = useState<{ id?: string; playerAId: string; playerBId: string }[]>([
         { playerAId: '', playerBId: '' }
     ])
 
@@ -89,6 +93,69 @@ export default function MatchScheduling() {
         setMatchups(newMatchups)
     }
 
+    const resetForm = () => {
+        setShowForm(false)
+        setEditingMatchDay(null)
+        const activeSeason = seasons.find(s => s.active)
+        setFormData({
+            seasonId: activeSeason?.id || '',
+            courseId: '',
+            date: '',
+        })
+        setMatchups([{ playerAId: '', playerBId: '' }])
+    }
+
+    const handleEdit = (day: MatchDay) => {
+        // Can't edit completed or locked match days
+        if (day.status === 'completed' || day.status === 'locked') {
+            alert('Cannot edit a completed or locked match day')
+            return
+        }
+
+        setEditingMatchDay(day)
+        // Convert UTC date to YYYY-MM-DD format for the input
+        const date = new Date(day.date)
+        const dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+
+        setFormData({
+            seasonId: day.seasonId,
+            courseId: day.courseId,
+            date: dateStr,
+        })
+
+        // Load existing matchups
+        const dayMatches = matches.filter(m => m.matchDayId === day.id)
+        if (dayMatches.length > 0) {
+            setMatchups(dayMatches.map(m => ({
+                id: m.id,
+                playerAId: m.playerAId,
+                playerBId: m.playerBId,
+            })))
+        } else {
+            setMatchups([{ playerAId: '', playerBId: '' }])
+        }
+
+        setShowForm(true)
+    }
+
+    const handleDelete = async (day: MatchDay) => {
+        if (!currentLeague) return
+
+        // Can't delete completed or locked match days
+        if (day.status === 'completed' || day.status === 'locked') {
+            alert('Cannot delete a completed or locked match day')
+            return
+        }
+
+        try {
+            await api.deleteMatchDay(currentLeague.id, day.id)
+            setShowDeleteConfirm(null)
+            loadData()
+        } catch (error) {
+            alert('Failed to delete match day: ' + (error instanceof Error ? error.message : 'Unknown error'))
+        }
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
         if (!currentLeague) return
@@ -101,28 +168,37 @@ export default function MatchScheduling() {
         }
 
         try {
-            await api.createMatchDay(currentLeague.id, {
-                seasonId: formData.seasonId,
-                courseId: formData.courseId,
-                date: formData.date,
-                matches: validMatchups.map((m) => ({
+            if (editingMatchDay) {
+                // Update existing match day
+                await api.updateMatchDay(currentLeague.id, editingMatchDay.id, {
+                    date: formData.date,
+                    courseId: formData.courseId,
+                })
+
+                // Update matchups
+                await api.updateMatchDayMatchups(currentLeague.id, editingMatchDay.id, validMatchups.map(m => ({
+                    id: m.id,
                     playerAId: m.playerAId,
                     playerBId: m.playerBId,
-                    weekNumber: 1, // Default, maybe should be calculated or input?
-                    // MatchDayID will be assigned by backend
-                }))
-            })
+                })))
+            } else {
+                // Create new match day
+                await api.createMatchDay(currentLeague.id, {
+                    seasonId: formData.seasonId,
+                    courseId: formData.courseId,
+                    date: formData.date,
+                    matches: validMatchups.map((m) => ({
+                        playerAId: m.playerAId,
+                        playerBId: m.playerBId,
+                        weekNumber: 1, // Default, maybe should be calculated or input?
+                    }))
+                })
+            }
 
-            setShowForm(false)
-            setFormData({
-                seasonId: formData.seasonId,
-                courseId: '',
-                date: '',
-            })
-            setMatchups([{ playerAId: '', playerBId: '' }])
+            resetForm()
             loadData()
         } catch (error) {
-            alert('Failed to create match day: ' + (error instanceof Error ? error.message : 'Unknown error'))
+            alert('Failed to save match day: ' + (error instanceof Error ? error.message : 'Unknown error'))
         }
     }
 
@@ -141,6 +217,11 @@ export default function MatchScheduling() {
         const month = date.getUTCMonth() + 1
         const day = date.getUTCDate()
         return `${month}/${day}/${year}`
+    }
+
+    // Check if match day can be modified
+    const canModify = (day: MatchDay) => {
+        return day.status !== 'completed' && day.status !== 'locked'
     }
 
     if (leagueLoading || loading) {
@@ -176,14 +257,16 @@ export default function MatchScheduling() {
                         <h1>Match Scheduling</h1>
                         <p className="text-gray-400 mt-1">{currentLeague.name}</p>
                     </div>
-                    <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
+                    <button onClick={() => { resetForm(); setShowForm(!showForm) }} className="btn btn-primary">
                         {showForm ? 'Cancel' : '+ Create Match Day'}
                     </button>
                 </div>
 
                 {showForm && (
                     <div className="card-glass" style={{ marginBottom: 'var(--spacing-xl)' }}>
-                        <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Create Match Day</h3>
+                        <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>
+                            {editingMatchDay ? 'Edit Match Day' : 'Create Match Day'}
+                        </h3>
                         <form onSubmit={handleSubmit}>
                             <div className="grid grid-cols-3" style={{ gap: 'var(--spacing-lg)', marginBottom: 'var(--spacing-lg)' }}>
                                 <div className="form-group">
@@ -193,6 +276,7 @@ export default function MatchScheduling() {
                                         value={formData.seasonId}
                                         onChange={(e) => setFormData({ ...formData, seasonId: e.target.value })}
                                         required
+                                        disabled={!!editingMatchDay}
                                     >
                                         <option value="">Select Season</option>
                                         {seasons.map(season => (
@@ -230,7 +314,7 @@ export default function MatchScheduling() {
 
                             <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text)' }}>Matchups</h4>
                             {matchups.map((matchup, index) => (
-                                <div key={index} className="grid grid-cols-2" style={{ gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)', alignItems: 'end' }}>
+                                <div key={matchup.id || index} className="grid grid-cols-2" style={{ gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)', alignItems: 'end' }}>
                                     <div className="form-group">
                                         <label className="form-label">Player A</label>
                                         <select
@@ -275,15 +359,19 @@ export default function MatchScheduling() {
                                 + Add Matchup
                             </button>
 
-                            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--spacing-lg)' }}>
+                            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--spacing-lg)', display: 'flex', gap: 'var(--spacing-md)' }}>
                                 <button type="submit" className="btn btn-success">
-                                    Save Match Day
+                                    {editingMatchDay ? 'Update Match Day' : 'Save Match Day'}
                                 </button>
+                                {editingMatchDay && (
+                                    <button type="button" className="btn btn-secondary" onClick={resetForm}>
+                                        Cancel
+                                    </button>
+                                )}
                             </div>
                         </form>
                     </div>
-                )
-                }
+                )}
 
                 <div className="card-glass">
                     <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)' }}>Scheduled Match Days</h3>
@@ -297,8 +385,62 @@ export default function MatchScheduling() {
                                         <h4 style={{ color: 'var(--color-text)' }}>
                                             {formatDateOnly(day.date)} @ {getCourseName(day.courseId)}
                                         </h4>
-                                        <span className="badge badge-info">{getSeasonName(day.seasonId)}</span>
+                                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                                            <span className={`badge ${day.status === 'completed' ? 'badge-success' : day.status === 'locked' ? 'badge-warning' : 'badge-info'}`}>
+                                                {day.status}
+                                            </span>
+                                            <span className="badge badge-info">{getSeasonName(day.seasonId)}</span>
+                                            {canModify(day) && (
+                                                <>
+                                                    <button
+                                                        className="btn btn-secondary"
+                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                                        onClick={() => handleEdit(day)}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        className="btn btn-danger"
+                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                                        onClick={() => setShowDeleteConfirm(day.id)}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
+
+                                    {/* Delete confirmation */}
+                                    {showDeleteConfirm === day.id && (
+                                        <div style={{ 
+                                            backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                                            border: '1px solid var(--color-error)', 
+                                            borderRadius: 'var(--radius-md)', 
+                                            padding: 'var(--spacing-md)', 
+                                            marginBottom: 'var(--spacing-md)' 
+                                        }}>
+                                            <p style={{ color: 'var(--color-error)', marginBottom: 'var(--spacing-sm)' }}>
+                                                Are you sure you want to delete this match day? This will also delete all associated matches.
+                                            </p>
+                                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                                <button
+                                                    className="btn btn-danger"
+                                                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                                    onClick={() => handleDelete(day)}
+                                                >
+                                                    Yes, Delete
+                                                </button>
+                                                <button
+                                                    className="btn btn-secondary"
+                                                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                                    onClick={() => setShowDeleteConfirm(null)}
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="table-container">
                                         <table className="table">
