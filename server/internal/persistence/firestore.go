@@ -372,20 +372,35 @@ func (fc *FirestoreClient) SoftDeleteLeagueMember(ctx context.Context, memberID 
 	})
 }
 
-// GetPlayerScheduledMatches retrieves scheduled matches where the player is involved
-func (fc *FirestoreClient) GetPlayerScheduledMatches(ctx context.Context, leagueID, playerID string) ([]models.Match, error) {
-	ctx, cancel := withTimeout(ctx)
-	defer cancel()
+// matchFilter defines the filter criteria for player match queries
+type matchFilter struct {
+	leagueID string
+	seasonID string
+	playerID string
+	status   string
+}
 
-	// Query matches where player is PlayerA
-	iterA := fc.client.Collection("matches").
-		Where("league_id", "==", leagueID).
-		Where("player_a_id", "==", playerID).
-		Where("status", "==", "scheduled").
-		Documents(ctx)
+// getPlayerMatches is a helper function to retrieve matches where a player is involved
+// It handles the common pattern of querying both player_a_id and player_b_id
+func (fc *FirestoreClient) getPlayerMatches(ctx context.Context, filter matchFilter) ([]models.Match, error) {
+	matches := make([]models.Match, 0)
+
+	// Build query for PlayerA
+	var queryA firestore.Query = fc.client.Collection("matches").Query
+	if filter.leagueID != "" {
+		queryA = queryA.Where("league_id", "==", filter.leagueID)
+	}
+	if filter.seasonID != "" {
+		queryA = queryA.Where("season_id", "==", filter.seasonID)
+	}
+	queryA = queryA.Where("player_a_id", "==", filter.playerID)
+	if filter.status != "" {
+		queryA = queryA.Where("status", "==", filter.status)
+	}
+
+	iterA := queryA.Documents(ctx)
 	defer iterA.Stop()
 
-	matches := make([]models.Match, 0)
 	for {
 		doc, err := iterA.Next()
 		if err == iterator.Done {
@@ -402,12 +417,20 @@ func (fc *FirestoreClient) GetPlayerScheduledMatches(ctx context.Context, league
 		matches = append(matches, match)
 	}
 
-	// Query matches where player is PlayerB
-	iterB := fc.client.Collection("matches").
-		Where("league_id", "==", leagueID).
-		Where("player_b_id", "==", playerID).
-		Where("status", "==", "scheduled").
-		Documents(ctx)
+	// Build query for PlayerB
+	var queryB firestore.Query = fc.client.Collection("matches").Query
+	if filter.leagueID != "" {
+		queryB = queryB.Where("league_id", "==", filter.leagueID)
+	}
+	if filter.seasonID != "" {
+		queryB = queryB.Where("season_id", "==", filter.seasonID)
+	}
+	queryB = queryB.Where("player_b_id", "==", filter.playerID)
+	if filter.status != "" {
+		queryB = queryB.Where("status", "==", filter.status)
+	}
+
+	iterB := queryB.Documents(ctx)
 	defer iterB.Stop()
 
 	for {
@@ -429,61 +452,28 @@ func (fc *FirestoreClient) GetPlayerScheduledMatches(ctx context.Context, league
 	return matches, nil
 }
 
+// GetPlayerScheduledMatches retrieves scheduled matches where the player is involved
+func (fc *FirestoreClient) GetPlayerScheduledMatches(ctx context.Context, leagueID, playerID string) ([]models.Match, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return fc.getPlayerMatches(ctx, matchFilter{
+		leagueID: leagueID,
+		playerID: playerID,
+		status:   "scheduled",
+	})
+}
+
 // GetPlayerCompletedMatches retrieves completed matches where the player has participated
 func (fc *FirestoreClient) GetPlayerCompletedMatches(ctx context.Context, leagueID, playerID string) ([]models.Match, error) {
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 
-	// Query matches where player is PlayerA
-	iterA := fc.client.Collection("matches").
-		Where("league_id", "==", leagueID).
-		Where("player_a_id", "==", playerID).
-		Where("status", "==", "completed").
-		Documents(ctx)
-	defer iterA.Stop()
-
-	matches := make([]models.Match, 0)
-	for {
-		doc, err := iterA.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to iterate matches: %w", err)
-		}
-
-		var match models.Match
-		if err := doc.DataTo(&match); err != nil {
-			return nil, fmt.Errorf("failed to parse match data: %w", err)
-		}
-		matches = append(matches, match)
-	}
-
-	// Query matches where player is PlayerB
-	iterB := fc.client.Collection("matches").
-		Where("league_id", "==", leagueID).
-		Where("player_b_id", "==", playerID).
-		Where("status", "==", "completed").
-		Documents(ctx)
-	defer iterB.Stop()
-
-	for {
-		doc, err := iterB.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to iterate matches: %w", err)
-		}
-
-		var match models.Match
-		if err := doc.DataTo(&match); err != nil {
-			return nil, fmt.Errorf("failed to parse match data: %w", err)
-		}
-		matches = append(matches, match)
-	}
-
-	return matches, nil
+	return fc.getPlayerMatches(ctx, matchFilter{
+		leagueID: leagueID,
+		playerID: playerID,
+		status:   "completed",
+	})
 }
 
 // SeasonPlayer operations
@@ -611,56 +601,11 @@ func (fc *FirestoreClient) GetPlayerScheduledMatchesForSeason(ctx context.Contex
 	ctx, cancel := withTimeout(ctx)
 	defer cancel()
 
-	// Query matches where player is PlayerA
-	iterA := fc.client.Collection("matches").
-		Where("season_id", "==", seasonID).
-		Where("player_a_id", "==", playerID).
-		Where("status", "==", "scheduled").
-		Documents(ctx)
-	defer iterA.Stop()
-
-	matches := make([]models.Match, 0)
-	for {
-		doc, err := iterA.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to iterate matches: %w", err)
-		}
-
-		var match models.Match
-		if err := doc.DataTo(&match); err != nil {
-			return nil, fmt.Errorf("failed to parse match data: %w", err)
-		}
-		matches = append(matches, match)
-	}
-
-	// Query matches where player is PlayerB
-	iterB := fc.client.Collection("matches").
-		Where("season_id", "==", seasonID).
-		Where("player_b_id", "==", playerID).
-		Where("status", "==", "scheduled").
-		Documents(ctx)
-	defer iterB.Stop()
-
-	for {
-		doc, err := iterB.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to iterate matches: %w", err)
-		}
-
-		var match models.Match
-		if err := doc.DataTo(&match); err != nil {
-			return nil, fmt.Errorf("failed to parse match data: %w", err)
-		}
-		matches = append(matches, match)
-	}
-
-	return matches, nil
+	return fc.getPlayerMatches(ctx, matchFilter{
+		seasonID: seasonID,
+		playerID: playerID,
+		status:   "scheduled",
+	})
 }
 
 // CountPlayerScores counts the number of scores (rounds played) for a player in a league
