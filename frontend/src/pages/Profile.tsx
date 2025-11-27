@@ -10,6 +10,14 @@ const HOLE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 const MAX_HANDICAP_ROUNDS = 20
 const EMPTY_STROKES_ARRAY = Array(9).fill(0) as number[]
 
+// Helper function to get player/opponent points based on position
+function getMatchPoints(match: Match, isPlayerA: boolean): { playerPoints?: number, opponentPoints?: number } {
+    return {
+        playerPoints: isPlayerA ? match.playerAPoints : match.playerBPoints,
+        opponentPoints: isPlayerA ? match.playerBPoints : match.playerAPoints
+    }
+}
+
 // Extended types for profile data
 interface HandicapHistoryEntry {
     date: string
@@ -355,8 +363,7 @@ export default function Profile() {
             let result: 'won' | 'lost' | 'tied' | 'pending' = 'pending'
             if (match.status === 'completed') {
                 // Use stored match points when available
-                const playerPoints = isPlayerA ? match.playerAPoints : match.playerBPoints
-                const opponentPoints = isPlayerA ? match.playerBPoints : match.playerAPoints
+                const { playerPoints, opponentPoints } = getMatchPoints(match, isPlayerA)
                 
                 if (playerPoints !== undefined && opponentPoints !== undefined) {
                     // Determine result based on stored match points
@@ -841,8 +848,7 @@ export default function Profile() {
                                                 let opponentTotal = 0
                                                 
                                                 // Use server-stored match points when available
-                                                const storedPlayerTotal = matchup.isPlayerA ? matchup.match.playerAPoints : matchup.match.playerBPoints
-                                                const storedOpponentTotal = matchup.isPlayerA ? matchup.match.playerBPoints : matchup.match.playerAPoints
+                                                const { playerPoints: storedPlayerTotal, opponentPoints: storedOpponentTotal } = getMatchPoints(matchup.match, matchup.isPlayerA)
                                                 
                                                 if (matchup.playerScore && matchup.opponentScore) {
                                                     const playerNetScores = matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores
