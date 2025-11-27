@@ -849,8 +849,11 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 
 	// Aggregate match results
 	for _, match := range matches {
-		// Skip matches where points were not stored (legacy matches completed before this feature)
-		// A valid match will have non-zero total points (22 points distributed between players)
+		// Skip matches where points were not stored
+		// This handles two scenarios:
+		// 1. Legacy matches completed before this feature was implemented
+		// 2. Matches with invalid score data that resulted in 0,0 points
+		// Note: In a valid 22-point match, minimum score is 11-11 (all ties), so 0,0 indicates no valid scoring
 		if match.PlayerAPoints == 0 && match.PlayerBPoints == 0 {
 			continue
 		}
