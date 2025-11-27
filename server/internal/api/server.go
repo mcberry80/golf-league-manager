@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
@@ -882,13 +883,9 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Sort by total points (descending)
-	for i := 0; i < len(standings)-1; i++ {
-		for j := i + 1; j < len(standings); j++ {
-			if standings[j].TotalPoints > standings[i].TotalPoints {
-				standings[i], standings[j] = standings[j], standings[i]
-			}
-		}
-	}
+	sort.Slice(standings, func(i, j int) bool {
+		return standings[i].TotalPoints > standings[j].TotalPoints
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(standings)
