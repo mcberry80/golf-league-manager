@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"golf-league-manager/internal/logger"
 	"golf-league-manager/internal/models"
 
 	"github.com/clerk/clerk-sdk-go/v2/user"
@@ -366,8 +367,11 @@ func (s *APIServer) handleAcceptLeagueInvite(w http.ResponseWriter, r *http.Requ
 	// Increment use count
 	invite.UseCount++
 	if err := s.firestoreClient.UpdateLeagueInvite(ctx, *invite); err != nil {
-		// Non-fatal error, log it
-		fmt.Printf("Failed to update invite use count: %v\n", err)
+		// Non-fatal error, log it using structured logger
+		logger.WarnContext(ctx, "Failed to update invite use count",
+			"invite_id", invite.ID,
+			"error", err,
+		)
 	}
 
 	// Get league details for response

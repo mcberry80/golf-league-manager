@@ -5,6 +5,9 @@ import api from '../../lib/api'
 import type { LeagueMemberWithPlayer, LeagueInvite } from '../../types'
 import { Copy, Trash2, Link as LinkIcon, Users, Clock } from 'lucide-react'
 
+// Number of characters to show from the invite token in the UI
+const INVITE_TOKEN_PREVIEW_LENGTH = 8
+
 export default function PlayerManagement() {
     const { leagueId } = useParams<{ leagueId: string }>()
     const { currentLeague, userRole, isLoading: leagueLoading, selectLeague } = useLeague()
@@ -454,7 +457,7 @@ export default function PlayerManagement() {
                                                     fontSize: '0.75rem',
                                                     color: 'var(--color-text-secondary)'
                                                 }}>
-                                                    {window.location.origin}/invite/{invite.token.substring(0, 8)}...
+                                                    {window.location.origin}/invite/{invite.token.substring(0, INVITE_TOKEN_PREVIEW_LENGTH)}...
                                                 </code>
                                                 <span style={{ fontSize: '0.75rem', color }}>
                                                     {status}
