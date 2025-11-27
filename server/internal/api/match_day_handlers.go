@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"golf-league-manager/internal/logger"
 	"golf-league-manager/internal/models"
 
 	"github.com/google/uuid"
@@ -151,39 +152,39 @@ func (s *APIServer) handleUpdateMatchDay(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Update fields if provided
+	// Parse date if provided
+	var parsedDate time.Time
 	if req.Date != "" {
-		parsedDate, err := time.ParseInLocation("2006-01-02", req.Date, time.UTC)
-		if err != nil {
+		var parseErr error
+		parsedDate, parseErr = time.ParseInLocation("2006-01-02", req.Date, time.UTC)
+		if parseErr != nil {
 			respondWithError(w, fmt.Sprintf("Invalid date format. Expected YYYY-MM-DD, got: %s", req.Date), http.StatusBadRequest)
 			return
 		}
 		existingMatchDay.Date = parsedDate
-
-		// Update match dates for all matches in this match day
-		matches, err := s.firestoreClient.GetMatchesByMatchDayID(ctx, matchDayID)
-		if err == nil {
-			for _, match := range matches {
-				match.MatchDate = parsedDate
-				if err := s.firestoreClient.UpdateMatch(ctx, match); err != nil {
-					// Log error but continue
-					fmt.Printf("Failed to update match date for match %s: %v\n", match.ID, err)
-				}
-			}
-		}
 	}
 
 	if req.CourseID != "" {
 		existingMatchDay.CourseID = req.CourseID
+	}
 
-		// Update course for all matches in this match day
+	// Retrieve matches once if we need to update them
+	if req.Date != "" || req.CourseID != "" {
 		matches, err := s.firestoreClient.GetMatchesByMatchDayID(ctx, matchDayID)
 		if err == nil {
 			for _, match := range matches {
-				match.CourseID = req.CourseID
+				if req.Date != "" {
+					match.MatchDate = parsedDate
+				}
+				if req.CourseID != "" {
+					match.CourseID = req.CourseID
+				}
 				if err := s.firestoreClient.UpdateMatch(ctx, match); err != nil {
-					// Log error but continue
-					fmt.Printf("Failed to update match course for match %s: %v\n", match.ID, err)
+					logger.WarnContext(ctx, "Failed to update match during match day update",
+						"match_id", match.ID,
+						"match_day_id", matchDayID,
+						"error", err,
+					)
 				}
 			}
 		}
@@ -226,8 +227,11 @@ func (s *APIServer) handleDeleteMatchDay(w http.ResponseWriter, r *http.Request)
 	if err == nil {
 		for _, match := range matches {
 			if err := s.firestoreClient.DeleteMatch(ctx, match.ID); err != nil {
-				// Log error but continue with deletion
-				fmt.Printf("Failed to delete match %s: %v\n", match.ID, err)
+				logger.WarnContext(ctx, "Failed to delete match during match day deletion",
+					"match_id", match.ID,
+					"match_day_id", matchDayID,
+					"error", err,
+				)
 			}
 		}
 	}
@@ -334,8 +338,11 @@ func (s *APIServer) handleUpdateMatchDayMatchups(w http.ResponseWriter, r *http.
 	for _, existingMatch := range existingMatches {
 		if !requestedMatchIDs[existingMatch.ID] {
 			if err := s.firestoreClient.DeleteMatch(ctx, existingMatch.ID); err != nil {
-				// Log error but continue
-				fmt.Printf("Failed to delete match %s: %v\n", existingMatch.ID, err)
+				logger.WarnContext(ctx, "Failed to delete match during matchup update",
+					"match_id", existingMatch.ID,
+					"match_day_id", matchDayID,
+					"error", err,
+				)
 			}
 		}
 	}
