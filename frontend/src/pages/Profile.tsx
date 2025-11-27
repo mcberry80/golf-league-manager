@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback, ReactNode } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useLeague } from '../contexts/LeagueContext'
 import api from '../lib/api'
-import type { Player, Score, Season, Match, LeagueMemberWithPlayer, Course } from '../types'
+import type { Player, Score, Season, Match, LeagueMemberWithPlayer, Course, League } from '../types'
 import { ChevronDown, ChevronUp, Trophy, Calendar, Target, TrendingUp, Users } from 'lucide-react'
 
 // Constants
 const HOLE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 const MAX_HANDICAP_ROUNDS = 20
-const LEAGUE_ID_DISPLAY_LENGTH = 8
+const EMPTY_STROKES_ARRAY = Array(9).fill(0) as number[]
 
 // Extended types for profile data
 interface HandicapHistoryEntry {
@@ -97,7 +97,7 @@ function ExpandableCard({ isExpanded, onToggle, header, rightContent, children }
 interface ScoreRowProps {
     label: string
     scores: number[]
-    total: number
+    total: number | string
     color?: string
     bgColor?: string
     withBorder?: boolean
@@ -122,7 +122,7 @@ interface ScorecardTableProps {
     rows: Array<{
         label: string
         scores: number[]
-        total: number
+        total: number | string
         color?: string
         bgColor?: string
         withBorder?: boolean
@@ -165,6 +165,7 @@ export default function Profile() {
     const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
     const [courses, setCourses] = useState<Course[]>([])
     const [provisionalHandicap, setProvisionalHandicap] = useState<number | null>(null)
+    const [allLeagues, setAllLeagues] = useState<League[]>([])
     
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -175,6 +176,20 @@ export default function Profile() {
     const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null)
     const [expandedRoundId, setExpandedRoundId] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'overview' | 'rounds' | 'handicaps' | 'matchups'>('overview')
+
+    // Fetch all leagues to display names (only if user has league memberships)
+    useEffect(() => {
+        async function fetchLeagues() {
+            if (userLeagues.length === 0) return
+            try {
+                const leagues = await api.listLeagues()
+                setAllLeagues(leagues)
+            } catch (err) {
+                console.error('Failed to load leagues:', err)
+            }
+        }
+        fetchLeagues()
+    }, [userLeagues.length])
 
     // Load current user and verify access
     useEffect(() => {
@@ -526,32 +541,35 @@ export default function Profile() {
                             <Users className="w-5 h-5" /> Leagues Enrolled
                         </h3>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
-                            {userLeagues.map(membership => (
-                                <div 
-                                    key={membership.leagueId}
-                                    style={{ 
-                                        padding: 'var(--spacing-sm) var(--spacing-md)',
-                                        background: membership.leagueId === currentLeague?.id 
-                                            ? 'rgba(16, 185, 129, 0.2)' 
-                                            : 'rgba(255, 255, 255, 0.05)',
-                                        borderRadius: 'var(--radius-md)',
-                                        border: membership.leagueId === currentLeague?.id 
-                                            ? '1px solid var(--color-accent)' 
-                                            : '1px solid var(--color-border)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem'
-                                    }}
-                                >
-                                    <Trophy className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-                                    <span style={{ color: 'var(--color-text)' }}>
-                                        League {membership.leagueId.slice(0, LEAGUE_ID_DISPLAY_LENGTH)}...
-                                    </span>
-                                    <span className={`badge ${membership.role === 'admin' ? 'badge-primary' : 'badge-secondary'}`} style={{ fontSize: '0.65rem' }}>
-                                        {membership.role}
-                                    </span>
-                                </div>
-                            ))}
+                            {userLeagues.map(membership => {
+                                const league = allLeagues.find(l => l.id === membership.leagueId)
+                                return (
+                                    <div 
+                                        key={membership.leagueId}
+                                        style={{ 
+                                            padding: 'var(--spacing-sm) var(--spacing-md)',
+                                            background: membership.leagueId === currentLeague?.id 
+                                                ? 'rgba(16, 185, 129, 0.2)' 
+                                                : 'rgba(255, 255, 255, 0.05)',
+                                            borderRadius: 'var(--radius-md)',
+                                            border: membership.leagueId === currentLeague?.id 
+                                                ? '1px solid var(--color-accent)' 
+                                                : '1px solid var(--color-border)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}
+                                    >
+                                        <Trophy className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                                        <span style={{ color: 'var(--color-text)' }}>
+                                            {league?.name || 'Unknown League'}
+                                        </span>
+                                        <span className={`badge ${membership.role === 'admin' ? 'badge-primary' : 'badge-secondary'}`} style={{ fontSize: '0.65rem' }}>
+                                            {membership.role}
+                                        </span>
+                                    </div>
+                                )
+                            })}
                         </div>
                     </div>
                 )}
@@ -585,8 +603,8 @@ export default function Profile() {
                         )}
 
                         {/* Tabs */}
-                        <div style={{ marginBottom: 'var(--spacing-lg)', borderBottom: '1px solid var(--color-border)' }}>
-                            <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+                        <div style={{ marginBottom: 'var(--spacing-lg)', borderBottom: '1px solid var(--color-border)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                            <div style={{ display: 'flex', gap: 'var(--spacing-md)', minWidth: 'max-content' }}>
                                 {[
                                     { id: 'overview', label: 'Overview', icon: Target },
                                     { id: 'rounds', label: 'Round History', icon: Calendar },
@@ -609,7 +627,9 @@ export default function Profile() {
                                                 alignItems: 'center',
                                                 gap: '0.5rem',
                                                 fontWeight: activeTab === tab.id ? '600' : '400',
-                                                transition: 'all 0.2s ease'
+                                                transition: 'all 0.2s ease',
+                                                whiteSpace: 'nowrap',
+                                                flexShrink: 0
                                             }}
                                         >
                                             <Icon className="w-4 h-4" />
@@ -690,14 +710,9 @@ export default function Profile() {
                                                 const course = courses.find(c => c.id === score.courseId)
                                                 const isExpanded = expandedRoundId === score.id
                                                 const scorecardRows = [
-                                                    { label: 'Gross', scores: score.holeScores, total: score.grossScore, withBorder: true },
-                                                    ...(score.matchNetHoleScores ? [{
-                                                        label: 'Net',
-                                                        scores: score.matchNetHoleScores,
-                                                        total: score.matchNetScore ?? score.netScore,
-                                                        color: 'var(--color-primary)',
-                                                        bgColor: 'rgba(16, 185, 129, 0.1)'
-                                                    }] : [])
+                                                    ...(course?.holePars ? [{ label: 'Par', scores: course.holePars, total: course.par, withBorder: false }] : []),
+                                                    ...(course?.holeHandicaps ? [{ label: 'Hole Hdcp', scores: course.holeHandicaps, total: '', withBorder: true }] : []),
+                                                    { label: 'Gross', scores: score.holeScores, total: score.grossScore, withBorder: false }
                                                 ]
                                                 return (
                                                     <ExpandableCard
@@ -723,10 +738,6 @@ export default function Profile() {
                                                                     <p style={{ fontWeight: 'bold' }}>{score.grossScore}</p>
                                                                 </div>
                                                                 <div style={{ textAlign: 'center' }}>
-                                                                    <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>Net</p>
-                                                                    <p style={{ fontWeight: 'bold' }}>{score.netScore}</p>
-                                                                </div>
-                                                                <div style={{ textAlign: 'center' }}>
                                                                     <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>Differential</p>
                                                                     <p style={{ fontWeight: 'bold', color: 'var(--color-primary)' }}>
                                                                         {score.handicapDifferential?.toFixed(1) || 'N/A'}
@@ -737,8 +748,6 @@ export default function Profile() {
                                                     >
                                                         <div style={{ marginBottom: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-xl)', flexWrap: 'wrap' }}>
                                                             <StatItem label="Handicap Index" value={score.handicapIndex?.toFixed(1) || 'N/A'} />
-                                                            <StatItem label="Playing Handicap" value={score.playingHandicap ?? 'N/A'} />
-                                                            <StatItem label="Strokes Received" value={score.strokesReceived} />
                                                         </div>
                                                         <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
                                                             Hole Scores
@@ -804,26 +813,70 @@ export default function Profile() {
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
                                         {matchups.map((matchup) => {
                                             const isExpanded = expandedMatchId === matchup.match.id
-                                            const scorecardRows = matchup.playerScore ? [
-                                                { label: 'Your Gross', scores: matchup.playerScore.holeScores, total: matchup.playerScore.grossScore, withBorder: true },
-                                                { 
-                                                    label: 'Your Net', 
-                                                    scores: matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores, 
-                                                    total: matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore, 
-                                                    color: 'var(--color-primary)', 
-                                                    bgColor: 'rgba(16, 185, 129, 0.1)',
-                                                    withBorder: true
-                                                },
-                                                ...(matchup.opponentScore ? [
-                                                    { label: `${matchup.opponentName} Gross`, scores: matchup.opponentScore.holeScores, total: matchup.opponentScore.grossScore, withBorder: true },
-                                                    { 
-                                                        label: `${matchup.opponentName} Net`, 
-                                                        scores: matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores, 
-                                                        total: matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore, 
-                                                        color: 'var(--color-danger)', 
-                                                        bgColor: 'rgba(239, 68, 68, 0.1)' 
+                                            const course = courses.find(c => c.id === matchup.match.courseId)
+                                            
+                                            // Calculate points per hole based on net scores
+                                            const calculateHolePoints = (): { playerPoints: number[], opponentPoints: number[], playerTotal: number, opponentTotal: number } => {
+                                                const playerPoints: number[] = []
+                                                const opponentPoints: number[] = []
+                                                let playerTotal = 0
+                                                let opponentTotal = 0
+                                                
+                                                if (matchup.playerScore && matchup.opponentScore) {
+                                                    const playerNetScores = matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores
+                                                    const opponentNetScores = matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores
+                                                    
+                                                    for (let i = 0; i < 9; i++) {
+                                                        const playerNet = playerNetScores[i]
+                                                        const opponentNet = opponentNetScores[i]
+                                                        
+                                                        if (playerNet < opponentNet) {
+                                                            playerPoints.push(2)
+                                                            opponentPoints.push(0)
+                                                            playerTotal += 2
+                                                        } else if (playerNet > opponentNet) {
+                                                            playerPoints.push(0)
+                                                            opponentPoints.push(2)
+                                                            opponentTotal += 2
+                                                        } else {
+                                                            playerPoints.push(1)
+                                                            opponentPoints.push(1)
+                                                            playerTotal += 1
+                                                            opponentTotal += 1
+                                                        }
                                                     }
-                                                ] : [])
+                                                    
+                                                    // Add overall match points (4 points for lower total)
+                                                    const playerMatchNet = matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore
+                                                    const opponentMatchNet = matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore
+                                                    
+                                                    if (playerMatchNet < opponentMatchNet) {
+                                                        playerTotal += 4
+                                                    } else if (playerMatchNet > opponentMatchNet) {
+                                                        opponentTotal += 4
+                                                    } else {
+                                                        playerTotal += 2
+                                                        opponentTotal += 2
+                                                    }
+                                                }
+                                                
+                                                return { playerPoints, opponentPoints, playerTotal, opponentTotal }
+                                            }
+                                            
+                                            const { playerPoints, opponentPoints, playerTotal, opponentTotal } = calculateHolePoints()
+                                            
+                                            // Build comprehensive scorecard rows
+                                            const scorecardRows = matchup.playerScore && matchup.opponentScore ? [
+                                                ...(course?.holePars ? [{ label: 'Par', scores: course.holePars, total: course.par, withBorder: false }] : []),
+                                                ...(course?.holeHandicaps ? [{ label: 'Hole Hdcp', scores: course.holeHandicaps, total: '', withBorder: true }] : []),
+                                                { label: 'Your Gross', scores: matchup.playerScore.holeScores, total: matchup.playerScore.grossScore, withBorder: false },
+                                                { label: 'Your Strokes', scores: matchup.playerScore.matchStrokes || EMPTY_STROKES_ARRAY, total: matchup.playerScore.strokesReceived, withBorder: false, color: 'var(--color-accent)' },
+                                                { label: 'Your Net', scores: matchup.playerScore.matchNetHoleScores || matchup.playerScore.holeScores, total: matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore, withBorder: false, color: 'var(--color-primary)', bgColor: 'rgba(16, 185, 129, 0.1)' },
+                                                { label: 'Your Points', scores: playerPoints, total: playerTotal, withBorder: true, color: 'var(--color-primary)', bgColor: 'rgba(16, 185, 129, 0.15)' },
+                                                { label: `${matchup.opponentName} Gross`, scores: matchup.opponentScore.holeScores, total: matchup.opponentScore.grossScore, withBorder: false },
+                                                { label: `${matchup.opponentName} Strokes`, scores: matchup.opponentScore.matchStrokes || EMPTY_STROKES_ARRAY, total: matchup.opponentScore.strokesReceived, withBorder: false, color: 'var(--color-warning)' },
+                                                { label: `${matchup.opponentName} Net`, scores: matchup.opponentScore.matchNetHoleScores || matchup.opponentScore.holeScores, total: matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore, withBorder: false, color: 'var(--color-danger)', bgColor: 'rgba(239, 68, 68, 0.1)' },
+                                                { label: `${matchup.opponentName} Points`, scores: opponentPoints, total: opponentTotal, withBorder: false, color: 'var(--color-danger)', bgColor: 'rgba(239, 68, 68, 0.15)' }
                                             ] : []
 
                                             return (
@@ -854,21 +907,21 @@ export default function Profile() {
                                                     rightContent={
                                                         matchup.playerScore && matchup.opponentScore && (
                                                             <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-                                                                {matchup.playerScore.matchNetScore ?? matchup.playerScore.netScore} - {matchup.opponentScore.matchNetScore ?? matchup.opponentScore.netScore}
+                                                                {playerTotal} - {opponentTotal} pts
                                                             </span>
                                                         )
                                                     }
                                                 >
-                                                    {matchup.playerScore && (
+                                                    {matchup.playerScore && matchup.opponentScore && (
                                                         <>
                                                             <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
-                                                                Scorecard
+                                                                Match Scorecard
                                                             </h4>
                                                             <ScorecardTable rows={scorecardRows} />
-                                                            <div style={{ marginTop: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-xl)', flexWrap: 'wrap' }}>
-                                                                <StatItem label="Your Handicap" value={matchup.playerScore.handicapIndex?.toFixed(1) || 'N/A'} />
-                                                                <StatItem label="Strokes Received" value={matchup.playerScore.strokesReceived} />
-                                                                <StatItem label="Differential" value={matchup.playerScore.handicapDifferential?.toFixed(1) || 'N/A'} />
+                                                            <div style={{ marginTop: 'var(--spacing-md)', padding: 'var(--spacing-md)', background: 'rgba(255, 255, 255, 0.05)', borderRadius: 'var(--radius-md)' }}>
+                                                                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                                                    Points: 2 per hole (winner takes both, tie splits 1-1) + 4 for lowest total net (tie splits 2-2)
+                                                                </p>
                                                             </div>
                                                         </>
                                                     )}
