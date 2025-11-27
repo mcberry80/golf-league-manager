@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLeague } from '../../contexts/LeagueContext'
 import api from '../../lib/api'
 import type { Season } from '../../types'
+import { LoadingSpinner, AccessDenied } from '../../components/Layout'
 
 export default function LeagueSetup() {
     const { leagueId } = useParams<{ leagueId: string }>()
@@ -75,24 +76,11 @@ export default function LeagueSetup() {
     }
 
     if (leagueLoading || loading) {
-        return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div className="spinner"></div>
-            </div>
-        )
+        return <LoadingSpinner />
     }
 
     if (!currentLeague || userRole !== 'admin') {
-        return (
-            <div className="container" style={{ paddingTop: 'var(--spacing-2xl)' }}>
-                <div className="alert alert-error">
-                    <strong>Access Denied:</strong> You must be an admin of {currentLeague?.name || 'this league'} to access this page.
-                </div>
-                <Link to="/" className="btn btn-secondary" style={{ marginTop: 'var(--spacing-lg)' }}>
-                    Return Home
-                </Link>
-            </div>
-        )
+        return <AccessDenied leagueName={currentLeague?.name} />
     }
 
     return (
