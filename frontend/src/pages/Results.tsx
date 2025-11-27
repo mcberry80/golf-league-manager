@@ -142,7 +142,7 @@ export default function Results() {
             : matchDays
 
         return filteredMatchDays
-            .filter(md => md.status === MATCH_DAY_STATUS.COMPLETED || md.status === MATCH_DAY_STATUS.LOCKED)
+            .filter(md => md.status === MATCH_DAY_STATUS.COMPLETED || md.status === MATCH_DAY_STATUS.LOCKED || md.hasScores)
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .map(matchDay => {
                 const matchDayMatches = matches.filter(m => m.matchDayId === matchDay.id)
