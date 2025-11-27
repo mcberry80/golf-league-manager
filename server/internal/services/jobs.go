@@ -259,8 +259,10 @@ func (proc *MatchCompletionProcessor) ProcessMatch(ctx context.Context, matchID 
 	log.Printf("Match %s completed: Player A (%s, handicap %d) = %d points, Player B (%s, handicap %d) = %d points",
 		matchID, match.PlayerAID, playingHandicapA, pointsA, match.PlayerBID, playingHandicapB, pointsB)
 
-	// Update match status
+	// Update match status and store points
 	match.Status = "completed"
+	match.PlayerAPoints = pointsA
+	match.PlayerBPoints = pointsB
 	if err := proc.firestoreClient.UpdateMatch(ctx, *match); err != nil {
 		return fmt.Errorf("failed to update match status: %w", err)
 	}

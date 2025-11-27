@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
@@ -810,16 +811,24 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// This is a simplified version - a full implementation would aggregate match results
-	// For now, we list all players in the league
-	// First get league members
+	// Get league members
 	members, err := s.firestoreClient.ListLeagueMembers(ctx, leagueID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get league members: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	standings := make([]StandingsEntry, 0, len(members))
+	// Get all completed matches for the league
+	matches, err := s.firestoreClient.ListMatches(ctx, leagueID, "completed")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get matches: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Build standings map
+	standingsMap := make(map[string]*StandingsEntry)
+
+	// Initialize all league members in standings
 	for _, member := range members {
 		player, err := s.firestoreClient.GetPlayer(ctx, member.PlayerID)
 		if err != nil {
@@ -828,15 +837,64 @@ func (s *APIServer) handleGetStandings(w http.ResponseWriter, r *http.Request) {
 
 		handicap, _ := s.firestoreClient.GetPlayerHandicap(ctx, leagueID, player.ID)
 
-		entry := StandingsEntry{
+		entry := &StandingsEntry{
 			PlayerID:   player.ID,
 			PlayerName: player.Name,
 		}
 		if handicap != nil {
 			entry.LeagueHandicapIndex = handicap.LeagueHandicapIndex
 		}
-		standings = append(standings, entry)
+		standingsMap[player.ID] = entry
 	}
+
+	// Aggregate match results
+	for _, match := range matches {
+		// Skip matches where points were not stored
+		// This handles two scenarios:
+		// 1. Legacy matches completed before this feature was implemented
+		// 2. Matches with invalid score data that resulted in 0,0 points
+		// Note: In a valid 22-point match, minimum score is 11-11 (all ties), so 0,0 indicates no valid scoring
+		if match.PlayerAPoints == 0 && match.PlayerBPoints == 0 {
+			continue
+		}
+
+		// Update Player A stats
+		if entryA, ok := standingsMap[match.PlayerAID]; ok {
+			entryA.MatchesPlayed++
+			entryA.TotalPoints += match.PlayerAPoints
+			if match.PlayerAPoints > match.PlayerBPoints {
+				entryA.MatchesWon++
+			} else if match.PlayerAPoints < match.PlayerBPoints {
+				entryA.MatchesLost++
+			} else {
+				entryA.MatchesTied++
+			}
+		}
+
+		// Update Player B stats
+		if entryB, ok := standingsMap[match.PlayerBID]; ok {
+			entryB.MatchesPlayed++
+			entryB.TotalPoints += match.PlayerBPoints
+			if match.PlayerBPoints > match.PlayerAPoints {
+				entryB.MatchesWon++
+			} else if match.PlayerBPoints < match.PlayerAPoints {
+				entryB.MatchesLost++
+			} else {
+				entryB.MatchesTied++
+			}
+		}
+	}
+
+	// Convert map to slice and sort by total points
+	standings := make([]StandingsEntry, 0, len(standingsMap))
+	for _, entry := range standingsMap {
+		standings = append(standings, *entry)
+	}
+
+	// Sort by total points (descending)
+	sort.Slice(standings, func(i, j int) bool {
+		return standings[i].TotalPoints > standings[j].TotalPoints
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(standings)

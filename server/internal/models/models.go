@@ -81,16 +81,18 @@ type MatchDay struct {
 
 // Match represents a head-to-head match between two players
 type Match struct {
-	ID         string    `firestore:"id" json:"id"`
-	LeagueID   string    `firestore:"league_id" json:"leagueId"`      // Scoped to league
-	SeasonID   string    `firestore:"season_id" json:"seasonId"`      // Reference to the season this match belongs to
-	MatchDayID string    `firestore:"match_day_id" json:"matchDayId"` // Reference to the match day
-	WeekNumber int       `firestore:"week_number" json:"weekNumber"`
-	PlayerAID  string    `firestore:"player_a_id" json:"playerAId"`
-	PlayerBID  string    `firestore:"player_b_id" json:"playerBId"`
-	CourseID   string    `firestore:"course_id" json:"courseId"`   // Denormalized from MatchDay for easier querying if needed, or can be removed. Keeping for now.
-	MatchDate  time.Time `firestore:"match_date" json:"matchDate"` // Denormalized
-	Status     string    `firestore:"status" json:"status"`        // scheduled|completed
+	ID            string    `firestore:"id" json:"id"`
+	LeagueID      string    `firestore:"league_id" json:"leagueId"`      // Scoped to league
+	SeasonID      string    `firestore:"season_id" json:"seasonId"`      // Reference to the season this match belongs to
+	MatchDayID    string    `firestore:"match_day_id" json:"matchDayId"` // Reference to the match day
+	WeekNumber    int       `firestore:"week_number" json:"weekNumber"`
+	PlayerAID     string    `firestore:"player_a_id" json:"playerAId"`
+	PlayerBID     string    `firestore:"player_b_id" json:"playerBId"`
+	CourseID      string    `firestore:"course_id" json:"courseId"`   // Denormalized from MatchDay for easier querying if needed, or can be removed. Keeping for now.
+	MatchDate     time.Time `firestore:"match_date" json:"matchDate"` // Denormalized
+	Status        string    `firestore:"status" json:"status"`        // scheduled|completed
+	PlayerAPoints int       `firestore:"player_a_points" json:"playerAPoints"` // Match points earned by Player A
+	PlayerBPoints int       `firestore:"player_b_points" json:"playerBPoints"` // Match points earned by Player B
 }
 
 // Score represents a player's scorecard for a match and serves as the handicap record
