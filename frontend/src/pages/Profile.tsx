@@ -236,20 +236,24 @@ export default function Profile() {
             const match = matches.find(m => m.id === score.matchId)
             const season = match ? seasons.find(s => s.id === match.seasonId) : null
             
+            // Safe access with fallback - we know handicapIndex exists from filter
+            const currentHandicapIndex = score.handicapIndex ?? 0
+            const currentDate = score.date ?? new Date().toISOString()
+            
             // Only add if handicap changed from previous entry (or first played round)
             const handicapChanged = lastHandicap === null || 
-                Math.abs(score.handicapIndex! - lastHandicap) >= 0.05
+                Math.abs(currentHandicapIndex - lastHandicap) >= 0.05
             
             if (handicapChanged) {
                 history.push({
-                    date: score.date!,
-                    handicapIndex: score.handicapIndex!,
+                    date: currentDate,
+                    handicapIndex: currentHandicapIndex,
                     roundId: score.id,
                     isProvisional: false,
                     seasonId: season?.id,
                     seasonName: season?.name
                 })
-                lastHandicap = score.handicapIndex!
+                lastHandicap = currentHandicapIndex
             }
         })
 

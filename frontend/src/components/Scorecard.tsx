@@ -13,85 +13,79 @@ export const HOLE_RESULT_COLORS = {
     none: { bg: 'transparent', text: 'inherit' }
 } as const
 
+// Pre-defined styles for golf scoring symbols to avoid creating new objects on every render
+const GOLF_SYMBOL_STYLES = {
+    eagle: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '24px',
+        height: '24px',
+        borderRadius: '50%',
+        border: '2px solid var(--color-accent)',
+        boxShadow: '0 0 0 2px var(--color-accent)',
+        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+        fontWeight: 'bold'
+    } as React.CSSProperties,
+    birdie: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '24px',
+        height: '24px',
+        borderRadius: '50%',
+        border: '2px solid var(--color-accent)',
+        fontWeight: 'bold'
+    } as React.CSSProperties,
+    par: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '22px',
+        height: '22px',
+        fontWeight: 'bold'
+    } as React.CSSProperties,
+    bogey: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '22px',
+        height: '22px',
+        border: '2px solid var(--color-warning)',
+        fontWeight: 'bold'
+    } as React.CSSProperties,
+    doubleBogey: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '22px',
+        height: '22px',
+        border: '2px solid var(--color-danger)',
+        boxShadow: '0 0 0 2px var(--color-danger)',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        fontWeight: 'bold'
+    } as React.CSSProperties
+} as const
+
 // Golf scoring symbol helper - returns styled element for the score
 export function getGolfScoreSymbol(gross: number, par: number): { style: React.CSSProperties, display: string } {
     const diff = gross - par
     
     if (diff <= -2) {
         // Eagle or better - double circle
-        return {
-            style: {
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '24px',
-                height: '24px',
-                borderRadius: '50%',
-                border: '2px solid var(--color-accent)',
-                boxShadow: '0 0 0 2px var(--color-accent)',
-                backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                fontWeight: 'bold'
-            },
-            display: gross.toString()
-        }
+        return { style: GOLF_SYMBOL_STYLES.eagle, display: gross.toString() }
     } else if (diff === -1) {
         // Birdie - single circle
-        return {
-            style: {
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '24px',
-                height: '24px',
-                borderRadius: '50%',
-                border: '2px solid var(--color-accent)',
-                fontWeight: 'bold'
-            },
-            display: gross.toString()
-        }
+        return { style: GOLF_SYMBOL_STYLES.birdie, display: gross.toString() }
     } else if (diff === 1) {
         // Bogey - single square
-        return {
-            style: {
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '22px',
-                height: '22px',
-                border: '2px solid var(--color-warning)',
-                fontWeight: 'bold'
-            },
-            display: gross.toString()
-        }
+        return { style: GOLF_SYMBOL_STYLES.bogey, display: gross.toString() }
     } else if (diff >= 2) {
         // Double bogey or worse - double square
-        return {
-            style: {
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '22px',
-                height: '22px',
-                border: '2px solid var(--color-danger)',
-                boxShadow: '0 0 0 2px var(--color-danger)',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                fontWeight: 'bold'
-            },
-            display: gross.toString()
-        }
+        return { style: GOLF_SYMBOL_STYLES.doubleBogey, display: gross.toString() }
     } else {
         // Par - plain
-        return {
-            style: {
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '22px',
-                height: '22px',
-                fontWeight: 'bold'
-            },
-            display: gross.toString()
-        }
+        return { style: GOLF_SYMBOL_STYLES.par, display: gross.toString() }
     }
 }
 
@@ -129,8 +123,9 @@ export function ScoreRow({
             <td style={{ padding: '0.5rem', color: color || 'var(--color-text-muted)' }}>{label}</td>
             {scores.map((score, i) => {
                 const cellColor = cellColors?.[i] ? HOLE_RESULT_COLORS[cellColors[i]] : null
-                const showSymbol = showGolfSymbols && pars && pars[i]
-                const symbolInfo = showSymbol ? getGolfScoreSymbol(score, pars![i]) : null
+                const parValue = pars?.[i]
+                const showSymbol = showGolfSymbols && parValue !== undefined
+                const symbolInfo = showSymbol ? getGolfScoreSymbol(score, parValue) : null
                 
                 return (
                     <td 
