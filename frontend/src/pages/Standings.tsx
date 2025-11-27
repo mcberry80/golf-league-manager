@@ -95,7 +95,17 @@ export default function Standings() {
                                                         {index === 0 && '🏆 '}#{index + 1}
                                                     </span>
                                                 </td>
-                                                <td style={{ fontWeight: '600' }}>{entry.playerName}</td>
+                                                <td style={{ fontWeight: '600' }}>
+                                                    <Link 
+                                                        to={`/profile/${entry.playerId}`}
+                                                        style={{ 
+                                                            color: 'var(--color-primary)', 
+                                                            textDecoration: 'none'
+                                                        }}
+                                                    >
+                                                        {entry.playerName}
+                                                    </Link>
+                                                </td>
                                                 <td>{entry.matchesPlayed}</td>
                                                 <td style={{ color: 'var(--color-accent)' }}>{entry.matchesWon}</td>
                                                 <td style={{ color: 'var(--color-danger)' }}>{entry.matchesLost}</td>
