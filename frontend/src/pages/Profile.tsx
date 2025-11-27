@@ -169,6 +169,7 @@ export default function Profile() {
     const [currentUser, setCurrentUser] = useState<Player | null>(null)
     const [player, setPlayer] = useState<Player | null>(null)
     const [scores, setScores] = useState<Score[]>([])
+    const [allMatchScores, setAllMatchScores] = useState<Score[]>([]) // All scores for matches the player is in
     const [seasons, setSeasons] = useState<Season[]>([])
     const [matches, setMatches] = useState<Match[]>([])
     const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
@@ -256,6 +257,17 @@ export default function Profile() {
             setMatches(matchesData)
             setMembers(membersData)
             setCourses(coursesData)
+
+            // Fetch all scores for matches the player is in (including opponent scores)
+            const playerMatches = matchesData.filter(
+                (m: Match) => m.playerAId === player.id || m.playerBId === player.id
+            )
+            const matchScorePromises = playerMatches.map((match: Match) =>
+                api.getMatchScores(currentLeague.id, match.id).catch(() => [])
+            )
+            const matchScoresArrays = await Promise.all(matchScorePromises)
+            const allScores = matchScoresArrays.flat()
+            setAllMatchScores(allScores)
 
             // Get provisional handicap from league membership
             const playerMembership = membersData.find(m => m.playerId === player.id)
@@ -357,8 +369,9 @@ export default function Profile() {
             const opponent = members.find(m => m.playerId === opponentId)
             const course = courses.find(c => c.id === match.courseId)
             
-            const playerScore = scores.find(s => s.matchId === match.id && s.playerId === player?.id)
-            const opponentScore = scores.find(s => s.matchId === match.id && s.playerId === opponentId)
+            // Use allMatchScores which includes both player and opponent scores
+            const playerScore = allMatchScores.find(s => s.matchId === match.id && s.playerId === player?.id)
+            const opponentScore = allMatchScores.find(s => s.matchId === match.id && s.playerId === opponentId)
 
             let result: 'won' | 'lost' | 'tied' | 'pending' = 'pending'
             if (match.status === 'completed') {

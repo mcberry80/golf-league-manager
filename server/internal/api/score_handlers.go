@@ -347,9 +347,10 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 	}
 
 	// Process Matches (Calculate Points if both players have scores)
+	// Pass isUpdate flag to force recalculation when updating existing scores
 	processor := services.NewMatchCompletionProcessor(s.firestoreClient)
 	for matchID := range scoresByMatch {
-		if err := processor.ProcessMatch(ctx, matchID); err != nil {
+		if err := processor.ProcessMatch(ctx, matchID, isUpdate); err != nil {
 			log.Printf("Error processing match %s: %v", matchID, err)
 		}
 	}
