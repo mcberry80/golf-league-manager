@@ -120,6 +120,14 @@ export default function Home() {
                                 </p>
                             </Link>
 
+                            <Link to={`/leagues/${currentLeague?.id}/results`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+                                <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>📋</div>
+                                <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Results</h3>
+                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+                                    View match results and detailed scorecards by week
+                                </p>
+                            </Link>
+
                             <Link to={currentPlayer ? `/profile/${currentPlayer.id}` : '/link-account'} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
                                 <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>👤</div>
                                 <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>My Profile</h3>
