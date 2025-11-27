@@ -258,7 +258,7 @@ func TestApplyProvisionalAdjustment(t *testing.T) {
 // - 1 round played: (2*provisional + differential)/3
 // - 2 rounds played: (provisional + differential1 + differential2)/3
 // - 3 rounds played: average of 3 differentials
-// - 4 rounds played: average of 4 differentials (best 3 of 4)
+// - 4 rounds played: average of all 4 differentials (no drops)
 // - 5+ rounds played: average of 3 lowest (best) differentials over 5 most recent rounds
 func TestCalculateHandicapWithProvisional(t *testing.T) {
 	tests := []struct {
