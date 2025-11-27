@@ -45,6 +45,17 @@ type Player struct {
 	CreatedAt   time.Time `firestore:"created_at" json:"createdAt"`
 }
 
+// BulletinMessage represents a message posted to a season's bulletin board
+type BulletinMessage struct {
+	ID         string    `firestore:"id" json:"id"`
+	SeasonID   string    `firestore:"season_id" json:"seasonId"`
+	LeagueID   string    `firestore:"league_id" json:"leagueId"`
+	PlayerID   string    `firestore:"player_id" json:"playerId"`
+	PlayerName string    `firestore:"player_name" json:"playerName"` // Denormalized for display
+	Content    string    `firestore:"content" json:"content"`
+	CreatedAt  time.Time `firestore:"created_at" json:"createdAt"`
+}
+
 // Round struct removed - merged into Score
 
 // Course represents a golf course (scoped to a league)

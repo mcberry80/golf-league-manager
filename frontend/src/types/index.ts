@@ -148,6 +148,16 @@ export interface StandingsEntry {
     totalPoints: number;
 }
 
+export interface BulletinMessage {
+    id: string;
+    seasonId: string;
+    leagueId: string;
+    playerId: string;
+    playerName: string;
+    content: string;
+    createdAt: string;
+}
+
 export interface UserInfo {
     linked: boolean;
     clerkUserId?: string;

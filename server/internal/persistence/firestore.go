@@ -1451,3 +1451,130 @@ func (fc *FirestoreClient) DeleteScore(ctx context.Context, scoreID string) erro
 	}
 	return nil
 }
+
+// BulletinMessage operations
+
+// CreateBulletinMessage creates a new bulletin message
+func (fc *FirestoreClient) CreateBulletinMessage(ctx context.Context, message models.BulletinMessage) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("bulletin_messages").Doc(message.ID).Set(ctx, message)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create bulletin message",
+				"message_id", message.ID,
+				"season_id", message.SeasonID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to create bulletin message: %w", err)
+		}
+		return nil
+	})
+}
+
+// GetBulletinMessage retrieves a bulletin message by ID
+func (fc *FirestoreClient) GetBulletinMessage(ctx context.Context, messageID string) (*models.BulletinMessage, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	var message *models.BulletinMessage
+	err := retryOnTransientError(ctx, func() error {
+		doc, err := fc.client.Collection("bulletin_messages").Doc(messageID).Get(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get bulletin message: %w", err)
+		}
+
+		var m models.BulletinMessage
+		if err := doc.DataTo(&m); err != nil {
+			return fmt.Errorf("failed to parse bulletin message data: %w", err)
+		}
+		message = &m
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return message, nil
+}
+
+// ListBulletinMessages retrieves all messages for a season, ordered by creation time descending
+func (fc *FirestoreClient) ListBulletinMessages(ctx context.Context, seasonID string, limit int) ([]models.BulletinMessage, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	query := fc.client.Collection("bulletin_messages").
+		Where("season_id", "==", seasonID).
+		OrderBy("created_at", firestore.Desc)
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	iter := query.Documents(ctx)
+	defer iter.Stop()
+
+	messages := make([]models.BulletinMessage, 0)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to iterate bulletin messages", "error", err)
+			return nil, fmt.Errorf("failed to iterate bulletin messages: %w", err)
+		}
+
+		var message models.BulletinMessage
+		if err := doc.DataTo(&message); err != nil {
+			logger.ErrorContext(ctx, "Failed to parse bulletin message data", "error", err)
+			return nil, fmt.Errorf("failed to parse bulletin message data: %w", err)
+		}
+		messages = append(messages, message)
+	}
+
+	return messages, nil
+}
+
+// DeleteBulletinMessage deletes a bulletin message by ID
+func (fc *FirestoreClient) DeleteBulletinMessage(ctx context.Context, messageID string) error {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	return retryOnTransientError(ctx, func() error {
+		_, err := fc.client.Collection("bulletin_messages").Doc(messageID).Delete(ctx)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to delete bulletin message",
+				"message_id", messageID,
+				"error", err,
+			)
+			return fmt.Errorf("failed to delete bulletin message: %w", err)
+		}
+		return nil
+	})
+}
+
+// IsSeasonPlayer checks if a player is a member of a specific season
+func (fc *FirestoreClient) IsSeasonPlayer(ctx context.Context, seasonID, playerID string) (bool, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	iter := fc.client.Collection("season_players").
+		Where("season_id", "==", seasonID).
+		Where("player_id", "==", playerID).
+		Where("is_active", "==", true).
+		Limit(1).
+		Documents(ctx)
+	defer iter.Stop()
+
+	_, err := iter.Next()
+	if err == iterator.Done {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to check season player status: %w", err)
+	}
+
+	return true, nil
+}
