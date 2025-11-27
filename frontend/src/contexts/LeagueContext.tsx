@@ -14,7 +14,12 @@ interface LeagueContextType {
 
 const LeagueContext = createContext<LeagueContextType | undefined>(undefined);
 
-// Helper to batch fetch league members in parallel with a limit
+/**
+ * Batch size for parallel API calls. Set to 5 to balance:
+ * - Reducing total latency by parallelizing requests
+ * - Avoiding server overload or rate limiting
+ * - Keeping memory usage reasonable
+ */
 const BATCH_SIZE = 5;
 
 async function fetchLeagueMembersInBatches(

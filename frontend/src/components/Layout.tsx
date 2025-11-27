@@ -39,7 +39,7 @@ export function PageHeader({ showLeagueContext = true, rightContent }: PageHeade
     const { currentLeague } = useLeague()
 
     return (
-        <header className="border-b" style={{ borderColor: 'var(--color-border)', background: 'rgba(30, 41, 59, 0.8)', backdropFilter: 'blur(10px)' }}>
+        <header className="border-b" style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-secondary)', backdropFilter: 'blur(10px)' }}>
             <div className="container" style={{ padding: 'var(--spacing-md) var(--spacing-lg)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div className="flex items-center gap-4">

@@ -22,7 +22,12 @@ interface CacheEntry<T> {
 
 // Simple in-memory cache for API data
 const cache = new Map<string, CacheEntry<unknown>>()
-const CACHE_TTL = 60000 // 1 minute cache TTL
+/**
+ * Cache TTL set to 1 minute to balance freshness with reduced Firestore reads.
+ * This duration works well for league data that changes infrequently during a session,
+ * while still ensuring users see relatively recent data on page navigation.
+ */
+const CACHE_TTL = 60000
 
 function getCachedData<T>(key: string): T | null {
     const entry = cache.get(key)
@@ -118,30 +123,43 @@ export function useLeagueData(options: UseLeagueDataOptions = {}): UseLeagueData
         setError(null)
 
         try {
-            // Build promise array based on options
-            const promises: Promise<unknown>[] = [
-                api.listSeasons(effectiveLeagueId),
-                api.listLeagueMembers(effectiveLeagueId),
-                api.listCourses(effectiveLeagueId),
-            ]
-            
-            if (loadMatches) {
-                promises.push(api.listMatches(effectiveLeagueId))
+            // Build named promises for clarity
+            const basePromises = {
+                seasons: api.listSeasons(effectiveLeagueId),
+                members: api.listLeagueMembers(effectiveLeagueId),
+                courses: api.listCourses(effectiveLeagueId),
             }
             
-            if (loadMatchDays) {
-                promises.push(api.listMatchDays(effectiveLeagueId))
-            }
-
-            const results = await Promise.all(promises)
+            // Execute all base promises
+            const [seasonsData, membersData, coursesData] = await Promise.all([
+                basePromises.seasons,
+                basePromises.members,
+                basePromises.courses,
+            ])
             
-            const seasonsData = results[0] as Season[]
-            const membersData = results[1] as LeagueMemberWithPlayer[]
-            const coursesData = results[2] as Course[]
-            const matchesData = loadMatches ? (results[3] as Match[]) : []
-            const matchDaysData = loadMatchDays 
-                ? (results[loadMatches ? 4 : 3] as MatchDay[]) 
-                : []
+            // Conditionally fetch matches and match days
+            let matchesData: Match[] = []
+            let matchDaysData: MatchDay[] = []
+            
+            if (loadMatches || loadMatchDays) {
+                const conditionalPromises: Promise<unknown>[] = []
+                if (loadMatches) {
+                    conditionalPromises.push(api.listMatches(effectiveLeagueId))
+                }
+                if (loadMatchDays) {
+                    conditionalPromises.push(api.listMatchDays(effectiveLeagueId))
+                }
+                
+                const conditionalResults = await Promise.all(conditionalPromises)
+                
+                let resultIndex = 0
+                if (loadMatches) {
+                    matchesData = conditionalResults[resultIndex++] as Match[]
+                }
+                if (loadMatchDays) {
+                    matchDaysData = conditionalResults[resultIndex] as MatchDay[]
+                }
+            }
 
             setSeasons(seasonsData)
             setMembers(membersData)
