@@ -26,7 +26,6 @@ type FirestoreClient struct {
 	client *firestore.Client
 }
 
-// NewFirestoreClient creates a new Firestore client
 func NewFirestoreClient(ctx context.Context, projectID string) (*FirestoreClient, error) {
 	client, err := firestore.NewClient(ctx, projectID)
 	if err != nil {

@@ -55,7 +55,16 @@ export default function LeagueSetup() {
         if (!currentLeague) return
 
         try {
-            await api.createSeason(currentLeague.id, formData)
+            // Convert date strings to local midnight with timezone offset
+            const startDate = new Date(`${formData.startDate}T00:00:00`)
+            const endDate = new Date(`${formData.endDate}T00:00:00`)
+            
+            const payload = {
+                ...formData,
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+            }
+            await api.createSeason(currentLeague.id, payload)
             setShowForm(false)
             setFormData({ name: '', startDate: '', endDate: '', description: '', active: false })
             loadSeasons()

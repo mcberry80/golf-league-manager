@@ -222,6 +222,7 @@ export default function PlayerManagement() {
                                         className="form-input"
                                         value={formData.name}
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        required
                                         placeholder="John Doe"
                                     />
                                 </div>
@@ -232,7 +233,6 @@ export default function PlayerManagement() {
                                         className="form-input"
                                         value={formData.email}
                                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        required
                                         placeholder="john@example.com"
                                     />
                                 </div>

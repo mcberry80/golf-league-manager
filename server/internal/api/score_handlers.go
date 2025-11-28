@@ -6,7 +6,6 @@ import (
 	"log"
 	"math"
 	"net/http"
-	"sort"
 
 	"golf-league-manager/internal/models"
 	"golf-league-manager/internal/services"
@@ -408,49 +407,134 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(response)
 }
 
-// handleListMatchDaysWithStatus returns match days with their status information
-func (s *APIServer) handleListMatchDaysWithStatus(w http.ResponseWriter, r *http.Request) {
+
+
+func (s *APIServer) handleEnterScore(w http.ResponseWriter, r *http.Request) {
+	var score models.Score
+	if err := json.NewDecoder(r.Body).Decode(&score); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	score.ID = uuid.New().String()
+
+	ctx := r.Context()
+	if err := s.firestoreClient.CreateScore(ctx, score); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to create score: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(score)
+}
+
+func (s *APIServer) handleEnterScoreBatch(w http.ResponseWriter, r *http.Request) {
 	leagueID := r.PathValue("league_id")
 	if leagueID == "" {
-		respondWithError(w, "League ID is required", http.StatusBadRequest)
+		http.Error(w, "League ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Scores []models.Score `json:"scores"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	for i := range req.Scores {
+		req.Scores[i].ID = uuid.New().String()
+		if err := s.firestoreClient.CreateScore(ctx, req.Scores[i]); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to create score: %v", err), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"status": "success", "count": fmt.Sprintf("%d", len(req.Scores))})
+}
+
+func (s *APIServer) handleGetPlayerHandicap(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	playerID := r.PathValue("id")
+	if leagueID == "" || playerID == "" {
+		http.Error(w, "League ID and Player ID are required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	handicap, err := s.firestoreClient.GetPlayerHandicap(ctx, leagueID, playerID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get handicap: %v", err), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(handicap)
+}
+
+func (s *APIServer) handleGetPlayerScores(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	playerID := r.PathValue("id")
+	if leagueID == "" || playerID == "" {
+		http.Error(w, "League ID and Player ID are required", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 
-	matchDays, err := s.firestoreClient.ListMatchDays(ctx, leagueID)
+	userID, err := GetUserIDFromContext(ctx)
 	if err != nil {
-		respondWithError(w, fmt.Sprintf("Failed to list match days: %v", err), http.StatusInternalServerError)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// Sort by date ascending for proper week number assignment
-	sort.Slice(matchDays, func(i, j int) bool {
-		return matchDays[i].Date.Before(matchDays[j].Date)
-	})
-
-	// Enrich match days with additional info
-	type MatchDayWithInfo struct {
-		models.MatchDay
-		HasScores  bool `json:"hasScores"`
-		WeekNumber int  `json:"weekNumber"`
+	requestingPlayer, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
+	if err != nil {
+		http.Error(w, "Player not found for authenticated user", http.StatusNotFound)
+		return
 	}
 
-	result := make([]MatchDayWithInfo, 0, len(matchDays))
-	for i, md := range matchDays {
-		scores, _ := s.firestoreClient.GetMatchDayScores(ctx, md.ID)
-		result = append(result, MatchDayWithInfo{
-			MatchDay:   md,
-			HasScores:  len(scores) > 0,
-			WeekNumber: i + 1,
-		})
+	if requestingPlayer.ID != playerID {
+		isAdmin, err := s.firestoreClient.IsLeagueAdmin(ctx, leagueID, requestingPlayer.ID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to check admin status: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if !isAdmin {
+			http.Error(w, "Access denied: can only view own scores", http.StatusForbidden)
+			return
+		}
 	}
 
-	// Sort back to descending for display (newest first)
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Date.After(result[j].Date)
-	})
+	scores, err := s.firestoreClient.GetPlayerScores(ctx, leagueID, playerID, 20) // Limit to last 20 scores
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get scores: %v", err), http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(scores)
+}
+
+func (s *APIServer) handleGetMatchScores(w http.ResponseWriter, r *http.Request) {
+	matchID := r.PathValue("id")
+	if matchID == "" {
+		http.Error(w, "models.Match ID is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	scores, err := s.firestoreClient.GetMatchScores(ctx, matchID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get scores: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(scores)
 }

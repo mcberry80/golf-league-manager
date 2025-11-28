@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"golf-league-manager/internal/logger"
@@ -83,7 +84,8 @@ func (s *APIServer) handleCreateMatchDay(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-func (s *APIServer) handleListMatchDays(w http.ResponseWriter, r *http.Request) {
+// handleListMatchDaysWithStatus returns match days with their status information
+func (s *APIServer) handleListMatchDaysWithStatus(w http.ResponseWriter, r *http.Request) {
 	leagueID := r.PathValue("league_id")
 	if leagueID == "" {
 		respondWithError(w, "League ID is required", http.StatusBadRequest)
@@ -91,14 +93,42 @@ func (s *APIServer) handleListMatchDays(w http.ResponseWriter, r *http.Request) 
 	}
 
 	ctx := r.Context()
+
 	matchDays, err := s.firestoreClient.ListMatchDays(ctx, leagueID)
 	if err != nil {
 		respondWithError(w, fmt.Sprintf("Failed to list match days: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	// Sort by date ascending for proper week number assignment
+	sort.Slice(matchDays, func(i, j int) bool {
+		return matchDays[i].Date.Before(matchDays[j].Date)
+	})
+
+	// Enrich match days with additional info
+	type MatchDayWithInfo struct {
+		models.MatchDay
+		HasScores  bool `json:"hasScores"`
+		WeekNumber int  `json:"weekNumber"`
+	}
+
+	result := make([]MatchDayWithInfo, 0, len(matchDays))
+	for i, md := range matchDays {
+		scores, _ := s.firestoreClient.GetMatchDayScores(ctx, md.ID)
+		result = append(result, MatchDayWithInfo{
+			MatchDay:   md,
+			HasScores:  len(scores) > 0,
+			WeekNumber: i + 1,
+		})
+	}
+
+	// Sort back to descending for display (newest first)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Date.After(result[j].Date)
+	})
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(matchDays)
+	json.NewEncoder(w).Encode(result)
 }
 
 func (s *APIServer) handleGetMatchDay(w http.ResponseWriter, r *http.Request) {
