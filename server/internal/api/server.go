@@ -14,6 +14,7 @@ import (
 
 	"golf-league-manager/internal/config"
 	"golf-league-manager/internal/handlers"
+	"golf-league-manager/internal/logger"
 	"golf-league-manager/internal/middleware"
 	"golf-league-manager/internal/models"
 	"golf-league-manager/internal/persistence"
@@ -415,6 +416,48 @@ func (s *APIServer) handleGetCurrentUser(w http.ResponseWriter, r *http.Request)
 	// Try to get the player associated with this Clerk user ID
 	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
 	if err != nil {
+		// Player not found by Clerk ID - try to auto-link by email
+		// This handles the case where an admin added a player by email before the user signed up
+		clerkUser, clerkErr := getUserFromClerk(ctx, userID)
+		if clerkErr == nil {
+			email := getPrimaryEmail(clerkUser)
+			if email != "" {
+				// Try to find a player with matching email
+				player, err = s.firestoreClient.GetPlayerByEmail(ctx, email)
+				if err == nil && player != nil {
+					// Check if player is already linked to a different Clerk account
+					if player.ClerkUserID != "" && player.ClerkUserID != userID {
+						// Player is already linked to another account - don't auto-link
+						// This prevents account hijacking via email impersonation
+						w.Header().Set("Content-Type", "application/json")
+						json.NewEncoder(w).Encode(map[string]interface{}{
+							"linked":        false,
+							"clerk_user_id": userID,
+						})
+						return
+					}
+
+					// Found a matching player - auto-link it to this Clerk account
+					player.ClerkUserID = userID
+					if updateErr := s.firestoreClient.UpdatePlayer(ctx, *player); updateErr != nil {
+						// Log the error but continue - we can still return the player info
+						logger.WarnContext(ctx, "Failed to auto-link player to Clerk user",
+							"player_id", player.ID,
+							"clerk_user_id", userID,
+							"error", updateErr,
+						)
+					}
+
+					w.Header().Set("Content-Type", "application/json")
+					json.NewEncoder(w).Encode(map[string]interface{}{
+						"linked": true,
+						"player": player,
+					})
+					return
+				}
+			}
+		}
+
 		// User is authenticated but not linked to a player account yet
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{

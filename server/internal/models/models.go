@@ -49,7 +49,7 @@ type Player struct {
 type LeagueInvite struct {
 	ID        string     `firestore:"id" json:"id"`
 	LeagueID  string     `firestore:"league_id" json:"leagueId"`
-	Token     string     `firestore:"token" json:"token"`         // Unique token for the invite URL
+	Token     string     `firestore:"token" json:"token"`          // Unique token for the invite URL
 	CreatedBy string     `firestore:"created_by" json:"createdBy"` // Player ID who created the invite
 	ExpiresAt time.Time  `firestore:"expires_at" json:"expiresAt"` // When the invite expires
 	MaxUses   int        `firestore:"max_uses" json:"maxUses"`     // Maximum number of uses (0 = unlimited)
