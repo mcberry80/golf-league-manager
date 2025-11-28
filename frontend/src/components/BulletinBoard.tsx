@@ -114,7 +114,7 @@ export default function BulletinBoard({ leagueId, seasonId, currentPlayerId, isA
                         type="text"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Post a message, talk some trash..."
+                        placeholder="Write a message..."
                         maxLength={1000}
                         className="form-input"
                         style={{ flex: 1, fontSize: '0.875rem' }}
