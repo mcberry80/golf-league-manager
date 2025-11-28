@@ -425,6 +425,18 @@ func (s *APIServer) handleGetCurrentUser(w http.ResponseWriter, r *http.Request)
 				// Try to find a player with matching email
 				player, err = s.firestoreClient.GetPlayerByEmail(ctx, email)
 				if err == nil && player != nil {
+					// Check if player is already linked to a different Clerk account
+					if player.ClerkUserID != "" && player.ClerkUserID != userID {
+						// Player is already linked to another account - don't auto-link
+						// This prevents account hijacking via email impersonation
+						w.Header().Set("Content-Type", "application/json")
+						json.NewEncoder(w).Encode(map[string]interface{}{
+							"linked":        false,
+							"clerk_user_id": userID,
+						})
+						return
+					}
+
 					// Found a matching player - auto-link it to this Clerk account
 					player.ClerkUserID = userID
 					if updateErr := s.firestoreClient.UpdatePlayer(ctx, *player); updateErr != nil {
