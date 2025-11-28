@@ -855,6 +855,36 @@ func (fc *FirestoreClient) GetPlayerByClerkID(ctx context.Context, clerkUserID s
 	return &player, nil
 }
 
+// GetPlayerByEmail retrieves a player by their email address with timeout
+// Used for auto-linking players when they sign in with Clerk
+func (fc *FirestoreClient) GetPlayerByEmail(ctx context.Context, email string) (*models.Player, error) {
+	ctx, cancel := withTimeout(ctx)
+	defer cancel()
+
+	iter := fc.client.Collection("players").Where("email", "==", email).Limit(1).Documents(ctx)
+	defer iter.Stop()
+
+	doc, err := iter.Next()
+	if err == iterator.Done {
+		return nil, fmt.Errorf("player not found with email: %s", email)
+	}
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to query player by email",
+			"email", email,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to query player by email: %w", err)
+	}
+
+	var player models.Player
+	if err := doc.DataTo(&player); err != nil {
+		logger.ErrorContext(ctx, "Failed to parse player data", "error", err)
+		return nil, fmt.Errorf("failed to parse player data: %w", err)
+	}
+
+	return &player, nil
+}
+
 // models.Score operations
 
 // CreateScore creates a new score in Firestore

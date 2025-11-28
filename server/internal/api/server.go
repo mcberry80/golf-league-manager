@@ -415,6 +415,32 @@ func (s *APIServer) handleGetCurrentUser(w http.ResponseWriter, r *http.Request)
 	// Try to get the player associated with this Clerk user ID
 	player, err := s.firestoreClient.GetPlayerByClerkID(ctx, userID)
 	if err != nil {
+		// Player not found by Clerk ID - try to auto-link by email
+		// This handles the case where an admin added a player by email before the user signed up
+		clerkUser, clerkErr := getUserFromClerk(ctx, userID)
+		if clerkErr == nil {
+			email := getPrimaryEmail(clerkUser)
+			if email != "" {
+				// Try to find a player with matching email
+				player, err = s.firestoreClient.GetPlayerByEmail(ctx, email)
+				if err == nil && player != nil {
+					// Found a matching player - auto-link it to this Clerk account
+					player.ClerkUserID = userID
+					if updateErr := s.firestoreClient.UpdatePlayer(ctx, *player); updateErr != nil {
+						// Log the error but continue - we can still return the player info
+						log.Printf("Failed to auto-link player %s to Clerk user %s: %v", player.ID, userID, updateErr)
+					}
+
+					w.Header().Set("Content-Type", "application/json")
+					json.NewEncoder(w).Encode(map[string]interface{}{
+						"linked": true,
+						"player": player,
+					})
+					return
+				}
+			}
+		}
+
 		// User is authenticated but not linked to a player account yet
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
