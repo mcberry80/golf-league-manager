@@ -57,52 +57,52 @@ export default function Admin() {
                     </p>
                 </div>
 
-                <div className="grid grid-cols-3" style={{ gap: 'var(--spacing-xl)' }}>
+                <div className="grid grid-cols-3" style={{ gap: 'var(--spacing-lg)' }}>
                     <Link to={`/leagues/${currentLeague.id}/admin/league-setup`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>🏅</div>
-                        <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>League Setup</h3>
-                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                            Create and manage seasons, set active season
+                        <div style={{ fontSize: '1.5rem', marginBottom: 'var(--spacing-sm)' }}>🏅</div>
+                        <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>League Setup</h3>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                            Manage seasons
                         </p>
                     </Link>
 
                     <Link to={`/leagues/${currentLeague.id}/admin/players`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>👥</div>
-                        <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Players</h3>
-                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                            Add and manage league players
+                        <div style={{ fontSize: '1.5rem', marginBottom: 'var(--spacing-sm)' }}>👥</div>
+                        <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>Players</h3>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                            Add and manage players
                         </p>
                     </Link>
 
                     <Link to={`/leagues/${currentLeague.id}/admin/courses`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>⛳</div>
-                        <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Courses</h3>
-                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                            Add and manage golf courses
+                        <div style={{ fontSize: '1.5rem', marginBottom: 'var(--spacing-sm)' }}>⛳</div>
+                        <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>Courses</h3>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                            Manage golf courses
                         </p>
                     </Link>
 
                     <Link to={`/leagues/${currentLeague.id}/admin/matches`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>📅</div>
-                        <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Match Scheduling</h3>
-                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                            Schedule matches and set matchups
+                        <div style={{ fontSize: '1.5rem', marginBottom: 'var(--spacing-sm)' }}>📅</div>
+                        <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>Match Scheduling</h3>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                            Schedule matches
                         </p>
                     </Link>
 
                     <Link to={`/leagues/${currentLeague.id}/admin/scores`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>✏️</div>
-                        <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Score Entry</h3>
-                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                            Enter scores for matches with absence handling
+                        <div style={{ fontSize: '1.5rem', marginBottom: 'var(--spacing-sm)' }}>✏️</div>
+                        <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>Score Entry</h3>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                            Enter match scores
                         </p>
                     </Link>
 
                     <Link to={`/leagues/${currentLeague.id}/standings`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>📊</div>
-                        <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>View Standings</h3>
-                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                            View league standings and statistics
+                        <div style={{ fontSize: '1.5rem', marginBottom: 'var(--spacing-sm)' }}>📊</div>
+                        <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>View Standings</h3>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                            League statistics
                         </p>
                     </Link>
                 </div>
