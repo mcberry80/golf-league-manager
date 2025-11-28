@@ -61,8 +61,8 @@ export default function Home() {
 
             {/* Hero Section */}
             <main className="container animate-fade-in" style={{ paddingTop: 'var(--spacing-2xl)', paddingBottom: 'var(--spacing-2xl)' }}>
-                <div style={{ textAlign: 'center', marginBottom: 'var(--spacing-2xl)' }}>
-                    <h1 style={{ fontSize: '3rem', marginBottom: 'var(--spacing-md)' }}>
+                <div style={{ textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>
+                    <h1 style={{ marginBottom: 'var(--spacing-sm)' }}>
                         Golf League Manager
                     </h1>
                 </div>
@@ -85,74 +85,71 @@ export default function Home() {
                     ) : (
                         <>
                             {/* Primary CTA - Go to Dashboard */}
-                            <div className="text-center mb-8">
+                            <div className="text-center mb-6">
                                 <Link 
                                     to={`/leagues/${currentLeague?.id}/dashboard`}
                                     className="btn btn-primary"
-                                    style={{ padding: '1rem 2rem', fontSize: '1.1rem' }}
+                                    style={{ padding: '0.75rem 1.5rem' }}
                                 >
-                                    <LayoutDashboard className="w-5 h-5 mr-2" />
+                                    <LayoutDashboard className="w-4 h-4 mr-2" />
                                     Go to Dashboard
                                 </Link>
-                                <p style={{ color: 'var(--color-text-muted)', marginTop: 'var(--spacing-sm)', fontSize: '0.875rem' }}>
-                                    View standings, results, and league activity
-                                </p>
                             </div>
 
-                            <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-xl)', maxWidth: '900px', margin: '0 auto' }}>
+                            <div className="grid grid-cols-2" style={{ gap: 'var(--spacing-lg)', maxWidth: '800px', margin: '0 auto' }}>
                                 <Link to={`/leagues/${currentLeague?.id}/dashboard`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                                    <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>
-                                        <MessageSquare className="w-10 h-10 text-blue-400" />
+                                    <div style={{ marginBottom: 'var(--spacing-sm)' }}>
+                                        <MessageSquare className="w-6 h-6 text-blue-400" />
                                     </div>
-                                    <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Bulletin Board</h3>
-                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+                                    <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>Bulletin Board</h3>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
                                         League announcements and messages
                                     </p>
                                 </Link>
 
                                 <Link to={`/leagues/${currentLeague?.id}/standings`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                                    <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>
-                                        <Trophy className="w-10 h-10 text-yellow-500" />
+                                    <div style={{ marginBottom: 'var(--spacing-sm)' }}>
+                                        <Trophy className="w-6 h-6 text-yellow-500" />
                                     </div>
-                                    <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Standings</h3>
-                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                                        League rankings and player statistics
+                                    <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>Standings</h3>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                                        League rankings and statistics
                                     </p>
                                 </Link>
 
                                 <Link to={`/leagues/${currentLeague?.id}/results`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                                    <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>
-                                        <Calendar className="w-10 h-10 text-purple-400" />
+                                    <div style={{ marginBottom: 'var(--spacing-sm)' }}>
+                                        <Calendar className="w-6 h-6 text-purple-400" />
                                     </div>
-                                    <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Results</h3>
-                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                                        Match results and scorecards by week
+                                    <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>Results</h3>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                                        Match results and scorecards
                                     </p>
                                 </Link>
 
                                 <Link to={currentPlayer ? `/profile/${currentPlayer.id}` : '/link-account'} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                                    <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>
-                                        <TrendingUp className="w-10 h-10 text-emerald-400" />
+                                    <div style={{ marginBottom: 'var(--spacing-sm)' }}>
+                                        <TrendingUp className="w-6 h-6 text-emerald-400" />
                                     </div>
-                                    <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>My Profile</h3>
-                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                                        Scores, handicap history, and match results
+                                    <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>My Profile</h3>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                                        Scores and handicap history
                                     </p>
                                 </Link>
 
                                 <Link to={`/leagues/${currentLeague?.id}/admin`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                                    <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>⚙️</div>
-                                    <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Admin</h3>
-                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                                        League management and score entry
+                                    <div style={{ marginBottom: 'var(--spacing-sm)', fontSize: '1.5rem' }}>⚙️</div>
+                                    <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>Admin</h3>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                                        League management
                                     </p>
                                 </Link>
 
                                 <Link to="/link-account" className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                                    <div style={{ fontSize: '2.5rem', marginBottom: 'var(--spacing-md)' }}>🔗</div>
-                                    <h3 style={{ marginBottom: 'var(--spacing-sm)', color: 'var(--color-text)' }}>Link Account</h3>
-                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                                        Connect to your player profile
+                                    <div style={{ marginBottom: 'var(--spacing-sm)', fontSize: '1.5rem' }}>🔗</div>
+                                    <h3 style={{ marginBottom: 'var(--spacing-xs)', color: 'var(--color-text)', fontSize: '1rem' }}>Link Account</h3>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.813rem' }}>
+                                        Connect to player profile
                                     </p>
                                 </Link>
                             </div>
