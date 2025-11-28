@@ -14,6 +14,7 @@ import (
 
 	"golf-league-manager/internal/config"
 	"golf-league-manager/internal/handlers"
+	"golf-league-manager/internal/logger"
 	"golf-league-manager/internal/middleware"
 	"golf-league-manager/internal/models"
 	"golf-league-manager/internal/persistence"
@@ -428,7 +429,11 @@ func (s *APIServer) handleGetCurrentUser(w http.ResponseWriter, r *http.Request)
 					player.ClerkUserID = userID
 					if updateErr := s.firestoreClient.UpdatePlayer(ctx, *player); updateErr != nil {
 						// Log the error but continue - we can still return the player info
-						log.Printf("Failed to auto-link player %s to Clerk user %s: %v", player.ID, userID, updateErr)
+						logger.WarnContext(ctx, "Failed to auto-link player to Clerk user",
+							"player_id", player.ID,
+							"clerk_user_id", userID,
+							"error", updateErr,
+						)
 					}
 
 					w.Header().Set("Content-Type", "application/json")
