@@ -63,6 +63,21 @@ export default function MatchScheduling() {
         }
     }, [currentLeague])
 
+    const refreshMatchData = useCallback(async () => {
+        if (!currentLeague) return
+
+        try {
+            const [matchDaysData, matchesData] = await Promise.all([
+                api.listMatchDays(currentLeague.id),
+                api.listMatches(currentLeague.id),
+            ])
+            setMatchDays(matchDaysData)
+            setMatches(matchesData)
+        } catch (error) {
+            console.error('Failed to refresh match data:', error)
+        }
+    }, [currentLeague])
+
     useEffect(() => {
         if (leagueId && (!currentLeague || currentLeague.id !== leagueId)) {
             selectLeague(leagueId)
@@ -151,7 +166,7 @@ export default function MatchScheduling() {
         try {
             await api.deleteMatchDay(currentLeague.id, day.id)
             setShowDeleteConfirm(null)
-            loadData()
+            refreshMatchData()
         } catch (error) {
             alert('Failed to delete match day: ' + (error instanceof Error ? error.message : 'Unknown error'))
         }
@@ -197,7 +212,7 @@ export default function MatchScheduling() {
             }
 
             resetForm()
-            loadData()
+            refreshMatchData()
         } catch (error) {
             alert('Failed to save match day: ' + (error instanceof Error ? error.message : 'Unknown error'))
         }
