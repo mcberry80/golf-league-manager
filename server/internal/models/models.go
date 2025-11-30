@@ -42,7 +42,6 @@ type Player struct {
 	Email       string    `firestore:"email" json:"email"`
 	ClerkUserID string    `firestore:"clerk_user_id" json:"clerkUserId"` // Links to Clerk user account
 	Active      bool      `firestore:"active" json:"active"`
-	Established bool      `firestore:"established" json:"established"` // true if player has 5+ rounds
 	CreatedAt   time.Time `firestore:"created_at" json:"createdAt"`
 }
 

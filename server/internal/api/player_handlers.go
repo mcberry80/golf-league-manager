@@ -20,7 +20,6 @@ func (s *APIServer) handleCreatePlayer(w http.ResponseWriter, r *http.Request) {
 	player.ID = uuid.New().String()
 	player.CreatedAt = time.Now()
 	player.Active = true
-	player.Established = false
 
 	ctx := r.Context()
 	if err := s.firestoreClient.CreatePlayer(ctx, player); err != nil {

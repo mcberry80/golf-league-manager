@@ -354,19 +354,14 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 	job := services.NewHandicapRecalculationJob(s.firestoreClient)
 	for _, sub := range req.Scores {
 		if !sub.PlayerAbsent {
-			// We need the full Player object for the job
-			player, err := s.firestoreClient.GetPlayer(ctx, sub.PlayerID)
-			if err != nil {
-				log.Printf("Error getting player for handicap recalc: %v", err)
+			// Get the season player record for handicap recalculation
+			sp, ok := seasonPlayersMap[sub.PlayerID]
+			if !ok {
+				log.Printf("Season player not found for handicap recalc: %s", sub.PlayerID)
 				continue
 			}
-			
-			provisionalHandicap := 0.0
-			if sp, ok := seasonPlayersMap[sub.PlayerID]; ok {
-				provisionalHandicap = sp.ProvisionalHandicap
-			}
 
-			if err := job.RecalculatePlayerHandicap(ctx, leagueID, *player, provisionalHandicap, coursesMap); err != nil {
+			if err := job.RecalculateSeasonPlayerHandicap(ctx, leagueID, sp, coursesMap); err != nil {
 				log.Printf("Error recalculating handicap for player %s: %v", sub.PlayerID, err)
 			}
 		}
@@ -485,13 +480,36 @@ func (s *APIServer) handleGetPlayerHandicap(w http.ResponseWriter, r *http.Reque
 	}
 
 	ctx := r.Context()
-	handicap, err := s.firestoreClient.GetPlayerHandicap(ctx, leagueID, playerID)
+
+	// Get the active season for the league
+	activeSeason, err := s.firestoreClient.GetActiveSeason(ctx, leagueID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get handicap: %v", err), http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("Failed to get active season: %v", err), http.StatusNotFound)
 		return
 	}
+
+	// Get the season player record which contains the current handicap index
+	seasonPlayer, err := s.firestoreClient.GetSeasonPlayer(ctx, activeSeason.ID, playerID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get season player: %v", err), http.StatusNotFound)
+		return
+	}
+
+	// Return handicap information in a compatible format
+	response := struct {
+		PlayerID            string  `json:"playerId"`
+		LeagueID            string  `json:"leagueId"`
+		SeasonID            string  `json:"seasonId"`
+		LeagueHandicapIndex float64 `json:"leagueHandicapIndex"`
+	}{
+		PlayerID:            playerID,
+		LeagueID:            leagueID,
+		SeasonID:            activeSeason.ID,
+		LeagueHandicapIndex: seasonPlayer.CurrentHandicapIndex,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(handicap)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (s *APIServer) handleGetPlayerScores(w http.ResponseWriter, r *http.Request) {
