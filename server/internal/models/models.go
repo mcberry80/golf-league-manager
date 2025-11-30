@@ -30,6 +30,7 @@ type SeasonPlayer struct {
 	PlayerID            string    `firestore:"player_id" json:"playerId"`
 	LeagueID            string    `firestore:"league_id" json:"leagueId"`
 	ProvisionalHandicap float64   `firestore:"provisional_handicap" json:"provisionalHandicap"` // Starting handicap for this season
+	CurrentHandicapIndex float64   `firestore:"current_handicap_index" json:"currentHandicapIndex"` // Current handicap index for this season
 	AddedAt             time.Time `firestore:"added_at" json:"addedAt"`
 	IsActive            bool      `firestore:"is_active" json:"isActive"` // Whether player is active in the season
 }

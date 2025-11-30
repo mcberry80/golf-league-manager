@@ -1462,6 +1462,44 @@ func (fc *FirestoreClient) GetMatchDayScores(ctx context.Context, matchDayID str
 	return scores, nil
 }
 
+// BatchUpsertScores creates or updates multiple scores using BulkWriter
+func (fc *FirestoreClient) BatchUpsertScores(ctx context.Context, scores []models.Score) error {
+	if len(scores) == 0 {
+		return nil
+	}
+
+	bw := fc.client.BulkWriter(ctx)
+
+	for _, score := range scores {
+		ref := fc.client.Collection("scores").Doc(score.ID)
+		if _, err := bw.Set(ref, score); err != nil {
+			return fmt.Errorf("failed to add score to bulk writer: %w", err)
+		}
+	}
+
+	bw.Flush()
+	return nil
+}
+
+// BatchUpdateMatches updates multiple matches using BulkWriter
+func (fc *FirestoreClient) BatchUpdateMatches(ctx context.Context, matches []models.Match) error {
+	if len(matches) == 0 {
+		return nil
+	}
+
+	bw := fc.client.BulkWriter(ctx)
+
+	for _, match := range matches {
+		ref := fc.client.Collection("matches").Doc(match.ID)
+		if _, err := bw.Set(ref, match); err != nil {
+			return fmt.Errorf("failed to add match to bulk writer: %w", err)
+		}
+	}
+
+	bw.Flush()
+	return nil
+}
+
 // UpdateScore updates an existing score
 func (fc *FirestoreClient) UpdateScore(ctx context.Context, score models.Score) error {
 	_, err := fc.client.Collection("scores").Doc(score.ID).Set(ctx, score)
