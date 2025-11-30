@@ -110,11 +110,9 @@ func (s *APIServer) handleEnterMatchDayScores(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Check if this is an update (match day already has scores)
-	existingScores, _ := s.firestoreClient.GetMatchDayScores(ctx, req.MatchDayID)
-	isUpdate := len(existingScores) > 0
+	isUpdate := currentMatchDay.Status != "scheduled"
 
-	// Build a map of existing scores by matchId_playerId for updates
+	existingScores, _ := s.firestoreClient.GetMatchDayScores(ctx, req.MatchDayID)
 	existingScoreMap := make(map[string]models.Score)
 	for _, score := range existingScores {
 		key := fmt.Sprintf("%s_%s", score.MatchID, score.PlayerID)

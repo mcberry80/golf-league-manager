@@ -70,7 +70,7 @@ const GOLF_SYMBOL_STYLES = {
 // Golf scoring symbol helper - returns styled element for the score
 export function getGolfScoreSymbol(gross: number, par: number): { style: React.CSSProperties, display: string } {
     const diff = gross - par
-    
+
     if (diff <= -2) {
         // Eagle or better - double circle
         return { style: GOLF_SYMBOL_STYLES.eagle, display: gross.toString() }
@@ -107,21 +107,21 @@ export interface ScoreRowProps {
 /**
  * ScoreRow component - memoized to prevent unnecessary re-renders in large scorecards
  */
-export const ScoreRow = memo(function ScoreRow({ 
-    label, 
-    scores, 
-    total, 
-    color, 
-    bgColor, 
+export const ScoreRow = memo(function ScoreRow({
+    label,
+    scores,
+    total,
+    color,
+    bgColor,
     withBorder = false,
     cellColors,
     showGolfSymbols = false,
     pars
 }: ScoreRowProps) {
     return (
-        <tr style={{ 
-            borderBottom: withBorder ? '1px solid var(--color-border)' : undefined, 
-            background: bgColor 
+        <tr style={{
+            borderBottom: withBorder ? '1px solid var(--color-border)' : undefined,
+            background: bgColor
         }}>
             <td style={{ padding: '0.5rem', color: color || 'var(--color-text-muted)' }}>{label}</td>
             {scores.map((score, i) => {
@@ -129,13 +129,13 @@ export const ScoreRow = memo(function ScoreRow({
                 const parValue = pars?.[i]
                 const showSymbol = showGolfSymbols && parValue !== undefined
                 const symbolInfo = showSymbol ? getGolfScoreSymbol(score, parValue) : null
-                
+
                 return (
-                    <td 
-                        key={i} 
-                        style={{ 
-                            padding: '0.5rem', 
-                            textAlign: 'center', 
+                    <td
+                        key={i}
+                        style={{
+                            padding: '0.5rem',
+                            textAlign: 'center',
                             color: cellColor?.text || color,
                             backgroundColor: cellColor?.bg || 'transparent'
                         }}
@@ -210,7 +210,7 @@ export interface ExpandableCardProps {
  */
 export const ExpandableCard = memo(function ExpandableCard({ isExpanded, onToggle, header, rightContent, children }: ExpandableCardProps) {
     return (
-        <div style={{ 
+        <div style={{
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-md)',
             overflow: 'hidden'
@@ -229,14 +229,16 @@ export const ExpandableCard = memo(function ExpandableCard({ isExpanded, onToggl
                     color: 'var(--color-text)'
                 }}
             >
-                {header}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)' }}>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                    {header}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-lg)', marginLeft: 'var(--spacing-md)' }}>
                     {rightContent}
                     {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                 </div>
             </button>
             {isExpanded && (
-                <div style={{ 
+                <div style={{
                     padding: 'var(--spacing-md)',
                     background: 'rgba(0, 0, 0, 0.2)',
                     borderTop: '1px solid var(--color-border)'
@@ -277,9 +279,9 @@ export interface AbsentBadgeProps {
  */
 export const AbsentBadge = memo(function AbsentBadge({ small = false }: AbsentBadgeProps) {
     return (
-        <span 
-            style={{ 
-                fontSize: small ? '0.65rem' : '0.75rem', 
+        <span
+            style={{
+                fontSize: small ? '0.65rem' : '0.75rem',
                 backgroundColor: 'var(--color-warning)',
                 color: '#000',
                 padding: small ? '0.1rem 0.3rem' : '0.15rem 0.4rem',

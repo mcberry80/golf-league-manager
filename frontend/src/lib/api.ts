@@ -255,6 +255,10 @@ class APIClient {
         });
     }
 
+    async getMatchDayMatches(leagueId: string, matchDayId: string): Promise<Match[]> {
+        return this.request<Match[]>(`/api/leagues/${leagueId}/match-days/${matchDayId}/matches`);
+    }
+
     // Match Day endpoints
     async createMatchDay(leagueId: string, data: CreateMatchDayRequest): Promise<MatchDay> {
         return this.request<MatchDay>(`/api/leagues/${leagueId}/match-days`, {

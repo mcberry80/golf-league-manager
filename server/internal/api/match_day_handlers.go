@@ -276,7 +276,7 @@ func (s *APIServer) handleDeleteMatchDay(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
 
-func (s *APIServer) handleUpdateMatchDayMatchups(w http.ResponseWriter, r *http.Request) {
+func (s *APIServer) handleUpdateMatchDayMatches(w http.ResponseWriter, r *http.Request) {
 	leagueID := r.PathValue("league_id")
 	matchDayID := r.PathValue("id")
 	if leagueID == "" || matchDayID == "" {
@@ -382,6 +382,27 @@ func (s *APIServer) handleUpdateMatchDayMatchups(w http.ResponseWriter, r *http.
 		"matchDay": existingMatchDay,
 		"matches":  updatedMatches,
 	})
+}
+
+func (s *APIServer) handleGetMatchDayMatches(w http.ResponseWriter, r *http.Request) {
+	leagueID := r.PathValue("league_id")
+	matchDayID := r.PathValue("id")
+	if leagueID == "" || matchDayID == "" {
+		respondWithError(w, "League ID and Match Day ID are required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get all matches associated with this match day
+	matches, err := s.firestoreClient.GetMatchesByMatchDayID(ctx, matchDayID)
+	if err != nil {
+		respondWithError(w, fmt.Sprintf("Failed to get matches: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(matches)
 }
 
 // respondWithError sends a JSON error response
