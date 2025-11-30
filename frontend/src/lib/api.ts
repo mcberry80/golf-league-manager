@@ -342,8 +342,8 @@ class APIClient {
     }
 
     // Handicap endpoints
-    async getPlayerHandicap(leagueId: string, playerId: string): Promise<HandicapRecord> {
-        return this.request<HandicapRecord>(`/api/leagues/${leagueId}/players/${playerId}/handicap`);
+    async getPlayerHandicap(leagueId: string, seasonId: string, playerId: string): Promise<HandicapRecord> {
+        return this.request<HandicapRecord>(`/api/leagues/${leagueId}/seasons/${seasonId}/players/${playerId}/handicap`);
     }
 
     // User endpoints

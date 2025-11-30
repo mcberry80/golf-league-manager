@@ -473,29 +473,23 @@ func (s *APIServer) handleEnterScoreBatch(w http.ResponseWriter, r *http.Request
 
 func (s *APIServer) handleGetPlayerHandicap(w http.ResponseWriter, r *http.Request) {
 	leagueID := r.PathValue("league_id")
+	seasonID := r.PathValue("season_id")
 	playerID := r.PathValue("id")
-	if leagueID == "" || playerID == "" {
-		http.Error(w, "League ID and Player ID are required", http.StatusBadRequest)
+	if leagueID == "" || seasonID == "" || playerID == "" {
+		http.Error(w, "League ID, Season ID and Player ID are required", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
 
-	// Get the active season for the league
-	activeSeason, err := s.firestoreClient.GetActiveSeason(ctx, leagueID)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get active season: %v", err), http.StatusNotFound)
-		return
-	}
-
 	// Get the season player record which contains the current handicap index
-	seasonPlayer, err := s.firestoreClient.GetSeasonPlayer(ctx, activeSeason.ID, playerID)
+	seasonPlayer, err := s.firestoreClient.GetSeasonPlayer(ctx, seasonID, playerID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get season player: %v", err), http.StatusNotFound)
 		return
 	}
 
-	// Return handicap information in a compatible format
+	// Return handicap information
 	response := struct {
 		PlayerID            string  `json:"playerId"`
 		LeagueID            string  `json:"leagueId"`
@@ -504,7 +498,7 @@ func (s *APIServer) handleGetPlayerHandicap(w http.ResponseWriter, r *http.Reque
 	}{
 		PlayerID:            playerID,
 		LeagueID:            leagueID,
-		SeasonID:            activeSeason.ID,
+		SeasonID:            seasonID,
 		LeagueHandicapIndex: seasonPlayer.CurrentHandicapIndex,
 	}
 

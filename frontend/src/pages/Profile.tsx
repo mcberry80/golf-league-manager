@@ -128,13 +128,13 @@ export default function Profile() {
         }
 
         try {
-            const [scoresData, seasonsData, matchesData, membersData, coursesData, handicapRecord] = await Promise.all([
+            // First fetch seasons and other non-season-dependent data
+            const [scoresData, seasonsData, matchesData, membersData, coursesData] = await Promise.all([
                 api.getPlayerScores(currentLeague.id, player.id).catch(() => []),
                 api.listSeasons(currentLeague.id).catch(() => []),
                 api.listMatches(currentLeague.id).catch(() => []),
                 api.listLeagueMembers(currentLeague.id).catch(() => []),
                 api.listCourses(currentLeague.id).catch(() => []),
-                api.getPlayerHandicap(currentLeague.id, player.id).catch(() => null),
             ])
 
             setScores(scoresData)
@@ -143,9 +143,18 @@ export default function Profile() {
             setMembers(membersData)
             setCourses(coursesData)
 
-            // Set the current handicap index from the HandicapRecord
-            if (handicapRecord) {
-                setCurrentHandicapIndex(handicapRecord.leagueHandicapIndex)
+            // Find the active season
+            const activeSeason = seasonsData.find(s => s.active)
+            if (activeSeason) {
+                setSelectedSeasonId(activeSeason.id)
+                
+                // Now fetch handicap using the active season ID
+                const handicapRecord = await api.getPlayerHandicap(currentLeague.id, activeSeason.id, player.id).catch(() => null)
+                if (handicapRecord) {
+                    setCurrentHandicapIndex(handicapRecord.leagueHandicapIndex)
+                }
+            } else if (seasonsData.length > 0) {
+                setSelectedSeasonId(seasonsData[0].id)
             }
 
             // Fetch all scores for matches the player is in (including opponent scores)
@@ -163,14 +172,6 @@ export default function Profile() {
             const playerMembership = membersData.find(m => m.playerId === player.id)
             if (playerMembership) {
                 setProvisionalHandicap(playerMembership.provisionalHandicap)
-            }
-
-            // Set default season to active season
-            const activeSeason = seasonsData.find(s => s.active)
-            if (activeSeason) {
-                setSelectedSeasonId(activeSeason.id)
-            } else if (seasonsData.length > 0) {
-                setSelectedSeasonId(seasonsData[0].id)
             }
         } catch (err) {
             console.error('Failed to load league data:', err)

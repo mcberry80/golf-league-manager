@@ -122,7 +122,7 @@ func (s *APIServer) registerRoutes() {
 	s.mux.Handle("GET /api/invites/{token}", chainMiddleware(http.HandlerFunc(s.handleGetInviteByToken), authMiddleware))
 	s.mux.Handle("POST /api/invites/{token}/accept", chainMiddleware(http.HandlerFunc(s.handleAcceptLeagueInvite), authMiddleware))
 
-	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/handicap", chainMiddleware(http.HandlerFunc(s.handleGetPlayerHandicap), authMiddleware))
+	s.mux.Handle("GET /api/leagues/{league_id}/seasons/{season_id}/players/{id}/handicap", chainMiddleware(http.HandlerFunc(s.handleGetPlayerHandicap), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/players/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetPlayerScores), authMiddleware))
 	s.mux.Handle("GET /api/leagues/{league_id}/matches/{id}/scores", chainMiddleware(http.HandlerFunc(s.handleGetMatchScores), authMiddleware))
 
