@@ -315,7 +315,6 @@ func (s *APIServer) handleAcceptLeagueInvite(w http.ResponseWriter, r *http.Requ
 			Email:       getPrimaryEmail(clerkUser),
 			ClerkUserID: userID,
 			Active:      true,
-			Established: false,
 			CreatedAt:   time.Now(),
 		}
 

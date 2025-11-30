@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
-
-	"github.com/google/uuid"
 
 	"golf-league-manager/internal/models"
 	"golf-league-manager/internal/persistence"
@@ -24,17 +21,23 @@ func NewHandicapRecalculationJob(fc *persistence.FirestoreClient) *HandicapRecal
 	}
 }
 
-// Run executes the handicap recalculation for all active players in a league
+// Run executes the handicap recalculation for all active players in a league's active season
 func (job *HandicapRecalculationJob) Run(ctx context.Context, leagueID string) error {
 	log.Println("Starting handicap recalculation job...")
 
-	// Get all active players
-	players, err := job.firestoreClient.ListPlayers(ctx, true)
+	// Get the active season for the league
+	activeSeason, err := job.firestoreClient.GetActiveSeason(ctx, leagueID)
 	if err != nil {
-		return fmt.Errorf("failed to list players: %w", err)
+		return fmt.Errorf("failed to get active season: %w", err)
 	}
 
-	log.Printf("Found %d active players to process", len(players))
+	// Get all season players for the active season
+	seasonPlayers, err := job.firestoreClient.ListSeasonPlayers(ctx, activeSeason.ID)
+	if err != nil {
+		return fmt.Errorf("failed to list season players: %w", err)
+	}
+
+	log.Printf("Found %d season players to process", len(seasonPlayers))
 
 	// Get all courses for differential calculations
 	courses, err := job.firestoreClient.ListCourses(ctx, leagueID)
@@ -47,26 +50,16 @@ func (job *HandicapRecalculationJob) Run(ctx context.Context, leagueID string) e
 		coursesMap[course.ID] = course
 	}
 
-	// Get all league members to retrieve provisional handicaps
-	members, err := job.firestoreClient.ListLeagueMembers(ctx, leagueID)
-	if err != nil {
-		return fmt.Errorf("failed to list league members: %w", err)
-	}
-
-	// Create a map of player ID to provisional handicap
-	provisionalHandicaps := make(map[string]float64)
-	for _, member := range members {
-		provisionalHandicaps[member.PlayerID] = member.ProvisionalHandicap
-	}
-
 	successCount := 0
 	errorCount := 0
 
-	// Recalculate handicap for each player
-	for _, player := range players {
-		provisionalHandicap := provisionalHandicaps[player.ID]
-		if err := job.RecalculatePlayerHandicap(ctx, leagueID, player, provisionalHandicap, coursesMap); err != nil {
-			log.Printf("Error recalculating handicap for player %s (%s): %v", player.Name, player.ID, err)
+	// Recalculate handicap for each season player
+	for _, seasonPlayer := range seasonPlayers {
+		if !seasonPlayer.IsActive {
+			continue
+		}
+		if err := job.RecalculateSeasonPlayerHandicap(ctx, leagueID, seasonPlayer, coursesMap); err != nil {
+			log.Printf("Error recalculating handicap for season player %s: %v", seasonPlayer.PlayerID, err)
 			errorCount++
 		} else {
 			successCount++
@@ -77,18 +70,11 @@ func (job *HandicapRecalculationJob) Run(ctx context.Context, leagueID string) e
 	return nil
 }
 
-// recalculatePlayerHandicap is deprecated - use RecalculatePlayerHandicap directly
-func (job *HandicapRecalculationJob) recalculatePlayerHandicap(ctx context.Context, leagueID string, player models.Player, coursesMap map[string]models.Course) error {
-	// This function is no longer used but kept for backwards compatibility
-	return job.RecalculatePlayerHandicap(ctx, leagueID, player, 0.0, coursesMap)
-}
-
-// RecalculatePlayerHandicap recalculates and updates a single player's handicap
-// This is the exported version that can be called externally
-func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Context, leagueID string, player models.Player, provisionalHandicap float64, coursesMap map[string]models.Course) error {
+// RecalculateSeasonPlayerHandicap recalculates and updates a single season player's handicap index
+func (job *HandicapRecalculationJob) RecalculateSeasonPlayerHandicap(ctx context.Context, leagueID string, seasonPlayer models.SeasonPlayer, coursesMap map[string]models.Course) error {
 	// Get the last 5 non-absent scores for the player
 	// Absent rounds are not considered in handicap calculations
-	scores, err := job.firestoreClient.GetPlayerScoresForHandicap(ctx, leagueID, player.ID, 5)
+	scores, err := job.firestoreClient.GetPlayerScoresForHandicap(ctx, leagueID, seasonPlayer.PlayerID, 5)
 	if err != nil {
 		return fmt.Errorf("failed to get player scores: %w", err)
 	}
@@ -105,50 +91,32 @@ func (job *HandicapRecalculationJob) RecalculatePlayerHandicap(ctx context.Conte
 	}
 
 	// Calculate league handicap using the centralized function
-	leagueHandicap := CalculateHandicapWithProvisional(differentials, provisionalHandicap)
+	// Use the season player's provisional handicap
+	leagueHandicap := CalculateHandicapWithProvisional(differentials, seasonPlayer.ProvisionalHandicap)
 
 	// Log the calculation for debugging
 	scoreCount := len(scores)
 	switch {
 	case scoreCount == 0:
-		log.Printf("Player %s (%s): Using provisional handicap %.1f (0 scores)", player.Name, player.ID, provisionalHandicap)
+		log.Printf("Player %s: Using provisional handicap %.1f (0 scores)", seasonPlayer.PlayerID, seasonPlayer.ProvisionalHandicap)
 	case scoreCount == 1:
-		log.Printf("Player %s (%s): 1 score - ((2 × %.1f) + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, differentials[0], leagueHandicap)
+		log.Printf("Player %s: 1 score - ((2 × %.1f) + %.1f) / 3 = %.1f", seasonPlayer.PlayerID, seasonPlayer.ProvisionalHandicap, differentials[0], leagueHandicap)
 	case scoreCount == 2:
-		log.Printf("Player %s (%s): 2 scores - (%.1f + %.1f + %.1f) / 3 = %.1f", player.Name, player.ID, provisionalHandicap, differentials[0], differentials[1], leagueHandicap)
+		log.Printf("Player %s: 2 scores - (%.1f + %.1f + %.1f) / 3 = %.1f", seasonPlayer.PlayerID, seasonPlayer.ProvisionalHandicap, differentials[0], differentials[1], leagueHandicap)
 	case scoreCount >= 3 && scoreCount <= 4:
-		log.Printf("Player %s (%s): %d scores - average all differentials = %.1f", player.Name, player.ID, scoreCount, leagueHandicap)
+		log.Printf("Player %s: %d scores - average all differentials = %.1f", seasonPlayer.PlayerID, scoreCount, leagueHandicap)
 	default:
-		log.Printf("Player %s (%s): %d scores - drop 2 worst, average best 3 = %.1f", player.Name, player.ID, scoreCount, leagueHandicap)
+		log.Printf("Player %s: %d scores - drop 2 worst, average best 3 = %.1f", seasonPlayer.PlayerID, scoreCount, leagueHandicap)
 	}
 
-	// Update player's established status (5 or more scores)
-	wasEstablished := player.Established
-	player.Established = scoreCount >= 5
-
-	if wasEstablished != player.Established {
-		if err := job.firestoreClient.UpdatePlayer(ctx, player); err != nil {
-			log.Printf("Warning: failed to update player established status: %v", err)
-		}
+	// Update the season player's current handicap index
+	seasonPlayer.CurrentHandicapIndex = leagueHandicap
+	if err := job.firestoreClient.UpdateSeasonPlayer(ctx, seasonPlayer); err != nil {
+		return fmt.Errorf("failed to update season player handicap: %w", err)
 	}
 
-	// Create new handicap record (only stores league handicap index)
-	// Course handicap and playing handicap are calculated per-score and stored in Score model
-	handicapRecord := models.HandicapRecord{
-		ID:                  uuid.New().String(),
-		PlayerID:            player.ID,
-		LeagueID:            leagueID,
-		LeagueHandicapIndex: leagueHandicap,
-		UpdatedAt:           time.Now(),
-	}
-
-	// Save the handicap record
-	if err := job.firestoreClient.CreateHandicap(ctx, handicapRecord); err != nil {
-		return fmt.Errorf("failed to save handicap record: %w", err)
-	}
-
-	log.Printf("Updated handicap for player %s (%s): league handicap index=%.1f",
-		player.Name, player.ID, leagueHandicap)
+	log.Printf("Updated handicap for season player %s: league handicap index=%.1f",
+		seasonPlayer.PlayerID, leagueHandicap)
 
 	return nil
 }
@@ -201,19 +169,19 @@ func (proc *MatchCompletionProcessor) ProcessMatch(ctx context.Context, matchID 
 		return fmt.Errorf("player B scores missing")
 	}
 
-	// Get handicap records (contain league handicap index)
-	handicapA, err := proc.firestoreClient.GetPlayerHandicap(ctx, match.LeagueID, match.PlayerAID)
+	// Get handicap from season player records
+	seasonPlayerA, err := proc.firestoreClient.GetSeasonPlayer(ctx, match.SeasonID, match.PlayerAID)
 	if err != nil {
-		return fmt.Errorf("failed to get player A handicap: %w", err)
+		return fmt.Errorf("failed to get season player A: %w", err)
 	}
-	handicapB, err := proc.firestoreClient.GetPlayerHandicap(ctx, match.LeagueID, match.PlayerBID)
+	seasonPlayerB, err := proc.firestoreClient.GetSeasonPlayer(ctx, match.SeasonID, match.PlayerBID)
 	if err != nil {
-		return fmt.Errorf("failed to get player B handicap: %w", err)
+		return fmt.Errorf("failed to get season player B: %w", err)
 	}
 
 	// Calculate course and playing handicaps for this match
-	_, playingHandicapA := CalculateCourseAndPlayingHandicap(handicapA.LeagueHandicapIndex, *course)
-	_, playingHandicapB := CalculateCourseAndPlayingHandicap(handicapB.LeagueHandicapIndex, *course)
+	_, playingHandicapA := CalculateCourseAndPlayingHandicap(seasonPlayerA.CurrentHandicapIndex, *course)
+	_, playingHandicapB := CalculateCourseAndPlayingHandicap(seasonPlayerB.CurrentHandicapIndex, *course)
 
 	// Assign strokes based on the difference in playing handicaps
 	strokes := AssignStrokes(match.PlayerAID, playingHandicapA, match.PlayerBID, playingHandicapB, *course)

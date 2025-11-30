@@ -10,12 +10,11 @@ import (
 func TestImmediateHandicapRecalculation(t *testing.T) {
 	// Setup test data
 	player := models.Player{
-		ID:          "player-1",
-		Name:        "John Doe",
-		Email:       "john@example.com",
-		Active:      true,
-		Established: false,
-		CreatedAt:   time.Now(),
+		ID:        "player-1",
+		Name:      "John Doe",
+		Email:     "john@example.com",
+		Active:    true,
+		CreatedAt: time.Now(),
 	}
 
 	course := models.Course{
@@ -66,7 +65,7 @@ func TestImmediateHandicapRecalculation(t *testing.T) {
 		course.ID: course,
 	}
 
-	// Test handicap calculation with 3 scores (player not yet established)
+	// Test handicap calculation with 3 scores
 	handicap := CalculateLeagueHandicap(scores, coursesMap)
 
 	if handicap < 0 {
@@ -84,12 +83,11 @@ func TestImmediateHandicapRecalculation(t *testing.T) {
 
 func TestHandicapRecalculationAfterRoundEntry(t *testing.T) {
 	player := models.Player{
-		ID:          "player-1",
-		Name:        "Jane Smith",
-		Email:       "jane@example.com",
-		Active:      true,
-		Established: false,
-		CreatedAt:   time.Now(),
+		ID:        "player-1",
+		Name:      "Jane Smith",
+		Email:     "jane@example.com",
+		Active:    true,
+		CreatedAt: time.Now(),
 	}
 
 	course := models.Course{
@@ -161,32 +159,4 @@ func TestHandicapRecalculationAfterRoundEntry(t *testing.T) {
 	if updatedHandicap < 0 {
 		t.Errorf("Updated handicap should be non-negative, got %.1f", updatedHandicap)
 	}
-}
-
-func TestPlayerEstablishedStatusUpdate(t *testing.T) {
-	player := models.Player{
-		ID:          "player-1",
-		Name:        "Test Player",
-		Email:       "test@example.com",
-		Active:      true,
-		Established: false,
-		CreatedAt:   time.Now(),
-	}
-
-	// Player with 4 rounds should not be established
-	if player.Established {
-		t.Error("Player with 0 rounds should not be established")
-	}
-
-	// After 5 rounds, player should become established
-	roundCount := 5
-	if roundCount >= 5 {
-		player.Established = true
-	}
-
-	if !player.Established {
-		t.Error("Player with 5 rounds should be established")
-	}
-
-	t.Logf("Player established status correctly updated after %d rounds", roundCount)
 }

@@ -94,7 +94,6 @@ func (s *APIServer) handleCreateLeague(w http.ResponseWriter, r *http.Request) {
 			Email:       getPrimaryEmail(clerkUser),
 			ClerkUserID: userID,
 			Active:      true,
-			Established: false,
 			CreatedAt:   time.Now(),
 		}
 
@@ -292,12 +291,11 @@ func (s *APIServer) handleAddLeagueMember(w http.ResponseWriter, r *http.Request
 			}
 
 			newPlayer := models.Player{
-				ID:          uuid.New().String(),
-				Name:        name,
-				Email:       req.Email,
-				Active:      true,
-				Established: false,
-				CreatedAt:   time.Now(),
+				ID:        uuid.New().String(),
+				Name:      name,
+				Email:     req.Email,
+				Active:    true,
+				CreatedAt: time.Now(),
 			}
 
 			if err := s.firestoreClient.CreatePlayer(ctx, newPlayer); err != nil {

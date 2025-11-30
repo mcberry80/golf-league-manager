@@ -41,7 +41,6 @@ export interface Player {
     email: string;
     clerkUserId?: string;
     active: boolean;
-    established: boolean;
     createdAt: string;
 }
 

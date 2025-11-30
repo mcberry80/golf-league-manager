@@ -49,7 +49,6 @@ func (s *APIServer) handleLinkPlayerAccount(w http.ResponseWriter, r *http.Reque
 			Email:       requestBody.Email,
 			ClerkUserID: userID,
 			Active:      true,
-			Established: false,
 			CreatedAt:   time.Now(),
 		}
 
