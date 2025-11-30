@@ -60,6 +60,7 @@ export default function Profile() {
     const [provisionalHandicap, setProvisionalHandicap] = useState<number | null>(null)
     const [currentHandicapIndex, setCurrentHandicapIndex] = useState<number | null>(null) // From HandicapRecord API
     const [allLeagues, setAllLeagues] = useState<League[]>([])
+    const [leagueHandicaps, setLeagueHandicaps] = useState<Map<string, number | null>>(new Map()) // Handicaps per league
     
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -71,19 +72,47 @@ export default function Profile() {
     const [expandedRoundId, setExpandedRoundId] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'overview' | 'rounds' | 'handicaps' | 'matchups'>('overview')
 
-    // Fetch all leagues to display names (only if user has league memberships)
+    // Fetch all leagues to display names and handicaps for each league (only if user has league memberships)
     useEffect(() => {
-        async function fetchLeagues() {
-            if (userLeagues.length === 0) return
+        async function fetchLeaguesAndHandicaps() {
+            if (userLeagues.length === 0 || !player) return
             try {
                 const leagues = await api.listLeagues()
                 setAllLeagues(leagues)
+                
+                // Fetch handicaps for each league the player is in
+                const handicapsMap = new Map<string, number | null>()
+                
+                await Promise.all(userLeagues.map(async (membership) => {
+                    try {
+                        // Get the active season for this league
+                        const leagueSeasons = await api.listSeasons(membership.leagueId)
+                        const activeSeason = leagueSeasons.find(s => s.active)
+                        
+                        if (activeSeason) {
+                            const handicapRecord = await api.getPlayerHandicap(
+                                membership.leagueId, 
+                                activeSeason.id, 
+                                player.id
+                            )
+                            handicapsMap.set(membership.leagueId, handicapRecord.leagueHandicapIndex)
+                        } else {
+                            // No active season, use provisional handicap from membership
+                            handicapsMap.set(membership.leagueId, membership.provisionalHandicap)
+                        }
+                    } catch {
+                        // If handicap fetch fails, show provisional
+                        handicapsMap.set(membership.leagueId, membership.provisionalHandicap)
+                    }
+                }))
+                
+                setLeagueHandicaps(handicapsMap)
             } catch (err) {
                 console.error('Failed to load leagues:', err)
             }
         }
-        fetchLeagues()
-    }, [userLeagues.length])
+        fetchLeaguesAndHandicaps()
+    }, [userLeagues, player])
 
     // Load current user and verify access
     useEffect(() => {
@@ -489,6 +518,7 @@ export default function Profile() {
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
                             {userLeagues.map(membership => {
                                 const league = allLeagues.find(l => l.id === membership.leagueId)
+                                const handicap = leagueHandicaps.get(membership.leagueId)
                                 return (
                                     <div 
                                         key={membership.leagueId}
@@ -513,10 +543,33 @@ export default function Profile() {
                                         <span className={`badge ${membership.role === 'admin' ? 'badge-primary' : 'badge-secondary'}`} style={{ fontSize: '0.65rem' }}>
                                             {membership.role}
                                         </span>
+                                        {handicap !== undefined && handicap !== null && (
+                                            <span 
+                                                style={{ 
+                                                    marginLeft: 'auto',
+                                                    color: 'var(--color-primary)', 
+                                                    fontWeight: 'bold',
+                                                    fontSize: '0.875rem'
+                                                }}
+                                                title="Current handicap index for this league"
+                                            >
+                                                HC: {handicap.toFixed(1)}
+                                            </span>
+                                        )}
                                     </div>
                                 )
                             })}
                         </div>
+                        {userLeagues.length > 1 && (
+                            <p style={{ 
+                                marginTop: 'var(--spacing-md)', 
+                                color: 'var(--color-text-muted)', 
+                                fontSize: '0.75rem',
+                                fontStyle: 'italic'
+                            }}>
+                                Each league tracks handicaps independently based on rounds played in that league.
+                            </p>
+                        )}
                     </div>
                 )}
 
