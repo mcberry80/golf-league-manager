@@ -1146,7 +1146,6 @@ func (fc *FirestoreClient) ListMatches(ctx context.Context, leagueID, status str
 	return matches, nil
 }
 
-// GetMatchScores retrieves all scores for a match
 func (fc *FirestoreClient) GetMatchScores(ctx context.Context, matchID string) ([]models.Score, error) {
 	iter := fc.client.Collection("scores").
 		Where("match_id", "==", matchID).

@@ -113,6 +113,8 @@ export interface Match {
     status: 'scheduled' | 'completed';
     playerAPoints?: number;
     playerBPoints?: number;
+    playerAAbsent?: boolean;
+    playerBAbsent?: boolean;
 }
 
 export interface Score {
@@ -124,18 +126,18 @@ export interface Score {
     courseId?: string;
     holeScores: number[];
     holeAdjustedGrossScores?: number[];
-    matchNetHoleScores?: number[];
+    matchNetHoleScores: number[];
     grossScore: number;
     netScore: number;
-    matchNetScore?: number;
+    matchNetScore: number;
     adjustedGross: number;
     handicapDifferential: number;
-    handicapIndex?: number;
-    courseHandicap?: number;
-    playingHandicap?: number;
+    handicapIndex: number;
+    courseHandicap: number;
+    playingHandicap: number;
     strokesReceived: number;
-    matchStrokes?: number[];
-    playerAbsent?: boolean;
+    matchStrokes: number[];
+    playerAbsent: boolean;
 }
 
 export interface StandingsEntry {

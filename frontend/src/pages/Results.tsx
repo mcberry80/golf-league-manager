@@ -5,11 +5,11 @@ import api from '../lib/api'
 import { formatDateWithWeekday } from '../lib/utils'
 import type { MatchDay, Match, Score, LeagueMemberWithPlayer, Course, Season } from '../types'
 import { Calendar, ChevronDown, ChevronUp } from 'lucide-react'
-import { 
-    ExpandableCard, 
+import {
+    ExpandableCard,
     ScorecardTable,
     AbsentBadge,
-    EMPTY_STROKES_ARRAY 
+    EMPTY_STROKES_ARRAY
 } from '../components/Scorecard'
 import { LoadingSpinner } from '../components/Layout'
 
@@ -26,34 +26,36 @@ interface MatchWithScores {
     playerBName: string
     playerAScore?: Score
     playerBScore?: Score
-}
-
-interface MatchDayWithMatches {
-    matchDay: MatchDay
-    matches: MatchWithScores[]
-    courseName: string
+    playerAAbsent?: boolean
+    playerBAbsent?: boolean
 }
 
 export default function Results() {
     const { leagueId } = useParams<{ leagueId: string }>()
     const { currentLeague, isLoading: leagueLoading } = useLeague()
-    
+
+    // Data State
     const [matchDays, setMatchDays] = useState<MatchDay[]>([])
-    const [matches, setMatches] = useState<Match[]>([])
     const [members, setMembers] = useState<LeagueMemberWithPlayer[]>([])
     const [courses, setCourses] = useState<Course[]>([])
     const [seasons, setSeasons] = useState<Season[]>([])
-    const [allScores, setAllScores] = useState<Map<string, Score[]>>(new Map())
-    
+
+    // Cache State
+    const [matchesCache, setMatchesCache] = useState<Record<string, Match[]>>({})
+    const [scoresCache, setScoresCache] = useState<Record<string, Score[]>>({})
+
+    // Loading State
     const [loading, setLoading] = useState(true)
+    const [loadingMatchDayId, setLoadingMatchDayId] = useState<string | null>(null)
+    const [loadingMatchId, setLoadingMatchId] = useState<string | null>(null)
     const [error, setError] = useState('')
-    
-    // UI state
+
+    // UI State
     const [selectedSeasonId, setSelectedSeasonId] = useState<string>('')
     const [expandedMatchDayId, setExpandedMatchDayId] = useState<string | null>(null)
     const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null)
 
-    // Load all data
+    // Load initial data (MatchDays, Members, Courses, Seasons)
     useEffect(() => {
         async function loadData() {
             const effectiveLeagueId = leagueId || currentLeague?.id
@@ -61,16 +63,14 @@ export default function Results() {
 
             try {
                 setLoading(true)
-                const [matchDaysData, matchesData, membersData, coursesData, seasonsData] = await Promise.all([
+                const [matchDaysData, membersData, coursesData, seasonsData] = await Promise.all([
                     api.listMatchDays(effectiveLeagueId),
-                    api.listMatches(effectiveLeagueId),
                     api.listLeagueMembers(effectiveLeagueId),
                     api.listCourses(effectiveLeagueId),
                     api.listSeasons(effectiveLeagueId)
                 ])
 
                 setMatchDays(matchDaysData)
-                setMatches(matchesData)
                 setMembers(membersData)
                 setCourses(coursesData)
                 setSeasons(seasonsData)
@@ -82,28 +82,6 @@ export default function Results() {
                 } else if (seasonsData.length > 0) {
                     setSelectedSeasonId(seasonsData[0].id)
                 }
-
-                // Fetch scores for completed matches in batches to avoid overwhelming the server
-                const completedMatches = matchesData.filter(m => m.status === 'completed')
-                const scoresMap = new Map<string, Score[]>()
-                const BATCH_SIZE = 5
-                
-                for (let i = 0; i < completedMatches.length; i += BATCH_SIZE) {
-                    const batch = completedMatches.slice(i, i + BATCH_SIZE)
-                    await Promise.all(
-                        batch.map(async (match) => {
-                            try {
-                                const matchScores = await api.getMatchScores(effectiveLeagueId, match.id)
-                                scoresMap.set(match.id, matchScores)
-                            } catch (err) {
-                                // Log but don't fail the entire page for individual match score errors
-                                console.warn(`Failed to load scores for match ${match.id}:`, err)
-                            }
-                        })
-                    )
-                }
-                
-                setAllScores(scoresMap)
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to load results')
             } finally {
@@ -116,55 +94,71 @@ export default function Results() {
         }
     }, [leagueId, currentLeague, leagueLoading])
 
-    // Helper to get player name by ID - memoized to prevent recreation on each render
+    // Helper to get player name by ID
     const getPlayerName = useCallback((playerId: string): string => {
         const member = members.find(m => m.playerId === playerId)
         return member?.player?.name || 'Unknown'
     }, [members])
 
-    // Helper to get course by ID - memoized to prevent recreation on each render
+    // Helper to get course by ID
     const getCourse = useCallback((courseId: string): Course | undefined => {
         return courses.find(c => c.id === courseId)
     }, [courses])
 
-    // Get match days grouped by season and sorted by date
-    const getMatchDaysByWeek = (): MatchDayWithMatches[] => {
-        const filteredMatchDays = selectedSeasonId
-            ? matchDays.filter(md => md.seasonId === selectedSeasonId)
-            : matchDays
+    const handleExpandMatchDay = async (matchDayId: string) => {
+        if (expandedMatchDayId === matchDayId) {
+            setExpandedMatchDayId(null)
+            return
+        }
 
-        return filteredMatchDays
-            .filter(md => md.status === MATCH_DAY_STATUS.COMPLETED || md.status === MATCH_DAY_STATUS.LOCKED || md.hasScores)
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .map(matchDay => {
-                const matchDayMatches = matches.filter(m => m.matchDayId === matchDay.id)
-                const course = getCourse(matchDay.courseId)
-                
-                const matchesWithScores: MatchWithScores[] = matchDayMatches.map(match => {
-                    const matchScores = allScores.get(match.id) || []
-                    const playerAScore = matchScores.find(s => s.playerId === match.playerAId)
-                    const playerBScore = matchScores.find(s => s.playerId === match.playerBId)
-                    
-                    return {
-                        match,
-                        playerAName: getPlayerName(match.playerAId),
-                        playerBName: getPlayerName(match.playerBId),
-                        playerAScore,
-                        playerBScore
-                    }
-                })
+        setExpandedMatchDayId(matchDayId)
 
-                return {
-                    matchDay,
-                    matches: matchesWithScores,
-                    courseName: course?.name || 'Unknown Course'
-                }
-            })
+        // If not in cache, fetch matches
+        if (!matchesCache[matchDayId]) {
+            const effectiveLeagueId = leagueId || currentLeague?.id
+            if (!effectiveLeagueId) return
+
+            setLoadingMatchDayId(matchDayId)
+            try {
+                const matches = await api.getMatchDayMatches(effectiveLeagueId, matchDayId)
+                setMatchesCache(prev => ({ ...prev, [matchDayId]: matches }))
+            } catch (err) {
+                console.error(`Failed to load matches for match day ${matchDayId}:`, err)
+                // Optionally show error toast
+            } finally {
+                setLoadingMatchDayId(null)
+            }
+        }
     }
 
-    // Calculate points for a match
+    const handleExpandMatch = async (matchId: string) => {
+        if (expandedMatchId === matchId) {
+            setExpandedMatchId(null)
+            return
+        }
+
+        setExpandedMatchId(matchId)
+
+        // If not in cache, fetch scores
+        if (!scoresCache[matchId]) {
+            const effectiveLeagueId = leagueId || currentLeague?.id
+            if (!effectiveLeagueId) return
+
+            setLoadingMatchId(matchId)
+            try {
+                const scores = await api.getMatchScores(effectiveLeagueId, matchId)
+                setScoresCache(prev => ({ ...prev, [matchId]: scores }))
+            } catch (err) {
+                console.error(`Failed to load scores for match ${matchId}:`, err)
+            } finally {
+                setLoadingMatchId(null)
+            }
+        }
+    }
+
+    // Calculate points for a match (reused logic)
     const calculateMatchPoints = (
-        playerAScore: Score | undefined, 
+        playerAScore: Score | undefined,
         playerBScore: Score | undefined,
         match: Match
     ): { playerAHolePoints: number[], playerBHolePoints: number[], playerATotal: number, playerBTotal: number } => {
@@ -172,21 +166,21 @@ export default function Results() {
         const playerBHolePoints: number[] = []
         let playerATotal = 0
         let playerBTotal = 0
-        
+
         // Use stored match points when available
         if (match.playerAPoints !== undefined && match.playerBPoints !== undefined) {
             playerATotal = match.playerAPoints
             playerBTotal = match.playerBPoints
         }
-        
+
         if (playerAScore && playerBScore) {
-            const playerANetScores = playerAScore.matchNetHoleScores || playerAScore.holeScores
-            const playerBNetScores = playerBScore.matchNetHoleScores || playerBScore.holeScores
-            
+            const playerANetScores = playerAScore.matchNetHoleScores
+            const playerBNetScores = playerBScore.matchNetHoleScores
+
             for (let i = 0; i < 9; i++) {
                 const aNet = playerANetScores[i]
                 const bNet = playerBNetScores[i]
-                
+
                 if (aNet < bNet) {
                     playerAHolePoints.push(2)
                     playerBHolePoints.push(0)
@@ -198,43 +192,23 @@ export default function Results() {
                     playerBHolePoints.push(1)
                 }
             }
-            
-            // If no stored totals, calculate them
-            if (match.playerAPoints === undefined || match.playerBPoints === undefined) {
-                playerATotal = playerAHolePoints.reduce((a, b) => a + b, 0)
-                playerBTotal = playerBHolePoints.reduce((a, b) => a + b, 0)
-                
-                // Add overall match points (4 points for lower total)
-                const aMatchNet = playerAScore.matchNetScore ?? playerAScore.netScore
-                const bMatchNet = playerBScore.matchNetScore ?? playerBScore.netScore
-                
-                if (aMatchNet < bMatchNet) {
-                    playerATotal += 4
-                } else if (aMatchNet > bMatchNet) {
-                    playerBTotal += 4
-                } else {
-                    playerATotal += 2
-                    playerBTotal += 2
-                }
-            }
         }
-        
+
         return { playerAHolePoints, playerBHolePoints, playerATotal, playerBTotal }
     }
 
-    // Build scorecard rows for a match
+    // Build scorecard rows (reused logic)
     const buildScorecardRows = (
         matchData: MatchWithScores,
         course: Course | undefined
     ) => {
         const { match, playerAName, playerBName, playerAScore, playerBScore } = matchData
-        
+
         if (!playerAScore || !playerBScore) return []
 
-        const { playerAHolePoints, playerBHolePoints, playerATotal, playerBTotal } = 
+        const { playerAHolePoints, playerBHolePoints, playerATotal, playerBTotal } =
             calculateMatchPoints(playerAScore, playerBScore, match)
 
-        // Calculate cell colors for net scores based on hole results
         const getPlayerANetCellColors = (): ('win' | 'loss' | 'tie' | 'none')[] => {
             const playerANetScores = playerAScore.matchNetHoleScores || playerAScore.holeScores
             const playerBNetScores = playerBScore.matchNetHoleScores || playerBScore.holeScores
@@ -245,7 +219,7 @@ export default function Results() {
                 return 'tie'
             })
         }
-        
+
         const getPlayerBNetCellColors = (): ('win' | 'loss' | 'tie' | 'none')[] => {
             const playerANetScores = playerAScore.matchNetHoleScores || playerAScore.holeScores
             const playerBNetScores = playerBScore.matchNetHoleScores || playerBScore.holeScores
@@ -263,55 +237,53 @@ export default function Results() {
         return [
             ...(course?.holePars ? [{ label: 'Par', scores: course.holePars, total: course.par, withBorder: false }] : []),
             ...(course?.holeHandicaps ? [{ label: 'Hole Hdcp', scores: course.holeHandicaps, total: '', withBorder: true }] : []),
-            // Player A rows grouped together
-            { 
-                label: playerAScore.playerAbsent ? `${playerAName} Gross (Absent)` : `${playerAName} Gross`, 
-                scores: playerAScore.holeScores, 
-                total: playerAScore.grossScore, 
+            {
+                label: playerAScore.playerAbsent ? `${playerAName} Gross (Absent)` : `${playerAName} Gross`,
+                scores: playerAScore.holeScores,
+                total: playerAScore.grossScore,
                 withBorder: false,
                 showGolfSymbols: !playerAScore.playerAbsent && !!course?.holePars,
                 pars: course?.holePars
             },
             { label: `${playerAName} Strokes`, scores: playerAScore.matchStrokes || EMPTY_STROKES_ARRAY, total: playerAScore.strokesReceived, withBorder: false, color: 'var(--color-accent)' },
-            { 
-                label: `${playerAName} Net`, 
-                scores: playerAScore.matchNetHoleScores || playerAScore.holeScores, 
-                total: playerAScore.matchNetScore ?? playerAScore.netScore, 
-                withBorder: false, 
+            {
+                label: `${playerAName} Net`,
+                scores: playerAScore.matchNetHoleScores || playerAScore.holeScores,
+                total: playerAScore.matchNetScore ?? playerAScore.netScore,
+                withBorder: false,
                 cellColors: playerANetCellColors
             },
             { label: `${playerAName} Pts`, scores: playerAHolePoints, total: playerATotal, withBorder: true, color: 'var(--color-primary)', bgColor: 'rgba(16, 185, 129, 0.15)' },
-            // Player B rows grouped together
-            { 
-                label: playerBScore.playerAbsent ? `${playerBName} Gross (Absent)` : `${playerBName} Gross`, 
-                scores: playerBScore.holeScores, 
-                total: playerBScore.grossScore, 
+            {
+                label: playerBScore.playerAbsent ? `${playerBName} Gross (Absent)` : `${playerBName} Gross`,
+                scores: playerBScore.holeScores,
+                total: playerBScore.grossScore,
                 withBorder: false,
                 showGolfSymbols: !playerBScore.playerAbsent && !!course?.holePars,
                 pars: course?.holePars
             },
             { label: `${playerBName} Strokes`, scores: playerBScore.matchStrokes || EMPTY_STROKES_ARRAY, total: playerBScore.strokesReceived, withBorder: false, color: 'var(--color-warning)' },
-            { 
-                label: `${playerBName} Net`, 
-                scores: playerBScore.matchNetHoleScores || playerBScore.holeScores, 
-                total: playerBScore.matchNetScore ?? playerBScore.netScore, 
-                withBorder: false, 
+            {
+                label: `${playerBName} Net`,
+                scores: playerBScore.matchNetHoleScores || playerBScore.holeScores,
+                total: playerBScore.matchNetScore ?? playerBScore.netScore,
+                withBorder: false,
                 cellColors: playerBNetCellColors
             },
             { label: `${playerBName} Pts`, scores: playerBHolePoints, total: playerBTotal, withBorder: false, color: 'var(--color-danger)', bgColor: 'rgba(239, 68, 68, 0.15)' }
         ]
     }
 
-    // Determine winner of match
+    // Determine winner of match (reused logic)
     const getMatchResult = (match: Match): { winner: string, loser: string, isTie: boolean } | null => {
         const aPoints = match.playerAPoints
         const bPoints = match.playerBPoints
-        
+
         if (aPoints === undefined || bPoints === undefined) return null
-        
+
         const playerAName = getPlayerName(match.playerAId)
         const playerBName = getPlayerName(match.playerBId)
-        
+
         if (aPoints > bPoints) {
             return { winner: playerAName, loser: playerBName, isTie: false }
         } else if (bPoints > aPoints) {
@@ -326,7 +298,14 @@ export default function Results() {
     }
 
     const effectiveLeague = currentLeague
-    const matchDayData = getMatchDaysByWeek()
+
+    // Filter match days
+    const filteredMatchDays = selectedSeasonId
+        ? matchDays.filter(md => md.seasonId === selectedSeasonId)
+        : matchDays
+
+    const sortedMatchDays = filteredMatchDays
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--gradient-dark)' }}>
@@ -378,19 +357,21 @@ export default function Results() {
                             <h3 style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <Calendar className="w-5 h-5" /> Match Weeks
                             </h3>
-                            
-                            {matchDayData.length === 0 ? (
+
+                            {sortedMatchDays.length === 0 ? (
                                 <p style={{ color: 'var(--color-text-muted)' }}>No completed match results yet.</p>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-                                    {matchDayData.map((mdData) => {
-                                        const isMatchDayExpanded = expandedMatchDayId === mdData.matchDay.id
-                                        const completedMatchesCount = mdData.matches.filter(m => m.match.status === 'completed').length
-                                        
+                                    {sortedMatchDays.map((matchDay) => {
+                                        const isMatchDayExpanded = expandedMatchDayId === matchDay.id
+                                        const course = getCourse(matchDay.courseId)
+                                        const matches = matchesCache[matchDay.id] || []
+                                        const isLoadingMatches = loadingMatchDayId === matchDay.id
+
                                         return (
-                                            <div 
-                                                key={mdData.matchDay.id}
-                                                style={{ 
+                                            <div
+                                                key={matchDay.id}
+                                                style={{
                                                     border: '1px solid var(--color-border)',
                                                     borderRadius: 'var(--radius-md)',
                                                     overflow: 'hidden'
@@ -398,7 +379,7 @@ export default function Results() {
                                             >
                                                 {/* Match Day Header */}
                                                 <button
-                                                    onClick={() => setExpandedMatchDayId(isMatchDayExpanded ? null : mdData.matchDay.id)}
+                                                    onClick={() => handleExpandMatchDay(matchDay.id)}
                                                     style={{
                                                         width: '100%',
                                                         padding: 'var(--spacing-md)',
@@ -412,108 +393,134 @@ export default function Results() {
                                                     }}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
-                                                        <span className="badge badge-primary">
-                                                            Week {mdData.matchDay.weekNumber || '?'}
-                                                        </span>
                                                         <div style={{ textAlign: 'left' }}>
                                                             <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
-                                                                {formatDateWithWeekday(mdData.matchDay.date)}
+                                                                {formatDateWithWeekday(matchDay.date)}
                                                             </p>
                                                             <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                                                {mdData.courseName} • {completedMatchesCount} match{completedMatchesCount !== 1 ? 'es' : ''}
+                                                                {course?.name || 'Unknown Course'}
                                                             </p>
-                                                    </div>
+                                                        </div>
                                                     </div>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
-                                                        <span className={`badge ${mdData.matchDay.status === MATCH_DAY_STATUS.LOCKED ? 'badge-secondary' : 'badge-success'}`}>
-                                                            {mdData.matchDay.status}
+                                                        <span className={`badge ${matchDay.status === MATCH_DAY_STATUS.LOCKED ? 'badge-secondary' : 'badge-success'}`}>
+                                                            {matchDay.status}
                                                         </span>
                                                         {isMatchDayExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                                                     </div>
                                                 </button>
-                                                
+
                                                 {/* Match Day Content */}
                                                 {isMatchDayExpanded && (
-                                                    <div style={{ 
+                                                    <div style={{
                                                         padding: 'var(--spacing-md)',
                                                         background: 'rgba(0, 0, 0, 0.2)',
                                                         borderTop: '1px solid var(--color-border)'
                                                     }}>
-                                                        {mdData.matches.length === 0 ? (
-                                                            <p style={{ color: 'var(--color-text-muted)' }}>No matches for this week.</p>
+                                                        {isLoadingMatches ? (
+                                                            <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>
+                                                                <LoadingSpinner />
+                                                            </div>
+                                                        ) : matches.length === 0 ? (
+                                                            <p style={{ color: 'var(--color-text-muted)' }}>No matches found for this week.</p>
                                                         ) : (
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-                                                                {mdData.matches.map((matchData) => {
-                                                                    const { match, playerAName, playerBName, playerAScore, playerBScore } = matchData
+                                                                {matches.map((match) => {
                                                                     const isMatchExpanded = expandedMatchId === match.id
                                                                     const matchResult = getMatchResult(match)
-                                                                    const course = getCourse(match.courseId)
-                                                                    const { playerATotal, playerBTotal } = calculateMatchPoints(playerAScore, playerBScore, match)
+                                                                    const playerAName = getPlayerName(match.playerAId)
+                                                                    const playerBName = getPlayerName(match.playerBId)
+
+                                                                    const matchScores = scoresCache[match.id] || []
+                                                                    const playerAScore = matchScores.find(s => s.playerId === match.playerAId)
+                                                                    const playerBScore = matchScores.find(s => s.playerId === match.playerBId)
+
+                                                                    const matchData: MatchWithScores = {
+                                                                        match,
+                                                                        playerAName,
+                                                                        playerBName,
+                                                                        playerAScore,
+                                                                        playerBScore
+                                                                    }
 
                                                                     const scorecardRows = buildScorecardRows(matchData, course)
-                                                                    
-                                                                    // Check if either player was absent
-                                                                    const playerAAbsent = playerAScore?.playerAbsent
-                                                                    const playerBAbsent = playerBScore?.playerAbsent
+                                                                    const isLoadingScores = loadingMatchId === match.id
+
+                                                                    // Use absence from match object if available, otherwise from score
+                                                                    const playerAAbsent = match.playerAAbsent || playerAScore?.playerAbsent
+                                                                    const playerBAbsent = match.playerBAbsent || playerBScore?.playerAbsent
+
+                                                                    // Calculate totals for display on card
+                                                                    const { playerATotal, playerBTotal } = calculateMatchPoints(playerAScore, playerBScore, match)
 
                                                                     return (
                                                                         <ExpandableCard
                                                                             key={match.id}
                                                                             isExpanded={isMatchExpanded}
-                                                                            onToggle={() => setExpandedMatchId(isMatchExpanded ? null : match.id)}
+                                                                            onToggle={() => handleExpandMatch(match.id)}
                                                                             header={
-                                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
-                                                                                    {matchResult && (
-                                                                                        <span className={`badge ${matchResult.isTie ? 'badge-secondary' : 'badge-success'}`}>
-                                                                                            {matchResult.isTie ? 'TIE' : 'WIN'}
-                                                                                        </span>
-                                                                                    )}
-                                                                                    <div style={{ textAlign: 'left' }}>
-                                                                                        <p style={{ fontWeight: '600', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                                                            <span>{playerAName}</span>
+                                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                                                    {/* Player A Row */}
+                                                                                    <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto', alignItems: 'center', gap: '0.5rem' }}>
+                                                                                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                                                                            {matchResult && !matchResult.isTie && matchResult.winner === playerAName && (
+                                                                                                <span className="badge badge-success" style={{ fontSize: '0.7rem', padding: '0.1rem 0.3rem' }}>WIN</span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                                            <span style={{ fontWeight: matchResult?.winner === playerAName ? 'bold' : 'normal' }}>{playerAName}</span>
                                                                                             {playerAAbsent && <AbsentBadge small />}
-                                                                                            <span>vs</span>
-                                                                                            <span>{playerBName}</span>
-                                                                                            {playerBAbsent && <AbsentBadge small />}
-                                                                                        </p>
-                                                                                        {matchResult && !matchResult.isTie && (
-                                                                                            <p style={{ fontSize: '0.75rem', color: 'var(--color-accent)' }}>
-                                                                                                Winner: {matchResult.winner}
-                                                                                            </p>
-                                                                                        )}
+                                                                                        </div>
+                                                                                        <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{playerATotal}</span>
                                                                                     </div>
+
+                                                                                    {/* Player B Row */}
+                                                                                    <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto', alignItems: 'center', gap: '0.5rem' }}>
+                                                                                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                                                                            {matchResult && !matchResult.isTie && matchResult.winner === playerBName && (
+                                                                                                <span className="badge badge-success" style={{ fontSize: '0.7rem', padding: '0.1rem 0.3rem' }}>WIN</span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                                            <span style={{ fontWeight: matchResult?.winner === playerBName ? 'bold' : 'normal' }}>{playerBName}</span>
+                                                                                            {playerBAbsent && <AbsentBadge small />}
+                                                                                        </div>
+                                                                                        <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{playerBTotal}</span>
+                                                                                    </div>
+
+                                                                                    {/* Winner Footer */}
+                                                                                    {matchResult && !matchResult.isTie && (
+                                                                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-accent)', marginTop: '0.25rem', paddingLeft: '48px' }}>
+                                                                                            Winner: {matchResult.winner}
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
                                                                             }
-                                                                            rightContent={
-                                                                                playerAScore && playerBScore && (
-                                                                                    <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-                                                                                        {playerATotal} - {playerBTotal} pts
-                                                                                    </span>
-                                                                                )
-                                                                            }
+                                                                            rightContent={null}
                                                                         >
-                                                                            {playerAScore && playerBScore && scorecardRows.length > 0 ? (
-                                                                                <>
-                                                                                    <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
-                                                                                        Match Scorecard
-                                                                                    </h4>
-                                                                                    <ScorecardTable rows={scorecardRows} />
-                                                                                    <div style={{ marginTop: 'var(--spacing-md)', padding: 'var(--spacing-md)', background: 'rgba(255, 255, 255, 0.05)', borderRadius: 'var(--radius-md)' }}>
-                                                                                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                                                                            Points: 2 per hole (winner takes both, tie splits 1-1) + 4 for lowest total net (tie splits 2-2)
-                                                                                        </p>
+                                                                            {
+                                                                                isLoadingScores ? (
+                                                                                    <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }} >
+                                                                                        <LoadingSpinner />
                                                                                     </div>
-                                                                                </>
-                                                                            ) : (
-                                                                                <p style={{ color: 'var(--color-text-muted)' }}>
-                                                                                    Scores not yet entered for this match.
-                                                                                </p>
-                                                                            )}
+                                                                                ) : playerAScore && playerBScore && scorecardRows.length > 0 ? (
+                                                                                    <>
+                                                                                        <h4 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
+                                                                                            Match Scorecard
+                                                                                        </h4>
+                                                                                        <ScorecardTable rows={scorecardRows} />
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <p style={{ color: 'var(--color-text-muted)' }}>
+                                                                                        Scores not yet entered for this match.
+                                                                                    </p>
+                                                                                )}
                                                                         </ExpandableCard>
                                                                     )
                                                                 })}
                                                             </div>
-                                                        )}
+                                                        )
+                                                        }
                                                     </div>
                                                 )}
                                             </div>
@@ -523,8 +530,9 @@ export default function Results() {
                             )}
                         </div>
                     </>
-                )}
-            </div>
-        </div>
+                )
+                }
+            </div >
+        </div >
     )
 }

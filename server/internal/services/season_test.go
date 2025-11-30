@@ -52,7 +52,6 @@ func TestMatchSeasonAssociation(t *testing.T) {
 	match := models.Match{
 		ID:         "match-1",
 		SeasonID:   season.ID,
-		WeekNumber: 1,
 		PlayerAID:  "player-1",
 		PlayerBID:  "player-2",
 		CourseID:   "course-1",
@@ -75,7 +74,6 @@ func TestCompletedMatchCannotBeEdited(t *testing.T) {
 	completedMatch := models.Match{
 		ID:         "match-1",
 		SeasonID:   "season-1",
-		WeekNumber: 1,
 		PlayerAID:  "player-1",
 		PlayerBID:  "player-2",
 		CourseID:   "course-1",
@@ -86,7 +84,6 @@ func TestCompletedMatchCannotBeEdited(t *testing.T) {
 	scheduledMatch := models.Match{
 		ID:         "match-2",
 		SeasonID:   "season-1",
-		WeekNumber: 2,
 		PlayerAID:  "player-3",
 		PlayerBID:  "player-4",
 		CourseID:   "course-1",

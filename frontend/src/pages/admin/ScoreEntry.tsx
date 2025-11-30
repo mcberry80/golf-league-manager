@@ -32,7 +32,7 @@ export default function ScoreEntry() {
     const [absentPlayers, setAbsentPlayers] = useState<Record<string, boolean>>({})
     const [submitting, setSubmitting] = useState(false)
     const [hasExistingScores, setHasExistingScores] = useState(false)
-    
+
     // Message state
     const [message, setMessage] = useState<Message | null>(null)
 
@@ -81,7 +81,7 @@ export default function ScoreEntry() {
 
     async function handleMatchDaySelect(matchDayId: string) {
         setMessage(null)
-        
+
         if (!matchDayId) {
             setSelectedMatchDay(null)
             setScores({})
@@ -123,7 +123,7 @@ export default function ScoreEntry() {
                             }
                             initialAbsent[key] = score.playerAbsent || false
                         })
-                        
+
                         if (matchDay.status === 'completed') {
                             setMessage({
                                 type: 'info',
@@ -164,7 +164,7 @@ export default function ScoreEntry() {
 
         setMessage(null)
         setSubmitting(true)
-        
+
         try {
             const dayMatches = matches.filter(m => m.matchDayId === selectedMatchDay.id)
             const scoreSubmissions = []
@@ -196,7 +196,7 @@ export default function ScoreEntry() {
                 setMessage({
                     type: 'success',
                     text: `Scores ${actionText} successfully!`,
-                    details: response.warnings && response.warnings.length > 0 
+                    details: response.warnings && response.warnings.length > 0
                         ? [`${response.count} scores processed`, ...response.warnings]
                         : [`${response.count} scores processed. Matches completed and handicaps updated.`]
                 })
@@ -258,10 +258,10 @@ export default function ScoreEntry() {
             <tr key={key}>
                 <td style={{ padding: '0.5rem', fontWeight: '600' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <label 
-                            style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
+                        <label
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
                                 gap: '0.25rem',
                                 cursor: isLocked ? 'not-allowed' : 'pointer',
                                 fontSize: '0.75rem',
@@ -275,23 +275,23 @@ export default function ScoreEntry() {
                                 checked={isAbsent}
                                 onChange={(e) => handleAbsentChange(matchId, playerId, e.target.checked)}
                                 disabled={isLocked}
-                                style={{ 
+                                style={{
                                     cursor: isLocked ? 'not-allowed' : 'pointer',
                                     accentColor: 'var(--color-warning)'
                                 }}
                             />
                             <span style={{ fontSize: '0.65rem' }}>Absent</span>
                         </label>
-                        <span style={{ 
+                        <span style={{
                             textDecoration: isAbsent ? 'line-through' : 'none',
                             opacity: isAbsent ? 0.7 : 1
                         }}>
                             {getPlayerName(playerId)}
                         </span>
                         {isAbsent && (
-                            <span 
-                                style={{ 
-                                    fontSize: '0.65rem', 
+                            <span
+                                style={{
+                                    fontSize: '0.65rem',
                                     backgroundColor: 'var(--color-warning)',
                                     color: '#000',
                                     padding: '0.1rem 0.3rem',
@@ -314,9 +314,9 @@ export default function ScoreEntry() {
                             min="0"
                             max="15"
                             disabled={isAbsent || isLocked}
-                            style={{ 
-                                width: '40px', 
-                                padding: '0.25rem', 
+                            style={{
+                                width: '40px',
+                                padding: '0.25rem',
                                 textAlign: 'center',
                                 opacity: (isAbsent || isLocked) ? 0.5 : 1,
                                 backgroundColor: (isAbsent || isLocked) ? 'var(--color-bg-tertiary)' : undefined,
@@ -326,10 +326,10 @@ export default function ScoreEntry() {
                         />
                     </td>
                 ))}
-                <td style={{ 
-                    padding: '0.5rem', 
-                    textAlign: 'center', 
-                    fontWeight: '700', 
+                <td style={{
+                    padding: '0.5rem',
+                    textAlign: 'center',
+                    fontWeight: '700',
                     color: isAbsent ? 'var(--color-warning)' : 'var(--color-primary)'
                 }}>
                     {isAbsent ? (
@@ -347,7 +347,7 @@ export default function ScoreEntry() {
         if (!message) return null
 
         const alertClass = `alert alert-${message.type}`
-        
+
         return (
             <div className={alertClass} style={{ marginBottom: 'var(--spacing-lg)' }}>
                 <strong>{message.text}</strong>
@@ -410,11 +410,11 @@ export default function ScoreEntry() {
                                     )
                                 })}
                             </select>
-                            
+
                             {/* Match day status legend */}
                             <div style={{ marginTop: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-lg)', flexWrap: 'wrap' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
-                                    <span style={{ 
+                                    <span style={{
                                         display: 'inline-block',
                                         width: '12px',
                                         height: '12px',
@@ -424,7 +424,7 @@ export default function ScoreEntry() {
                                     <span style={{ color: 'var(--color-text-muted)' }}>Scheduled - Ready for score entry</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
-                                    <span style={{ 
+                                    <span style={{
                                         display: 'inline-block',
                                         width: '12px',
                                         height: '12px',
@@ -434,7 +434,7 @@ export default function ScoreEntry() {
                                     <span style={{ color: 'var(--color-text-muted)' }}>Completed - Scores can be updated</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
-                                    <span style={{ 
+                                    <span style={{
                                         display: 'inline-block',
                                         width: '12px',
                                         height: '12px',
@@ -462,7 +462,7 @@ export default function ScoreEntry() {
                             <div className="alert alert-error" style={{ marginBottom: 'var(--spacing-lg)' }}>
                                 <strong>🔒 This match week is locked.</strong>
                                 <p style={{ marginTop: '0.5rem', marginBottom: 0 }}>
-                                    Scores for locked match weeks cannot be modified. A match week becomes locked when 
+                                    Scores for locked match weeks cannot be modified. A match week becomes locked when
                                     scores are entered for a later match week in the same season.
                                 </p>
                             </div>
@@ -473,7 +473,7 @@ export default function ScoreEntry() {
                             <div className="alert alert-info" style={{ marginBottom: 'var(--spacing-lg)' }}>
                                 <strong>ℹ️ Updating Existing Scores</strong>
                                 <p style={{ marginTop: '0.5rem', marginBottom: 0 }}>
-                                    This match week already has scores entered. Saving will update the existing scores 
+                                    This match week already has scores entered. Saving will update the existing scores
                                     and recalculate handicaps.
                                 </p>
                             </div>
@@ -481,8 +481,8 @@ export default function ScoreEntry() {
 
                         {/* Absent player info box */}
                         {!isLocked && (
-                            <div className="card-glass" style={{ 
-                                marginBottom: 'var(--spacing-lg)', 
+                            <div className="card-glass" style={{
+                                marginBottom: 'var(--spacing-lg)',
                                 padding: 'var(--spacing-md)',
                                 backgroundColor: 'rgba(234, 179, 8, 0.1)',
                                 borderLeft: '3px solid var(--color-warning)'
@@ -490,9 +490,9 @@ export default function ScoreEntry() {
                                 <h4 style={{ color: 'var(--color-warning)', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
                                     ℹ️ Absent Player Rules
                                 </h4>
-                                <ul style={{ 
-                                    fontSize: '0.8rem', 
-                                    color: 'var(--color-text-muted)', 
+                                <ul style={{
+                                    fontSize: '0.8rem',
+                                    color: 'var(--color-text-muted)',
                                     marginLeft: '1rem',
                                     lineHeight: '1.6'
                                 }}>
