@@ -236,6 +236,7 @@ func CalculateAdjustedGrossScores(grossScores []int, course models.Course, cours
 // course_handicap = (league_handicap * slope_rating / 113) + (course_rating - par)
 // playing_handicap = round(course_handicap * 0.95)
 func CalculateCourseAndPlayingHandicap(leagueHC float64, course models.Course) (float64, int) {
+	
 	courseHC := CourseHandicap(leagueHC, course.SlopeRating, course.CourseRating, course.Par)
 	playingHC := PlayingHandicap(courseHC, 0.95)
 	return courseHC, playingHC
